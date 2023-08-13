@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="MainWindow" parent="AdwApplicationWindow">
+    <property name="title" translatable="yes">Chirp</property>
+    <property name="default_width">650</property>
+    <property name="default_height">550</property>
+    <child>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="hexpand">True</property>
+        <property name="width-request">250</property>
+        <child>
+          <object class="AdwHeaderBar">
+          </object>
+        </child>
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="visible">True</property>
+            <property name="vexpand">True</property>
+              <property name="child">
+                <object class="AdwClamp">
+                  <property name="child">
+                    <object class="GtkBox">
+                      <property name="orientation">vertical</property>
+                      <property name="margin-top">12</property>
+                      <property name="margin-bottom">12</property>
+                      <property name="margin-start">12</property>
+                      <property name="margin-end">12</property>
+                      <property name="spacing">12</property>
+                      <child>
+                        <object class="GtkListBox" id="message_list">
+                          <property name="visible">True</property>
+                          <property name="selection-mode">none</property>
+                          <style>
+                            <class name="boxed-list" />
+                          </style>
+                        </object>
+                      </child>
+                    </object>
+                  </property>
+                </object>
+              </property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <child>
+              <object class="GtkEntry" id="message_box">
+                <property name="hexpand">True</property>
+                <property name="visible">True</property>
+                <property name="can-focus">True</property>
+                <property name="secondary-icon-name">go-next-symbolic</property>
+              </object>
+            </child>
+
+          </object>
+
+        </child>
+      </object>
+    </child>
+  </template>
+</interface>

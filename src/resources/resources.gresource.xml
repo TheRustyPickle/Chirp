@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<gresources>
+    <gresource prefix="/com/github/therustypickle/chirp/">
+        <file compressed="true" preprocess="xml-stripblanks">window.xml</file>
+        <file compressed="true" preprocess="xml-stripblanks">message_row.xml</file>
+    </gresource>
+</gresources>
