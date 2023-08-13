@@ -1,21 +1,31 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="MessageRow" parent="GtkBox">
-    <property name="orientation">vertical</property>
+    <property name="orientation">horizontal</property>
+    <property name="hexpand">True</property>
     <child>
-      <object class="GtkLabel" id="sent_by">
-        <property name="margin-top">12</property>
-        <property name="margin-bottom">12</property>
-        <property name="margin-start">12</property>
-        <property name="margin-end">12</property>
-      </object>
-    </child>
-    <child>
-      <object class="GtkLabel" id="message">
-        <property name="margin-top">12</property>
-        <property name="margin-bottom">12</property>
-        <property name="margin-start">12</property>
-        <property name="margin-end">12</property>
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="hexpand">True</property>
+        <child>
+          <object class="GtkLabel" id="sent_by">
+            <property name="hexpand">True</property>
+            <property name="margin-start">6</property>
+            <property name="margin-end">2</property>
+            <property name="margin-top">2</property>
+            <property name="margin-bottom">5</property>
+            
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="message">
+            <property name="margin-start">6</property>
+            <property name="margin-end">6</property>
+            <property name="margin-top">0</property>
+            <property name="margin-bottom">6</property>
+            <property name="wrap">true</property>
+          </object>
+        </child>
       </object>
     </child>
   </template>

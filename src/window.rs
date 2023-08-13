@@ -88,16 +88,16 @@ impl Window {
 
         imp.message_box
             .connect_activate(clone!(@weak self as window => move |_| {
-                window.new_message();
+                window.new_message(true);
             }));
 
         imp.message_box
             .connect_icon_release(clone!(@weak self as window => move |_, _| {
-                window.new_message();
+                window.new_message(true);
             }));
     }
 
-    fn new_message(&self) {
+    fn new_message(&self, is_send: bool) {
         let message_buffer = self.imp().message_box.buffer();
         let message_text = message_buffer.text().to_string();
 
@@ -109,8 +109,14 @@ impl Window {
 
         let message_object = MessageObject::new("Me".to_string(), message_text.clone());
 
-        let message_row = MessageRow::new();
+        let message_row = MessageRow::new(is_send);
         message_row.bind(&message_object);
+
+        if is_send {
+            message_row.add_css_class("sent-message")
+        } else {
+            message_row.add_css_class("received-message")
+        }
 
         self.get_message_list().append(&message_row);
     }
@@ -130,5 +136,8 @@ impl Window {
             .messages
             .set(list.clone())
             .expect("Could not set collections");
+
+            self.imp().message_box.buffer().set_text("Initial message");
+        self.new_message(false)
     }
 }

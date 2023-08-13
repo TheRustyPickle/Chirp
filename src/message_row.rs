@@ -3,11 +3,12 @@ mod imp {
 
     use adw::subclass::prelude::*;
     use glib::Binding;
-    use gtk::{glib, CheckButton, CompositeTemplate, Label};
+    use gtk::{glib, CheckButton, CompositeTemplate, Label, Image};
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
     pub struct MessageRow {
+        
         #[template_child]
         pub sent_by: TemplateChild<Label>,
         #[template_child]
@@ -44,7 +45,7 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use glib::Object;
-use gtk::{glib, pango};
+use gtk::{glib, pango, Image, IconSize, Align};
 use pango::{AttrInt, AttrList};
 
 use crate::message_data::MessageObject;
@@ -56,8 +57,28 @@ glib::wrapper! {
 }
 
 impl MessageRow {
-    pub fn new() -> Self {
-        Object::builder().build()
+    pub fn new(is_send: bool) -> Self {
+        let row: MessageRow = Object::builder().build();
+
+        if is_send {
+            let sender_image = Image::from_icon_name("image-x-generic");
+            sender_image.set_icon_size(IconSize::Large);
+            sender_image.set_halign(Align::End);
+            row.append(&sender_image);
+            
+            row.imp().sent_by.set_halign(Align::End);
+            row.imp().message.set_halign(Align::End);
+        } else {
+            let sender_image = Image::from_icon_name("image-x-generic");
+            sender_image.set_icon_size(IconSize::Large);
+            sender_image.set_halign(Align::Start);
+            row.prepend(&sender_image);
+            
+            row.imp().sent_by.set_halign(Align::Start);
+            row.imp().message.set_halign(Align::Start);
+        }
+
+        row
     }
 
     pub fn bind(&self, message_object: &MessageObject) {
