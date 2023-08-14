@@ -1,17 +1,10 @@
 mod imp {
-    use crate::APP_ID;
 
-    use std::cell::{OnceCell, RefCell};
-    use std::fs::File;
-
-    use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use adw::Leaflet;
-    use gio::{ListStore, Settings};
+    use gio::ListStore;
     use glib::subclass::InitializingObject;
-    use gtk::ffi::GtkEntry;
-    use gtk::glib::SignalHandlerId;
-    use gtk::{gio, glib, Button, CompositeTemplate, Entry, FilterListModel, ListBox, Stack};
+    use gtk::{gio, glib, CompositeTemplate, Entry, ListBox};
+    use std::cell::OnceCell;
 
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
@@ -60,13 +53,10 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use adw::{ActionRow, Application, MessageDialog, NavigationDirection, ResponseAppearance};
-use gio::{ListStore, Settings};
+use adw::Application;
+use gio::ListStore;
 use glib::{clone, Object};
-use gtk::{
-    gio, glib, pango, Align, CheckButton, CustomFilter, Entry, FilterListModel, Label, ListBox,
-    ListBoxRow, NoSelection, SelectionMode,
-};
+use gtk::{gio, glib, ListBox};
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
@@ -121,10 +111,6 @@ impl Window {
         self.get_message_list().append(&message_row);
     }
 
-    fn get_messages(&self) -> ListStore {
-        self.imp().messages.get().unwrap().clone()
-    }
-
     fn get_message_list(&self) -> ListBox {
         self.imp().message_list.clone()
     }
@@ -137,7 +123,7 @@ impl Window {
             .set(list.clone())
             .expect("Could not set collections");
 
-            self.imp().message_box.buffer().set_text("Initial message");
+        self.imp().message_box.buffer().set_text("Initial message");
         self.new_message(false)
     }
 }

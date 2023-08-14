@@ -26,10 +26,8 @@ mod imp {
     impl ObjectImpl for MessageObject {}
 }
 
-use crate::message_row::MessageRow;
-use adw::subclass::prelude::*;
 use glib::Object;
-use gtk::glib;
+use gtk::{glib, IconSize, Image};
 
 glib::wrapper! {
     pub struct MessageObject(ObjectSubclass<imp::MessageObject>);
@@ -37,6 +35,9 @@ glib::wrapper! {
 
 impl MessageObject {
     pub fn new(sent_by: String, message: String) -> Self {
+        let placeholder_image = Image::from_icon_name("image-x-generic");
+        placeholder_image.set_icon_size(IconSize::Large);
+
         Object::builder()
             .property("sent-by", sent_by)
             .property("message", message)

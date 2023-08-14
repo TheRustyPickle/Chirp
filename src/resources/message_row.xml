@@ -4,6 +4,12 @@
     <property name="orientation">horizontal</property>
     <property name="hexpand">True</property>
     <child>
+      <object class="GtkImage" id="receiver">
+        <property name="visible">true</property>
+        <property name="halign">start</property>
+      </object>
+    </child>
+    <child>
       <object class="GtkBox">
         <property name="orientation">vertical</property>
         <property name="hexpand">True</property>
@@ -14,19 +20,22 @@
             <property name="margin-end">2</property>
             <property name="margin-top">2</property>
             <property name="margin-bottom">5</property>
-            
           </object>
         </child>
         <child>
           <object class="GtkLabel" id="message">
             <property name="margin-start">6</property>
-            <property name="margin-end">6</property>
-            <property name="margin-top">0</property>
-            <property name="margin-bottom">6</property>
+            <property name="margin-end">2</property>
+            <property name="margin-top">2</property>
+            <property name="margin-bottom">0</property>
             <property name="wrap">true</property>
           </object>
         </child>
       </object>
     </child>
+    <object class="GtkImage" id="sender">
+      <property name="visible">true</property>
+      <property name="halign">end</property>
+    </object>
   </template>
 </interface>

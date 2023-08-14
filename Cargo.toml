@@ -9,6 +9,8 @@ edition = "2021"
 adw = { version = "0.5.2", package = "libadwaita", features = ["gtk_v4_10", "v1_2"] }
 gio = "0.18.1"
 gtk = { version = "0.7.1", package = "gtk4", features = ["v4_10"] }
+rand = "0.8.5"
+reqwest = { version = "0.11.18", features = ["blocking"] }
 
 [build-dependencies]
 glib-build-tools = "0.18.0"
