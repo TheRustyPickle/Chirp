@@ -5,14 +5,15 @@
     <property name="hexpand">True</property>
     <child>
       <object class="GtkImage" id="receiver">
-        <property name="visible">true</property>
-        <property name="halign">start</property>
+        <property name="visible">false</property>
+        <property name="icon-name">image-x-generic</property>
+        <property name="icon-size">large</property>
       </object>
     </child>
     <child>
       <object class="GtkBox">
         <property name="orientation">vertical</property>
-        <property name="hexpand">True</property>
+        <property name="vexpand">True</property>
         <child>
           <object class="GtkLabel" id="sent_by">
             <property name="hexpand">True</property>
@@ -24,18 +25,22 @@
         </child>
         <child>
           <object class="GtkLabel" id="message">
+            <property name="hexpand">True</property>
             <property name="margin-start">6</property>
             <property name="margin-end">2</property>
             <property name="margin-top">2</property>
-            <property name="margin-bottom">0</property>
-            <property name="wrap">true</property>
+            <property name="margin-bottom">5</property>
+            <property name="wrap-mode">word-char</property>
           </object>
         </child>
       </object>
     </child>
-    <object class="GtkImage" id="sender">
-      <property name="visible">true</property>
-      <property name="halign">end</property>
-    </object>
+    <child>
+      <object class="GtkImage" id="sender">
+        <property name="visible">false</property>
+        <property name="icon-name">image-x-generic</property>
+        <property name="icon-size">large</property>
+      </object>
+    </child>
   </template>
 </interface>

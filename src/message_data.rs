@@ -1,6 +1,7 @@
 mod imp {
     use std::cell::RefCell;
 
+    use crate::user_data::UserObject;
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use glib::Properties;
@@ -12,13 +13,17 @@ mod imp {
     #[properties(wrapper_type = super::MessageObject)]
     pub struct MessageObject {
         #[property(name = "message", get, set, type = String, member = message)]
-        #[property(name = "sent-by", get, set, type = String, member = sent_by)]
+        #[property(name = "is-send", get, set, type = bool, member = is_send)]
         pub data: RefCell<MessageData>,
+        #[property(get, set)]
+        pub sent_from: RefCell<Option<UserObject>>,
+        #[property(get, set)]
+        pub sent_to: RefCell<Option<UserObject>>,
     }
 
     #[glib::object_subclass]
     impl ObjectSubclass for MessageObject {
-        const NAME: &'static str = "ChirpMessageObject";
+        const NAME: &'static str = "MessageObject";
         type Type = super::MessageObject;
     }
 
@@ -27,26 +32,29 @@ mod imp {
 }
 
 use glib::Object;
-use gtk::{glib, IconSize, Image};
+use gtk::glib;
+use gtk::prelude::*;
+
+use crate::user_data::UserObject;
 
 glib::wrapper! {
     pub struct MessageObject(ObjectSubclass<imp::MessageObject>);
 }
 
 impl MessageObject {
-    pub fn new(sent_by: String, message: String) -> Self {
-        let placeholder_image = Image::from_icon_name("image-x-generic");
-        placeholder_image.set_icon_size(IconSize::Large);
-
-        Object::builder()
-            .property("sent-by", sent_by)
+    pub fn new(message: String, is_send: bool, sent_from: UserObject, sent_to: UserObject) -> Self {
+        let obj: MessageObject = Object::builder()
+            .property("is-send", is_send)
             .property("message", message)
-            .build()
+            .property("sent-from", sent_from)
+            .property("sent-to", sent_to)
+            .build();
+        obj
     }
 }
 
 #[derive(Default, Clone)]
 pub struct MessageData {
-    pub sent_by: String,
     pub message: String,
+    pub is_send: bool,
 }

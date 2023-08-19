@@ -3,6 +3,5 @@
     <gresource prefix="/com/github/therustypickle/chirp/">
         <file compressed="true" preprocess="xml-stripblanks">window.xml</file>
         <file compressed="true" preprocess="xml-stripblanks">message_row.xml</file>
-        <file compressed="true">style.css</file>
     </gresource>
 </gresources>

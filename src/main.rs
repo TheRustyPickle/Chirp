@@ -1,5 +1,6 @@
 mod message_data;
 mod message_row;
+mod user_data;
 mod utils;
 mod window;
 
@@ -19,7 +20,7 @@ fn main() -> ExitCode {
 
     let app = Application::builder().application_id(APP_ID).build();
 
-    app.connect_startup(|_app| load_css());
+    //app.connect_startup(|_app| load_css());
     app.connect_activate(build_ui);
     app.run()
 }

@@ -4,7 +4,12 @@ mod imp {
     use gio::ListStore;
     use glib::subclass::InitializingObject;
     use gtk::{gio, glib, CompositeTemplate, Entry, ListBox};
-    use std::cell::OnceCell;
+    use std::{
+        cell::{OnceCell, RefCell},
+        rc::Rc,
+    };
+
+    use crate::user_data::UserObject;
 
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
@@ -13,7 +18,9 @@ mod imp {
         pub message_box: TemplateChild<Entry>,
         #[template_child]
         pub message_list: TemplateChild<ListBox>,
-        pub messages: OnceCell<ListStore>,
+        pub users: OnceCell<ListStore>,
+        pub chatting_with: Rc<RefCell<Option<UserObject>>>,
+        pub own_profile: Rc<RefCell<Option<UserObject>>>,
     }
 
     #[glib::object_subclass]
@@ -38,7 +45,7 @@ mod imp {
             self.parent_constructed();
             let obj = self.obj();
             obj.setup_callbacks();
-            obj.setup_message_list();
+            obj.setup_users();
         }
     }
 
@@ -60,6 +67,8 @@ use gtk::{gio, glib, ListBox};
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
+use crate::user_data::UserObject;
+use crate::utils::generate_avatar_link;
 
 glib::wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -78,52 +87,93 @@ impl Window {
 
         imp.message_box
             .connect_activate(clone!(@weak self as window => move |_| {
-                window.new_message(true);
+                window.new_message();
+                window.new_receive_message("Bot message received");
             }));
 
         imp.message_box
             .connect_icon_release(clone!(@weak self as window => move |_, _| {
-                window.new_message(true);
+                window.new_message();
             }));
     }
 
-    fn new_message(&self, is_send: bool) {
-        let message_buffer = self.imp().message_box.buffer();
-        let message_text = message_buffer.text().to_string();
+    fn setup_users(&self) {
+        let users = ListStore::new::<UserObject>();
+        self.imp().users.set(users).expect("Could not set users");
 
-        if message_text.is_empty() {
+        let data = self.create_user("Me");
+        self.imp().own_profile.replace(Some(data));
+        let data = self.create_user("Bot reply");
+        self.imp().chatting_with.replace(Some(data));
+    }
+
+    fn get_chatting_with(&self) -> UserObject {
+        self.imp()
+            .chatting_with
+            .borrow()
+            .clone()
+            .expect("Expected an UserObject")
+    }
+
+    fn get_chatting_from(&self) -> UserObject {
+        self.imp()
+            .own_profile
+            .borrow()
+            .clone()
+            .expect("Expected an UserObject")
+    }
+
+    fn get_all_users(&self) -> ListStore {
+        self.imp()
+            .users
+            .get()
+            .expect("User liststore is not set")
+            .clone()
+    }
+
+    fn chatting_with_messages(&self) -> ListStore {
+        self.get_chatting_with().messages()
+    }
+
+    fn new_message(&self) {
+        let buffer = self.imp().message_box.buffer();
+        let content = buffer.text().to_string();
+        if content.is_empty() {
             return;
         }
+        buffer.set_text("");
 
-        message_buffer.set_text("");
+        let sender = self.get_chatting_from();
+        let receiver = self.get_chatting_with();
+        let message = MessageObject::new(content, true, sender, receiver);
 
-        let message_object = MessageObject::new("Me".to_string(), message_text.clone());
+        self.chatting_with_messages().append(&message);
 
-        let message_row = MessageRow::new(is_send);
-        message_row.bind(&message_object);
+        let row = MessageRow::new(message);
+        row.bind();
+        self.get_message_list().append(&row);
+    }
 
-        if is_send {
-            message_row.add_css_class("sent-message")
-        } else {
-            message_row.add_css_class("received-message")
-        }
+    fn new_receive_message(&self, content: &str) {
+        let sender = self.get_chatting_from();
+        let receiver = self.get_chatting_with();
+        let message = MessageObject::new(content.to_string(), false, sender, receiver);
 
-        self.get_message_list().append(&message_row);
+        self.chatting_with_messages().append(&message);
+
+        let row = MessageRow::new(message);
+        row.bind();
+        self.get_message_list().append(&row);
+    }
+
+    fn create_user(&self, name: &str) -> UserObject {
+        let messages = ListStore::new::<MessageObject>();
+        let user_data = UserObject::new(name, Some(generate_avatar_link()), messages);
+        self.get_all_users().append(&user_data);
+        user_data
     }
 
     fn get_message_list(&self) -> ListBox {
-        self.imp().message_list.clone()
-    }
-
-    fn setup_message_list(&self) {
-        let list = ListStore::new::<MessageObject>();
-
-        self.imp()
-            .messages
-            .set(list.clone())
-            .expect("Could not set collections");
-
-        self.imp().message_box.buffer().set_text("Initial message");
-        self.new_message(false)
+        self.imp().message_list.get()
     }
 }
