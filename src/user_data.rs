@@ -71,14 +71,14 @@ impl UserObject {
             .property("messages", messages)
             .build();
 
-        if image_link.is_some() {
+        /*if image_link.is_some() {
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
             gio::spawn_blocking(move || {
                 let avatar = get_avatar(image_link.unwrap());
                 sender.send(avatar).unwrap();
             });
-        }
+        }*/
         obj
     }
 
