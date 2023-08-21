@@ -3,7 +3,7 @@ mod imp {
     use adw::subclass::prelude::*;
     use gio::ListStore;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, glib, CompositeTemplate, Entry, ListBox};
+    use gtk::{gio, glib, CompositeTemplate, Entry, ListBox, TextView, Button};
     use std::{
         cell::{OnceCell, RefCell},
         rc::Rc,
@@ -15,9 +15,11 @@ mod imp {
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
     pub struct Window {
         #[template_child]
-        pub message_box: TemplateChild<Entry>,
+        pub message_box: TemplateChild<TextView>,
         #[template_child]
         pub message_list: TemplateChild<ListBox>,
+        //#[template_child]
+        //send_button: TemplateChild<Button>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -85,7 +87,7 @@ impl Window {
     fn setup_callbacks(&self) {
         let imp = self.imp();
 
-        imp.message_box
+        /*imp.message_box
             .connect_activate(clone!(@weak self as window => move |_| {
                 window.new_message();
                 window.new_receive_message("Bot message received");
@@ -94,7 +96,7 @@ impl Window {
         imp.message_box
             .connect_icon_release(clone!(@weak self as window => move |_, _| {
                 window.new_message();
-            }));
+            }));*/
     }
 
     fn setup_users(&self) {
@@ -135,7 +137,7 @@ impl Window {
         self.get_chatting_with().messages()
     }
 
-    fn new_message(&self) {
+    /*fn new_message(&self) {
         let buffer = self.imp().message_box.buffer();
         let content = buffer.text().to_string();
         if content.is_empty() {
@@ -152,7 +154,7 @@ impl Window {
         let row = MessageRow::new(message);
         row.bind();
         self.get_message_list().append(&row);
-    }
+    }*/
 
     fn new_receive_message(&self, content: &str) {
         let sender = self.get_chatting_from();
