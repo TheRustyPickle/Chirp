@@ -4,10 +4,10 @@
     <property name="orientation">horizontal</property>
     <!-- Receiver side image on the left most side-->
     <child>
-      <object class="GtkImage" id="receiver">
+      <object class="AdwAvatar" id="receiver">
         <property name="visible">false</property>
-        <property name="icon-name">image-x-generic</property>
-        <property name="icon-size">large</property>
+        <property name="show-initials">true</property>
+        <property name="size">40</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
       </object>
@@ -51,10 +51,10 @@
     </child>
     <child>
       <!-- Sender side image on the right most side-->
-      <object class="GtkImage" id="sender">
+      <object class="AdwAvatar" id="sender">
         <property name="visible">false</property>
-        <property name="icon-name">image-x-generic</property>
-        <property name="icon-size">large</property>
+        <property name="show-initials">true</property>
+        <property name="size">40</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
       </object>

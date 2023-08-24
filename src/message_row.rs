@@ -1,9 +1,9 @@
 mod imp {
     use std::cell::{OnceCell, RefCell};
 
-    use adw::subclass::prelude::*;
+    use adw::{subclass::prelude::*, Avatar};
     use glib::Binding;
-    use gtk::{glib, CompositeTemplate, Image, Label, Box, Grid};
+    use gtk::{glib, Box, CompositeTemplate, Label};
 
     use crate::message_data::MessageObject;
 
@@ -19,9 +19,9 @@ mod imp {
         #[template_child]
         pub message: TemplateChild<Label>,
         #[template_child]
-        pub sender: TemplateChild<Image>,
+        pub sender: TemplateChild<Avatar>,
         #[template_child]
-        pub receiver: TemplateChild<Image>,
+        pub receiver: TemplateChild<Avatar>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
     }
@@ -82,7 +82,9 @@ impl MessageRow {
             row.imp().receiver.set_visible(true);
             row.imp().sent_by.set_xalign(0.0);
             row.imp().message.set_xalign(0.0);
-            row.imp().message_content.add_css_class("message-row-received")
+            row.imp()
+                .message_content
+                .add_css_class("message-row-received")
         }
 
         let row_clone_1 = row.clone();
@@ -97,7 +99,8 @@ impl MessageRow {
             false,
             closure_local!(move |_from: UserObject, status: Paintable| {
                 let sender = row_clone_1.imp().sender.get();
-                sender.set_paintable(Some(&status));
+                //sender.set_paintable(Some(&status));
+                sender.set_custom_image(Some(&status))
             }),
         );
 
@@ -106,7 +109,7 @@ impl MessageRow {
             false,
             closure_local!(move |_from: UserObject, status: Paintable| {
                 let receiver = row_clone_2.imp().receiver.get();
-                receiver.set_paintable(Some(&status));
+                receiver.set_custom_image(Some(&status))
             }),
         );
 
@@ -125,16 +128,24 @@ impl MessageRow {
         if is_sent {
             let sent_from = self.imp().message_data.get().unwrap().sent_from().unwrap();
             let image = sent_from.image();
+            let sender = self.imp().sender.get();
+
             let sent_by_binding = sent_from
                 .bind_property("name", &sent_by, "label")
                 .sync_create()
                 .build();
+
+            let avatar_fallback_binding = sent_from
+                .bind_property("name", &sender, "text")
+                .sync_create()
+                .build();
+
             bindings.push(sent_by_binding);
+            bindings.push(avatar_fallback_binding);
 
             if image.is_some() {
-                let sender = self.imp().sender.get();
                 let image_binding = sent_from
-                    .bind_property("image", &sender, "paintable")
+                    .bind_property("image", &sender, "custom-image")
                     .sync_create()
                     .build();
                 bindings.push(image_binding);
@@ -142,16 +153,24 @@ impl MessageRow {
         } else {
             let sent_to = self.imp().message_data.get().unwrap().sent_to().unwrap();
             let image = sent_to.image();
+            let receiver = self.imp().receiver.get();
+
             let sent_by_binding = sent_to
                 .bind_property("name", &sent_by, "label")
                 .sync_create()
                 .build();
+
+            let avatar_fallback_binding = sent_to
+                .bind_property("name", &receiver, "text")
+                .sync_create()
+                .build();
+
             bindings.push(sent_by_binding);
+            bindings.push(avatar_fallback_binding);
 
             if image.is_some() {
-                let receiver = self.imp().receiver.get();
                 let image_binding = sent_to
-                    .bind_property("image", &receiver, "paintable")
+                    .bind_property("image", &receiver, "custom-image")
                     .sync_create()
                     .build();
                 bindings.push(image_binding);

@@ -1,9 +1,9 @@
 mod imp {
 
-    use adw::{subclass::prelude::*, ApplicationWindow};
+    use adw::subclass::prelude::*;
     use gio::ListStore;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, glib, CompositeTemplate, ListBox, TextView, Button};
+    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, TextView};
     use std::{
         cell::{OnceCell, RefCell},
         rc::Rc,
@@ -66,8 +66,8 @@ use adw::subclass::prelude::*;
 use adw::Application;
 use gio::{ListStore, SimpleAction};
 use glib::{clone, Object};
-use gtk::{gio, glib, ListBox};
 use gtk::prelude::*;
+use gtk::{gio, glib, ListBox};
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
@@ -141,7 +141,10 @@ impl Window {
 
     fn new_message(&self) {
         let buffer = self.imp().message_box.buffer();
-        let content = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true).to_string();
+        let content = buffer
+            .text(&buffer.start_iter(), &buffer.end_iter(), true).trim()
+            .to_string();
+
         if content.is_empty() {
             return;
         }
