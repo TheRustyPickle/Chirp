@@ -1,9 +1,9 @@
 mod imp {
-    use std::cell::{OnceCell, RefCell};
-
     use adw::{subclass::prelude::*, Avatar};
-    use glib::Binding;
+    use glib::subclass::InitializingObject;
+    use glib::{object_subclass, Binding};
     use gtk::{glib, Box, CompositeTemplate, Label};
+    use std::cell::{OnceCell, RefCell};
 
     use crate::message_data::MessageObject;
 
@@ -26,18 +26,18 @@ mod imp {
         pub message_data: OnceCell<MessageObject>,
     }
 
-    #[glib::object_subclass]
+    #[object_subclass]
     impl ObjectSubclass for MessageRow {
         // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "MessageRow";
         type Type = super::MessageRow;
-        type ParentType = gtk::Box;
+        type ParentType = Box;
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
         }
 
-        fn instance_init(obj: &glib::subclass::InitializingObject<Self>) {
+        fn instance_init(obj: &InitializingObject<Self>) {
             obj.init_template();
         }
     }
@@ -55,17 +55,17 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gio::glib::closure_local;
-use glib::Object;
+use glib::{wrapper, Object};
 use gtk::gdk::Paintable;
-use gtk::glib;
+use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
 
 use crate::message_data::MessageObject;
 use crate::user_data::UserObject;
 
-glib::wrapper! {
+wrapper! {
     pub struct MessageRow(ObjectSubclass<imp::MessageRow>)
-    @extends gtk::Box, gtk::Widget,
-    @implements gtk::Accessible, gtk::Buildable, gtk::ConstraintTarget, gtk::Orientable;
+    @extends Box, Widget,
+    @implements Accessible, Buildable, ConstraintTarget, Orientable;
 }
 
 impl MessageRow {

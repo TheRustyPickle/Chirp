@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="UserRow" parent="GtkBox">
+    <property name="orientation">horizontal</property>
+    <child>
+      <object class="AdwAvatar" id="user_avatar">
+        <property name="visible">true</property>
+        <property name="show-initials">true</property>
+        <property name="size">40</property>
+        <property name="valign">end</property>
+        <property name="margin-bottom">5</property>
+      </object>
+    </child>
+  </template>
+</interface>

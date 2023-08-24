@@ -4,7 +4,7 @@ mod imp {
     use crate::user_data::UserObject;
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use glib::Properties;
+    use glib::{derived_properties, object_subclass, Properties};
     use gtk::glib;
 
     use super::MessageData;
@@ -21,23 +21,24 @@ mod imp {
         pub sent_to: RefCell<Option<UserObject>>,
     }
 
-    #[glib::object_subclass]
+    #[object_subclass]
     impl ObjectSubclass for MessageObject {
         const NAME: &'static str = "MessageObject";
         type Type = super::MessageObject;
     }
 
-    #[glib::derived_properties]
+    #[derived_properties]
     impl ObjectImpl for MessageObject {}
 }
 
+use glib::wrapper;
 use glib::Object;
 use gtk::glib;
 use gtk::prelude::*;
 
 use crate::user_data::UserObject;
 
-glib::wrapper! {
+wrapper! {
     pub struct MessageObject(ObjectSubclass<imp::MessageObject>);
 }
 

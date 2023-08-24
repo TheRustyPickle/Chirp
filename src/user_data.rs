@@ -1,18 +1,13 @@
 mod imp {
-    use std::cell::RefCell;
-
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gio::{
-        glib::{
-            once_cell::sync::{Lazy, OnceCell},
-            subclass::Signal,
-        },
-        ListStore,
-    };
-    use glib::Properties;
+    use gio::glib::once_cell::sync::Lazy;
+    use gio::glib::subclass::Signal;
+    use gio::ListStore;
+    use glib::{derived_properties, object_subclass, Properties};
     use gtk::gdk::Paintable;
     use gtk::glib;
+    use std::cell::{OnceCell, RefCell};
 
     use super::UserData;
 
@@ -27,13 +22,13 @@ mod imp {
         pub messages: OnceCell<ListStore>,
     }
 
-    #[glib::object_subclass]
+    #[object_subclass]
     impl ObjectSubclass for UserObject {
         const NAME: &'static str = "UserObject";
         type Type = super::UserObject;
     }
 
-    #[glib::derived_properties]
+    #[derived_properties]
     impl ObjectImpl for UserObject {
         fn signals() -> &'static [Signal] {
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
@@ -47,15 +42,11 @@ mod imp {
 }
 
 use adw::prelude::*;
-use gio::glib::clone;
-use gio::glib::MainContext;
-use gio::glib::Priority;
-use gio::glib::Receiver;
-use gio::ListStore;
-use glib::Bytes;
-use glib::Object;
-use gtk::gdk::Paintable;
-use gtk::{gdk, glib, Image};
+use gio::glib::{clone, MainContext, Priority, Receiver};
+use gio::{spawn_blocking, ListStore};
+use glib::{Bytes, ControlFlow, Object};
+use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
+use gtk::{glib, Image};
 
 use crate::utils::get_avatar;
 
@@ -71,25 +62,25 @@ impl UserObject {
             .property("messages", messages)
             .build();
 
-        if image_link.is_some() {
+        /*if image_link.is_some() {
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
-            gio::spawn_blocking(move || {
+            spawn_blocking(move || {
                 let avatar = get_avatar(image_link.unwrap());
                 sender.send(avatar).unwrap();
             });
-        }
+        }*/
         obj
     }
 
     fn set_user_image(&self, receiver: Receiver<Vec<u8>>) {
         receiver.attach(
             None,
-            clone!(@weak self as user_object => @default-return glib::ControlFlow::Break,
+            clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
-                    let pixbuf = gdk::Texture::from_bytes(&Bytes::from(&image_data)).unwrap();
+                    let pixbuf = Texture::from_bytes(&Bytes::from(&image_data)).unwrap();
 
-                    let buf = gdk::pixbuf_get_from_texture(&pixbuf).unwrap();
+                    let buf = pixbuf_get_from_texture(&pixbuf).unwrap();
                     let image = Image::from_pixbuf(Some(&buf));
                     image.set_width_request(buf.width());
                     image.set_height_request(buf.height());
@@ -99,7 +90,7 @@ impl UserObject {
                     let status = paintable.to_value().get::<Paintable>().unwrap();
                     user_object.emit_by_name::<()>("updating-image", &[&status]);
                     println!("Emitted UserObject image update");
-                    glib::ControlFlow::Continue
+                    ControlFlow::Continue
                 }
             ),
         );

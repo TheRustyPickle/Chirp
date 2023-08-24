@@ -12,50 +12,74 @@
           </object>
         </child>
         <child>
-          <!-- The listbox that contains all the message data-->
-          <object class="GtkScrolledWindow">
-            <property name="visible">True</property>
-            <property name="vexpand">True</property>
-            <property name="hscrollbar-policy">never</property>
-            <property name="child">
-              <object class="GtkListBox" id="message_list">
-                <property name="visible">True</property>
-                <property name="selection-mode">none</property>
-              </object>
-            </property>
-          </object>
-        </child>
-        <child>
           <object class="GtkBox">
-            <property name="css-classes">entry-box</property>
+            <property name="orientation">horizontal</property>
             <child>
-              <!-- textview is the box where messages are typed-->
               <object class="GtkScrolledWindow">
-                <property name="propagate-natural-height">true</property>
+                <property name="visible">True</property>
                 <property name="hscrollbar-policy">never</property>
-                <property name="max-content-height">100</property>
                 <property name="child">
-                  <object class="GtkTextView" id="message_box">
-                    <property name="hexpand">True</property>
-                    <property name="wrap-mode">word-char</property>
-                    <property name="valign">center</property>
-                    <property name="top-margin">6</property>
-                    <property name="bottom-margin">6</property>
+                  <object class="GtkListBox" id="user_list">
+                    <property name="visible">True</property>
+                    <property name="selection-mode">none</property>
                   </object>
                 </property>
               </object>
             </child>
             <child>
-              <!-- The button that is used for sending-->
-              <object class="GtkButton" id="send_button">
-                <property name="icon-name">go-next-symbolic</property>
-                <property name="valign">end</property>
-                <!-- Emits this on button press and gets emitted on ctrl + enter press-->
-                <property name="action-name">win.send-message</property>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
+                <child>
+                  <!-- The listbox that contains all the message data-->
+                  <object class="GtkScrolledWindow">
+                    <property name="visible">True</property>
+                    <property name="vexpand">True</property>
+                    <property name="hscrollbar-policy">never</property>
+                    <property name="child">
+                      <object class="GtkListBox" id="message_list">
+                        <property name="visible">True</property>
+                        <property name="selection-mode">none</property>
+                      </object>
+                    </property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkBox">
+                    <property name="css-classes">entry-box</property>
+                    <child>
+                      <!-- textview is the box where messages are typed-->
+                      <object class="GtkScrolledWindow">
+                        <property name="propagate-natural-height">true</property>
+                        <property name="hscrollbar-policy">never</property>
+                        <property name="max-content-height">100</property>
+                        <property name="child">
+                          <object class="GtkTextView" id="message_box">
+                            <property name="hexpand">True</property>
+                            <property name="wrap-mode">word-char</property>
+                            <property name="valign">center</property>
+                            <property name="top-margin">6</property>
+                            <property name="bottom-margin">6</property>
+                          </object>
+                        </property>
+                      </object>
+                    </child>
+                    <child>
+                      <!-- The button that is used for sending-->
+                      <object class="GtkButton" id="send_button">
+                        <property name="icon-name">go-next-symbolic</property>
+                        <property name="valign">end</property>
+                        <!-- Emits this on button press and gets emitted on ctrl + enter press-->
+                        <property name="action-name">win.send-message</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
               </object>
             </child>
           </object>
         </child>
+
+
       </object>
     </child>
   </template>

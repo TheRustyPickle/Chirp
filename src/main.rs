@@ -3,6 +3,7 @@ mod message_row;
 mod user_data;
 mod utils;
 mod window;
+mod user_row;
 
 use window::Window;
 

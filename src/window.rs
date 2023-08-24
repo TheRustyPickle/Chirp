@@ -1,13 +1,13 @@
 mod imp {
 
     use adw::subclass::prelude::*;
+    use adw::ApplicationWindow;
     use gio::ListStore;
+    use glib::object_subclass;
     use glib::subclass::InitializingObject;
     use gtk::{gio, glib, Button, CompositeTemplate, ListBox, TextView};
-    use std::{
-        cell::{OnceCell, RefCell},
-        rc::Rc,
-    };
+    use std::cell::{OnceCell, RefCell};
+    use std::rc::Rc;
 
     use crate::user_data::UserObject;
 
@@ -20,17 +20,19 @@ mod imp {
         pub message_list: TemplateChild<ListBox>,
         #[template_child]
         pub send_button: TemplateChild<Button>,
+        #[template_child]
+        pub user_list: TemplateChild<ListBox>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
     }
 
-    #[glib::object_subclass]
+    #[object_subclass]
     impl ObjectSubclass for Window {
         // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "MainWindow";
         type Type = super::Window;
-        type ParentType = adw::ApplicationWindow;
+        type ParentType = ApplicationWindow;
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
@@ -61,24 +63,28 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use adw::prelude::*;
+use adw::{prelude::*, Avatar};
 use adw::subclass::prelude::*;
 use adw::Application;
-use gio::{ListStore, SimpleAction};
-use glib::{clone, Object};
+use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
+use glib::{clone, wrapper, Object};
 use gtk::prelude::*;
-use gtk::{gio, glib, ListBox};
+use gtk::{
+    gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
+    ShortcutManager, Widget,
+};
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
+use crate::user_row::UserRow;
 use crate::user_data::UserObject;
-use crate::utils::generate_avatar_link;
+use crate::utils::{generate_dicebear_link, generate_robohash_link};
 
-glib::wrapper! {
+wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
-        @extends adw::ApplicationWindow, gtk::ApplicationWindow, gtk::Window, gtk::Widget,
-        @implements gio::ActionGroup, gio::ActionMap, gtk::Accessible, gtk::Buildable,
-                    gtk::ConstraintTarget, gtk::Native, gtk::Root, gtk::ShortcutManager;
+        @extends adw::ApplicationWindow, ApplicationWindow, gtk::Window, Widget,
+        @implements ActionGroup, ActionMap, Accessible, Buildable,
+                    ConstraintTarget, Native,Root, ShortcutManager;
 }
 
 impl Window {
@@ -109,6 +115,9 @@ impl Window {
         self.imp().own_profile.replace(Some(data));
         let data = self.create_user("Bot reply");
         self.imp().chatting_with.replace(Some(data));
+        let me_object = self.get_chatting_from();
+        let user_row = UserRow::new(me_object);
+        self.get_user_list().append(&user_row);
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -127,7 +136,7 @@ impl Window {
             .expect("Expected an UserObject")
     }
 
-    fn get_all_users(&self) -> ListStore {
+    fn get_users_liststore(&self) -> ListStore {
         self.imp()
             .users
             .get()
@@ -142,7 +151,8 @@ impl Window {
     fn new_message(&self) {
         let buffer = self.imp().message_box.buffer();
         let content = buffer
-            .text(&buffer.start_iter(), &buffer.end_iter(), true).trim()
+            .text(&buffer.start_iter(), &buffer.end_iter(), true)
+            .trim()
             .to_string();
 
         if content.is_empty() {
@@ -175,12 +185,16 @@ impl Window {
 
     fn create_user(&self, name: &str) -> UserObject {
         let messages = ListStore::new::<MessageObject>();
-        let user_data = UserObject::new(name, Some(generate_avatar_link()), messages);
-        self.get_all_users().append(&user_data);
+        let user_data = UserObject::new(name, Some(generate_dicebear_link()), messages);
+        self.get_users_liststore().append(&user_data);
         user_data
     }
 
     fn get_message_list(&self) -> ListBox {
         self.imp().message_list.get()
+    }
+
+    fn get_user_list(&self) -> ListBox {
+        self.imp().user_list.get()
     }
 }

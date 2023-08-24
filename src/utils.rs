@@ -14,7 +14,12 @@ fn generate_random_number(length: usize) -> String {
     num.to_string()
 }
 
-pub fn generate_avatar_link() -> String {
+pub fn generate_robohash_link() -> String {
     let random_num = generate_random_number(5);
-    format!("https://robohash.org/{random_num}.png?size=48x48")
+    format!("https://robohash.org/{random_num}.png")
+}
+
+pub fn generate_dicebear_link() -> String {
+    let random_num = generate_random_number(5);
+    format!("https://api.dicebear.com/6.x/micah/svg?seed={random_num}")
 }
