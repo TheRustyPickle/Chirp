@@ -22,6 +22,7 @@ fn main() -> ExitCode {
 
     app.connect_startup(|_app| load_css());
     app.connect_activate(build_ui);
+    app.set_accels_for_action("win.send-message", &["<Primary>Return"]);
     app.run()
 }
 

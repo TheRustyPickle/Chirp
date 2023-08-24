@@ -18,7 +18,6 @@
             <property name="hscrollbar-policy">never</property>
             <property name="child">
               <object class="GtkListBox" id="message_list">
-                <property name="hexpand">True</property>
                 <property name="visible">True</property>
                 <property name="selection-mode">none</property>
               </object>
@@ -48,6 +47,7 @@
               <object class="GtkButton" id="send_button">
                 <property name="icon-name">go-next-symbolic</property>
                 <property name="valign">end</property>
+                <property name="action-name">win.send-message</property>
               </object>
             </child>
           </object>

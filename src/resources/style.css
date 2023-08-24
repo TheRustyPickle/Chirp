@@ -1,22 +1,30 @@
-.entry-box > scrolledwindow > textview {
+.entry-box>scrolledwindow>textview {
   background: #F5F5F5;
-  border: 1px solid #ccc; 
+  border: 0px solid #ccc;
   border-radius: 15px;
   padding-left: 5px;
+  transition: background-color 0.3s ease-in-out,
+    color 0.3s ease-in-out,
+    border-color 0.3s ease-in-out;
 }
 
-.entry-box > button {
-  margin-left: 10px;
+.entry-box>scrolledwindow>textview:focus {
+  border: 2px solid #ccc;
+  border-color: @accent_color;
+}
+
+.entry-box>button {
+  margin-left: 5px;
   border-radius: 15px;
-  
+
 }
 
-.entry-box > scrolledwindow > scrollbar {
+.entry-box>scrolledwindow>scrollbar {
   box-shadow: none;
   background: none;
 }
 
-.entry-box > scrolledwindow > scrollbar slider {
+.entry-box>scrolledwindow>scrollbar slider {
   min-height: 0;
 }
 
@@ -29,4 +37,20 @@
 
 window {
   background: white;
+}
+
+.message-row-sent {
+  background: #F5F5F5;
+  border: 0px solid #ccc;
+  border-radius: 15px;
+  margin-left: 180px;
+  margin-top: 10px;
+}
+
+.message-row-received {
+  background: #F5F5F5;
+  border: 0px solid #ccc;
+  border-radius: 15px;
+  margin-right: 180px;
+  margin-top: 10px;
 }

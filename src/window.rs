@@ -1,9 +1,9 @@
 mod imp {
 
-    use adw::subclass::prelude::*;
+    use adw::{subclass::prelude::*, ApplicationWindow};
     use gio::ListStore;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, glib, CompositeTemplate, Entry, ListBox, TextView, Button};
+    use gtk::{gio, glib, CompositeTemplate, ListBox, TextView, Button};
     use std::{
         cell::{OnceCell, RefCell},
         rc::Rc,
@@ -18,8 +18,8 @@ mod imp {
         pub message_box: TemplateChild<TextView>,
         #[template_child]
         pub message_list: TemplateChild<ListBox>,
-        //#[template_child]
-        //send_button: TemplateChild<Button>,
+        #[template_child]
+        pub send_button: TemplateChild<Button>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -48,6 +48,7 @@ mod imp {
             let obj = self.obj();
             obj.setup_callbacks();
             obj.setup_users();
+            obj.setup_actions();
         }
     }
 
@@ -63,9 +64,10 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Application;
-use gio::ListStore;
+use gio::{ListStore, SimpleAction};
 use glib::{clone, Object};
 use gtk::{gio, glib, ListBox};
+use gtk::prelude::*;
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
@@ -86,17 +88,17 @@ impl Window {
 
     fn setup_callbacks(&self) {
         let imp = self.imp();
+        imp.message_box.grab_focus();
+    }
 
-        /*imp.message_box
-            .connect_activate(clone!(@weak self as window => move |_| {
-                window.new_message();
-                window.new_receive_message("Bot message received");
-            }));
+    fn setup_actions(&self) {
+        let button_action = SimpleAction::new("send-message", None);
+        button_action.connect_activate(clone!(@weak self as window => move |_, _| {
+            window.new_message();
+            window.new_receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.");
+        }));
 
-        imp.message_box
-            .connect_icon_release(clone!(@weak self as window => move |_, _| {
-                window.new_message();
-            }));*/
+        self.add_action(&button_action);
     }
 
     fn setup_users(&self) {
@@ -137,9 +139,9 @@ impl Window {
         self.get_chatting_with().messages()
     }
 
-    /*fn new_message(&self) {
+    fn new_message(&self) {
         let buffer = self.imp().message_box.buffer();
-        let content = buffer.text().to_string();
+        let content = buffer.text(&buffer.start_iter(), &buffer.end_iter(), true).to_string();
         if content.is_empty() {
             return;
         }
@@ -154,7 +156,7 @@ impl Window {
         let row = MessageRow::new(message);
         row.bind();
         self.get_message_list().append(&row);
-    }*/
+    }
 
     fn new_receive_message(&self, content: &str) {
         let sender = self.get_chatting_from();

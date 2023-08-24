@@ -95,12 +95,10 @@ impl UserObject {
                     image.set_height_request(buf.height());
                     image.set_pixel_size(buf.width());
                     let paintable = image.paintable().unwrap();
-                    println!("{:?}", user_object.image());
                     user_object.set_image(paintable.clone());
                     let status = paintable.to_value().get::<Paintable>().unwrap();
                     user_object.emit_by_name::<()>("updating-image", &[&status]);
-                    println!("{:?}", user_object.image());
-                    println!("Emitted");
+                    println!("Emitted UserObject image update");
                     glib::ControlFlow::Continue
                 }
             ),

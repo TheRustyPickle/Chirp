@@ -3,13 +3,17 @@ mod imp {
 
     use adw::subclass::prelude::*;
     use glib::Binding;
-    use gtk::{glib, CompositeTemplate, Image, Label};
+    use gtk::{glib, CompositeTemplate, Image, Label, Box, Grid};
 
     use crate::message_data::MessageObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
     pub struct MessageRow {
+        #[template_child]
+        pub message_content: TemplateChild<Box>,
+        #[template_child]
+        pub placeholder: TemplateChild<Label>,
         #[template_child]
         pub sent_by: TemplateChild<Label>,
         #[template_child]
@@ -53,7 +57,7 @@ use adw::subclass::prelude::*;
 use gio::glib::closure_local;
 use glib::Object;
 use gtk::gdk::Paintable;
-use gtk::{glib, Align};
+use gtk::glib;
 
 use crate::message_data::MessageObject;
 use crate::user_data::UserObject;
@@ -70,12 +74,15 @@ impl MessageRow {
 
         if object.is_send() {
             row.imp().sender.set_visible(true);
-            row.imp().sent_by.set_halign(Align::End);
-            row.imp().message.set_halign(Align::End);
+            row.imp().sent_by.set_xalign(1.0);
+            row.imp().message.set_xalign(1.0);
+            row.imp().message_content.add_css_class("message-row-sent");
+            row.imp().placeholder.set_visible(true);
         } else {
             row.imp().receiver.set_visible(true);
-            row.imp().sent_by.set_halign(Align::Start);
-            row.imp().message.set_halign(Align::Start);
+            row.imp().sent_by.set_xalign(0.0);
+            row.imp().message.set_xalign(0.0);
+            row.imp().message_content.add_css_class("message-row-received")
         }
 
         let row_clone_1 = row.clone();

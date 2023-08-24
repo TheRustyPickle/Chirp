@@ -2,45 +2,61 @@
 <interface>
   <template class="MessageRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
-    <property name="hexpand">True</property>
+    <!-- Receiver side image on the left most side-->
     <child>
       <object class="GtkImage" id="receiver">
         <property name="visible">false</property>
         <property name="icon-name">image-x-generic</property>
         <property name="icon-size">large</property>
+        <property name="valign">end</property>
+        <property name="margin-bottom">5</property>
+      </object>
+    </child>
+    <!-- For some reason the labels after this one does not go to the right most corner even with xlign 1.0
+    so this consumes all the space so those labels can reach the corner -->
+    <child>
+      <object class="GtkLabel" id="placeholder">
+        <property name="hexpand">true</property>
+        <property name="visible">false</property>
       </object>
     </child>
     <child>
-      <object class="GtkBox">
-        <property name="orientation">vertical</property>
-        <property name="vexpand">True</property>
+      <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside gtkgrid without hexpand
+      with hexpand can't add proper borders with css-->
+      <object class="GtkGrid" id="">
         <child>
-          <object class="GtkLabel" id="sent_by">
-            <property name="hexpand">True</property>
-            <property name="margin-start">6</property>
-            <property name="margin-end">2</property>
-            <property name="margin-top">2</property>
-            <property name="margin-bottom">5</property>
-          </object>
-        </child>
-        <child>
-          <object class="GtkLabel" id="message">
-            <property name="hexpand">True</property>
-            <property name="margin-start">6</property>
-            <property name="margin-end">2</property>
-            <property name="margin-top">2</property>
-            <property name="margin-bottom">5</property>
-            <property name="wrap">true</property>
-            <property name="wrap-mode">word-char</property>
+          <object class="GtkBox" id="message_content">
+            <property name="orientation">vertical</property>
+            <child>
+              <object class="GtkLabel" id="sent_by">
+                <property name="margin-start">6</property>
+                <property name="margin-end">6</property>
+                <property name="margin-top">2</property>
+                <property name="margin-bottom">5</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkLabel" id="message">
+                <property name="margin-start">6</property>
+                <property name="margin-end">6</property>
+                <property name="margin-top">2</property>
+                <property name="margin-bottom">5</property>
+                <property name="wrap">true</property>
+                <property name="wrap-mode">word-char</property>
+              </object>
+            </child>
           </object>
         </child>
       </object>
     </child>
     <child>
+      <!-- Sender side image on the right most side-->
       <object class="GtkImage" id="sender">
         <property name="visible">false</property>
         <property name="icon-name">image-x-generic</property>
         <property name="icon-size">large</property>
+        <property name="valign">end</property>
+        <property name="margin-bottom">5</property>
       </object>
     </child>
   </template>
