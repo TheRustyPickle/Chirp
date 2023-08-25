@@ -1,9 +1,9 @@
 mod message_data;
 mod message_row;
 mod user_data;
+mod user_row;
 mod utils;
 mod window;
-mod user_row;
 
 use window::Window;
 

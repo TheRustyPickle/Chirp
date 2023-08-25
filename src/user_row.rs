@@ -61,11 +61,39 @@ impl UserRow {
     pub fn new(object: UserObject) -> Self {
         let row: UserRow = Object::builder().build();
 
+        let row_clone = row.clone();
+        object.connect_closure(
+            "updating-image",
+            false,
+            closure_local!(move |_from: UserObject, status: Paintable| {
+                let avatar = row_clone.imp().user_avatar.get();
+                avatar.set_custom_image(Some(&status))
+            }),
+        );
+
         row.imp().user_data.set(object).unwrap();
         row
     }
 
     pub fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
+        let user_avatar = self.imp().user_avatar.get();
+        let user_object = self.imp().user_data.get().unwrap();
+
+        let image_available = user_object.image();
+
+        let avatar_text_binding = user_object
+            .bind_property("name", &user_avatar, "text")
+            .sync_create()
+            .build();
+
+        if image_available.is_some() {
+            let avatar_image_binding = user_object
+                .bind_property("image", &user_avatar, "custom-image")
+                .sync_create()
+                .build();
+            bindings.push(avatar_image_binding);
+        }
+        bindings.push(avatar_text_binding);
     }
 }

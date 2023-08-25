@@ -5,7 +5,7 @@ mod imp {
     use gio::ListStore;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, TextView};
+    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, Stack, TextView};
     use std::cell::{OnceCell, RefCell};
     use std::rc::Rc;
 
@@ -22,6 +22,12 @@ mod imp {
         pub send_button: TemplateChild<Button>,
         #[template_child]
         pub user_list: TemplateChild<ListBox>,
+        #[template_child]
+        pub stack: TemplateChild<Stack>,
+        #[template_child]
+        pub my_profile: TemplateChild<Button>,
+        #[template_child]
+        pub new_chat: TemplateChild<Button>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -63,7 +69,7 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use adw::{prelude::*, Avatar};
+use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Application;
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
@@ -76,8 +82,8 @@ use gtk::{
 
 use crate::message_data::MessageObject;
 use crate::message_row::MessageRow;
-use crate::user_row::UserRow;
 use crate::user_data::UserObject;
+use crate::user_row::UserRow;
 use crate::utils::{generate_dicebear_link, generate_robohash_link};
 
 wrapper! {
@@ -95,6 +101,7 @@ impl Window {
     fn setup_callbacks(&self) {
         let imp = self.imp();
         imp.message_box.grab_focus();
+        imp.stack.set_visible_child_name("main");
     }
 
     fn setup_actions(&self) {
@@ -103,6 +110,15 @@ impl Window {
             window.new_message();
             window.new_receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.");
         }));
+
+        self.imp()
+            .new_chat
+            .connect_clicked(clone!(@weak self as window => move |_| {
+                let user_data = window.create_user("test user");
+                let user_row = UserRow::new(user_data);
+                user_row.bind();
+                window.get_user_list().append(&user_row);
+            }));
 
         self.add_action(&button_action);
     }
@@ -115,8 +131,10 @@ impl Window {
         self.imp().own_profile.replace(Some(data));
         let data = self.create_user("Bot reply");
         self.imp().chatting_with.replace(Some(data));
+
         let me_object = self.get_chatting_from();
         let user_row = UserRow::new(me_object);
+        user_row.bind();
         self.get_user_list().append(&user_row);
     }
 
