@@ -1,7 +1,7 @@
 mod imp {
 
     use adw::subclass::prelude::*;
-    use adw::ApplicationWindow;
+    use adw::{ApplicationWindow, Leaflet};
     use gio::ListStore;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
@@ -14,6 +14,8 @@ mod imp {
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
     pub struct Window {
+        #[template_child]
+        pub leaflet: TemplateChild<Leaflet>,
         #[template_child]
         pub message_box: TemplateChild<TextView>,
         #[template_child]
@@ -69,9 +71,9 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Application;
+use adw::{prelude::*, NavigationDirection};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, Object};
 use gtk::prelude::*;
@@ -102,14 +104,27 @@ impl Window {
         let imp = self.imp();
         imp.message_box.grab_focus();
         imp.stack.set_visible_child_name("main");
-    }
+        imp.leaflet
+            .connect_folded_notify(clone!(@weak self as window => move |leaflet| {
+                if !leaflet.is_child_transition_running() {
+                    if leaflet.is_folded() {
+                        leaflet.navigate(NavigationDirection::Forward);
+                        leaflet.navigate(NavigationDirection::Forward);
+                    }
+                }
 
-    fn setup_actions(&self) {
-        let button_action = SimpleAction::new("send-message", None);
-        button_action.connect_activate(clone!(@weak self as window => move |_, _| {
-            window.new_message();
-            window.new_receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.");
-        }));
+            }));
+
+        imp.user_list
+            .connect_row_activated(clone!(@weak self as window => move |_, row| {
+                let index = row.index();
+                let selected_chat = window.get_users_liststore()
+                .item(index as u32)
+                .expect("There should be an item here")
+                .downcast::<UserObject>()
+                .expect("It should be an UserObject");
+                window.set_chatting_with(selected_chat);
+            }));
 
         self.imp()
             .new_chat
@@ -119,6 +134,14 @@ impl Window {
                 user_row.bind();
                 window.get_user_list().append(&user_row);
             }));
+    }
+
+    fn setup_actions(&self) {
+        let button_action = SimpleAction::new("send-message", None);
+        button_action.connect_activate(clone!(@weak self as window => move |_, _| {
+            window.send_message();
+            window.receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.");
+        }));
 
         self.add_action(&button_action);
     }
@@ -128,14 +151,21 @@ impl Window {
         self.imp().users.set(users).expect("Could not set users");
 
         let data = self.create_user("Me");
-        self.imp().own_profile.replace(Some(data));
-        let data = self.create_user("Bot reply");
-        self.imp().chatting_with.replace(Some(data));
 
-        let me_object = self.get_chatting_from();
-        let user_row = UserRow::new(me_object);
+        let user_clone_1 = data.clone();
+        let user_clone_2 = data.clone();
+
+        self.imp().own_profile.replace(Some(data));
+
+        let user_row = UserRow::new(user_clone_1);
         user_row.bind();
         self.get_user_list().append(&user_row);
+
+        self.set_chatting_with(user_clone_2);
+
+        if let Some(row) = self.get_user_list().row_at_index(0) {
+            self.get_user_list().select_row(Some(&row));
+        }
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -144,6 +174,20 @@ impl Window {
             .borrow()
             .clone()
             .expect("Expected an UserObject")
+    }
+
+    fn set_chatting_with(&self, user: UserObject) {
+        let message_list = user.messages();
+        self.imp().message_list.bind_model(
+            Some(&message_list),
+            clone!(@weak self as window => @default-panic, move |obj| {
+                let message_data = obj.downcast_ref().expect("No MessageData here");
+                let row = window.create_message(message_data);
+                row.upcast()
+            }),
+        );
+
+        self.imp().chatting_with.replace(Some(user));
     }
 
     fn get_chatting_from(&self) -> UserObject {
@@ -166,7 +210,7 @@ impl Window {
         self.get_chatting_with().messages()
     }
 
-    fn new_message(&self) {
+    fn send_message(&self) {
         let buffer = self.imp().message_box.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
@@ -183,22 +227,27 @@ impl Window {
         let message = MessageObject::new(content, true, sender, receiver);
 
         self.chatting_with_messages().append(&message);
-
-        let row = MessageRow::new(message);
-        row.bind();
-        self.get_message_list().append(&row);
+        self.create_message(&message);
     }
 
-    fn new_receive_message(&self, content: &str) {
+    fn receive_message(&self, content: &str) {
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
+
+        if sender == receiver {
+            return;
+        }
+
         let message = MessageObject::new(content.to_string(), false, sender, receiver);
 
         self.chatting_with_messages().append(&message);
+        self.create_message(&message);
+    }
 
-        let row = MessageRow::new(message);
+    fn create_message(&self, data: &MessageObject) -> MessageRow {
+        let row = MessageRow::new(data.clone());
         row.bind();
-        self.get_message_list().append(&row);
+        row
     }
 
     fn create_user(&self, name: &str) -> UserObject {

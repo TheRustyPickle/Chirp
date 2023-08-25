@@ -32,6 +32,7 @@
             <property name="child">
               <!-- left side of the leaflet-->
               <object class="AdwLeaflet" id="leaflet">
+                <property name="can-navigate-forward">true</property>
                 <child>
                   <object class="GtkBox">
                     <property name="orientation">vertical</property>
@@ -43,7 +44,6 @@
                         <property name="vexpand">True</property>
                         <property name="child">
                           <object class="GtkListBox" id="user_list">
-                            <property name="selection-mode">none</property>
                           </object>
                         </property>
                       </object>
