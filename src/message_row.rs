@@ -57,7 +57,9 @@ use adw::subclass::prelude::*;
 use gio::glib::closure_local;
 use glib::{wrapper, Object};
 use gtk::gdk::Paintable;
+use gtk::prelude::*;
 use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+use tracing::info;
 
 use crate::message_data::MessageObject;
 use crate::user_data::UserObject;
@@ -97,9 +99,9 @@ impl MessageRow {
         sent_from.connect_closure(
             "updating-image",
             false,
-            closure_local!(move |_from: UserObject, status: Paintable| {
+            closure_local!(move |from: UserObject, status: Paintable| {
+                info!("Updating image for sender {} on MessageRow", from.name());
                 let sender = row_clone_1.imp().sender.get();
-                //sender.set_paintable(Some(&status));
                 sender.set_custom_image(Some(&status))
             }),
         );
@@ -107,7 +109,8 @@ impl MessageRow {
         sent_to.connect_closure(
             "updating-image",
             false,
-            closure_local!(move |_from: UserObject, status: Paintable| {
+            closure_local!(move |from: UserObject, status: Paintable| {
+                info!("Updating image for receiver {} on MessageRow", from.name());
                 let receiver = row_clone_2.imp().receiver.get();
                 receiver.set_custom_image(Some(&status))
             }),
@@ -119,6 +122,7 @@ impl MessageRow {
 
     pub fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
+
         let sent_by = self.imp().sent_by.get();
         let message = self.imp().message.get();
 
@@ -127,6 +131,9 @@ impl MessageRow {
 
         if is_sent {
             let sent_from = self.imp().message_data.get().unwrap().sent_from().unwrap();
+
+            sent_by.add_css_class(&format!("sender-{}", sent_from.name_color()));
+
             let image = sent_from.image();
             let sender = self.imp().sender.get();
 
@@ -152,6 +159,9 @@ impl MessageRow {
             }
         } else {
             let sent_to = self.imp().message_data.get().unwrap().sent_to().unwrap();
+
+            sent_by.add_css_class(&format!("sender-{}", sent_to.name_color()));
+
             let image = sent_to.image();
             let receiver = self.imp().receiver.get();
 
