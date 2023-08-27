@@ -4,11 +4,24 @@
     <property name="orientation">horizontal</property>
     <child>
       <object class="AdwAvatar" id="user_avatar">
+        <property name="has-tooltip">true</property>
         <property name="visible">true</property>
         <property name="show-initials">true</property>
         <property name="size">38</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
+        <child>
+          <object class="GtkPopover" id="user_popover">
+            <property name="has-arrow">true</property>
+            <property name="position">right</property>
+            <property name="autohide">false</property>
+            <property name="child">
+              <object class="GtkLabel" id="popover_label">
+                <property name="label" translatable="yes">Additional text here</property>
+              </object>
+            </property>
+          </object>
+        </child>
       </object>
     </child>
   </template>

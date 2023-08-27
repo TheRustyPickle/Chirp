@@ -16,6 +16,7 @@ mod imp {
     pub struct UserObject {
         #[property(name = "image", get, set, type = Option<Paintable>, member = image)]
         #[property(name = "name", get, set, type = String, member = name)]
+        #[property(name = "name-color", get, set, type = String, member = name_color)]
         #[property(name = "image-link", get, set, type = String, member = image_link)]
         pub data: RefCell<UserData>,
         #[property(get, set)]
@@ -47,29 +48,39 @@ use gio::{spawn_blocking, ListStore};
 use glib::{Bytes, ControlFlow, Object};
 use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
 use gtk::{glib, Image};
+use tracing::info;
 
-use crate::utils::get_avatar;
+use crate::utils::{get_avatar, get_random_color};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
 }
 
 impl UserObject {
-    pub fn new(name: &str, image_link: Option<String>, messages: ListStore) -> Self {
+    pub fn new(
+        name: &str,
+        image_link: Option<String>,
+        messages: ListStore,
+        color_to_ignore: Option<&str>,
+    ) -> Self {
+        let random_color = get_random_color(color_to_ignore);
+
         let obj: UserObject = Object::builder()
             .property("name", name)
             .property("image-link", image_link.clone())
             .property("messages", messages)
+            .property("name-color", random_color)
             .build();
 
-        if image_link.is_some() {
+        /*if image_link.is_some() {
+            info!("Starting channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
             spawn_blocking(move || {
                 let avatar = get_avatar(image_link.unwrap());
                 sender.send(avatar).unwrap();
             });
-        }
+        }*/
         obj
     }
 
@@ -89,7 +100,7 @@ impl UserObject {
                     user_object.set_image(paintable.clone());
                     let status = paintable.to_value().get::<Paintable>().unwrap();
                     user_object.emit_by_name::<()>("updating-image", &[&status]);
-                    println!("Emitted UserObject image update");
+                    info!("Emitted image update for {}", user_object.name());
                     ControlFlow::Continue
                 }
             ),
@@ -100,6 +111,7 @@ impl UserObject {
 #[derive(Default, Clone)]
 pub struct UserData {
     pub name: String,
+    pub name_color: String,
     pub image: Option<Paintable>,
     pub image_link: Option<String>,
 }

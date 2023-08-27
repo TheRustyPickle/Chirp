@@ -54,3 +54,57 @@ window {
   margin-right: 180px;
   margin-top: 10px;
 }
+
+.avatar {
+  padding: 3px;
+}
+
+.sender-blue-1 {
+  color: @blue_2;
+  font-weight: bold;
+}
+
+.sender-blue-2 {
+  color: @blue_5;
+  font-weight: bold;
+}
+
+.sender-green-1 {
+  color: @green_2;
+  font-weight: bold;
+}
+
+.sender-green-2 {
+  color: @green_5;
+  font-weight: bold;
+}
+
+.sender-yellow-1 {
+  color: @yellow_5;
+  font-weight: bold;
+}
+
+.sender-orange-1 {
+  color: @orange_2;
+  font-weight: bold;
+}
+
+.sender-red-1 {
+  color: @red_2;
+  font-weight: bold;
+}
+
+.sender-purple-1 {
+  color: @purple_2;
+  font-weight: bold;
+}
+
+.sender-purple-2 {
+  color: @purple_5;
+  font-weight: bold;
+}
+
+.sender-brown-1 {
+  color: @brown_2;
+  font-weight: bold;
+}
