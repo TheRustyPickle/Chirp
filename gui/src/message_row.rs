@@ -89,29 +89,27 @@ impl MessageRow {
                 .add_css_class("message-row-received")
         }
 
-        let row_clone_1 = row.clone();
-
-        let row_clone_2 = row.clone();
-
         let sent_from = object.sent_from().unwrap();
         let sent_to = object.sent_to().unwrap();
 
+        let row_clone = row.clone();
         sent_from.connect_closure(
             "updating-image",
             false,
             closure_local!(move |from: UserObject, status: Paintable| {
                 info!("Updating image for sender {} on MessageRow", from.name());
-                let sender = row_clone_1.imp().sender.get();
+                let sender = row_clone.imp().sender.get();
                 sender.set_custom_image(Some(&status))
             }),
         );
 
+        let row_clone = row.clone();
         sent_to.connect_closure(
             "updating-image",
             false,
             closure_local!(move |from: UserObject, status: Paintable| {
                 info!("Updating image for receiver {} on MessageRow", from.name());
-                let receiver = row_clone_2.imp().receiver.get();
+                let receiver = row_clone.imp().receiver.get();
                 receiver.set_custom_image(Some(&status))
             }),
         );
@@ -129,62 +127,36 @@ impl MessageRow {
         let message_object = self.imp().message_data.get().unwrap();
         let is_sent = message_object.is_send();
 
-        if is_sent {
-            let sent_from = self.imp().message_data.get().unwrap().sent_from().unwrap();
+        let sender = self.imp().message_data.get().unwrap().sent_from().unwrap();
 
-            sent_by.add_css_class(&format!("sender-{}", sent_from.name_color()));
+        sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 
-            let image = sent_from.image();
-            let sender = self.imp().sender.get();
-
-            let sent_by_binding = sent_from
-                .bind_property("name", &sent_by, "label")
-                .sync_create()
-                .build();
-
-            let avatar_fallback_binding = sent_from
-                .bind_property("name", &sender, "text")
-                .sync_create()
-                .build();
-
-            bindings.push(sent_by_binding);
-            bindings.push(avatar_fallback_binding);
-
-            if image.is_some() {
-                let image_binding = sent_from
-                    .bind_property("image", &sender, "custom-image")
-                    .sync_create()
-                    .build();
-                bindings.push(image_binding);
-            }
+        let image = sender.image();
+        let sender_avatar = if is_sent {
+            self.imp().sender.get()
         } else {
-            let sent_to = self.imp().message_data.get().unwrap().sent_to().unwrap();
+            self.imp().receiver.get()
+        };
 
-            sent_by.add_css_class(&format!("sender-{}", sent_to.name_color()));
+        let sent_by_binding = sender
+            .bind_property("name", &sent_by, "label")
+            .sync_create()
+            .build();
 
-            let image = sent_to.image();
-            let receiver = self.imp().receiver.get();
+        let avatar_fallback_binding = sender
+            .bind_property("name", &sender_avatar, "text")
+            .sync_create()
+            .build();
 
-            let sent_by_binding = sent_to
-                .bind_property("name", &sent_by, "label")
+        bindings.push(sent_by_binding);
+        bindings.push(avatar_fallback_binding);
+
+        if image.is_some() {
+            let image_binding = sender
+                .bind_property("image", &sender_avatar, "custom-image")
                 .sync_create()
                 .build();
-
-            let avatar_fallback_binding = sent_to
-                .bind_property("name", &receiver, "text")
-                .sync_create()
-                .build();
-
-            bindings.push(sent_by_binding);
-            bindings.push(avatar_fallback_binding);
-
-            if image.is_some() {
-                let image_binding = sent_to
-                    .bind_property("image", &receiver, "custom-image")
-                    .sync_create()
-                    .build();
-                bindings.push(image_binding);
-            }
+            bindings.push(image_binding);
         }
 
         let message_binding = message_object

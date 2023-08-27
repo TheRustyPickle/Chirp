@@ -260,11 +260,11 @@ impl Window {
         let receiver = self.get_chatting_with();
 
         if sender == receiver {
-            info!("Both sender and receiver are the same");
+            info!("Both sender and receiver are the same. Stopping sending");
             return;
         }
 
-        let message = MessageObject::new(content.to_string(), false, sender, receiver);
+        let message = MessageObject::new(content.to_string(), false, receiver, sender);
 
         self.chatting_with_messages().append(&message);
     }

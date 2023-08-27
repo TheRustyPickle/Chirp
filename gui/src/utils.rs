@@ -7,6 +7,7 @@ const COLORS: [&str; 10] = [
 ];
 
 pub fn get_avatar(link: String) -> Vec<u8> {
+    info!("Starting fetching avatar...");
     reqwest::blocking::get(&link)
         .unwrap()
         .bytes()
