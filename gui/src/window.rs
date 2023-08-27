@@ -76,11 +76,11 @@ use adw::Application;
 use adw::{prelude::*, NavigationDirection};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, Object};
+use gtk::prelude::*;
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
 };
-use gtk::prelude::*;
 use tracing::info;
 
 use crate::message_data::MessageObject;

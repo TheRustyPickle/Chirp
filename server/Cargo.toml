@@ -1,0 +1,8 @@
+[package]
+name = "chirp-server"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "chirp-server"
+path = "src/main.rs"
