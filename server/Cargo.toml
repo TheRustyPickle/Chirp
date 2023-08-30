@@ -6,3 +6,10 @@ edition = "2021"
 [[bin]]
 name = "chirp-server"
 path = "src/main.rs"
+
+[dependencies]
+actix = "0.13.0"
+actix-rt = "2.9.0"
+actix-web = "4.4.0"
+actix-web-actors = "4.2.0"
+rand = "0.8.5"
