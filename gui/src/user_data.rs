@@ -1,13 +1,15 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gio::glib::once_cell::sync::Lazy;
     use gio::glib::subclass::Signal;
+    use gio::glib::{once_cell::sync::Lazy};
     use gio::ListStore;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::gdk::Paintable;
     use gtk::glib;
-    use std::cell::{OnceCell, RefCell};
+    use std::{
+        cell::{OnceCell, RefCell}
+    };
 
     use super::UserData;
 
@@ -48,6 +50,7 @@ use gio::{spawn_blocking, ListStore};
 use glib::{Bytes, ControlFlow, Object};
 use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
 use gtk::{glib, Image};
+use soup::WebsocketConnection;
 use tracing::info;
 
 use crate::utils::{get_avatar, get_random_color};
@@ -71,7 +74,6 @@ impl UserObject {
             .property("messages", messages)
             .property("name-color", random_color)
             .build();
-
         /*if image_link.is_some() {
             info!("Starting channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
@@ -84,13 +86,12 @@ impl UserObject {
         obj
     }
 
-    fn set_user_image(&self, receiver: Receiver<Vec<u8>>) {
+    fn set_user_image(&self, receiver: Receiver<Bytes>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
-                    let pixbuf = Texture::from_bytes(&Bytes::from(&image_data)).unwrap();
-
+                    let pixbuf = Texture::from_bytes(&image_data).unwrap();
                     let buf = pixbuf_get_from_texture(&pixbuf).unwrap();
                     let image = Image::from_pixbuf(Some(&buf));
                     image.set_width_request(buf.width());
