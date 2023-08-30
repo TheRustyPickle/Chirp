@@ -9,7 +9,7 @@ mod imp {
     use std::cell::{OnceCell, RefCell};
     use std::rc::Rc;
 
-    use crate::user_data::UserObject;
+    use crate::user::UserObject;
 
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
@@ -74,6 +74,7 @@ mod imp {
 use adw::subclass::prelude::*;
 use adw::Application;
 use adw::{prelude::*, NavigationDirection};
+use gio::glib::{ControlFlow, Receiver};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, Object};
 use gtk::prelude::*;
@@ -83,11 +84,10 @@ use gtk::{
 };
 use tracing::info;
 
-use crate::message_data::MessageObject;
-use crate::message_row::MessageRow;
-use crate::user_data::UserObject;
-use crate::user_row::UserRow;
+use crate::message::{MessageObject, MessageRow};
+use crate::user::{UserObject, UserRow};
 use crate::utils::{generate_dicebear_link, generate_robohash_link};
+use crate::ws::WSObject;
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -145,7 +145,7 @@ impl Window {
         button_action.connect_activate(clone!(@weak self as window => move |_, _| {
             info!("ctrl enter or the send button has been triggered");
             window.send_message();
-            window.receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.");
+            window.receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.", window.get_chatting_with());
             window.grab_focus();
         }));
 
@@ -254,19 +254,22 @@ impl Window {
         self.chatting_with_messages().append(&message);
     }
 
-    fn receive_message(&self, content: &str) {
-        info!("Receiving message with content: {}", content);
-        let sender = self.get_chatting_from();
+    fn receive_message(&self, content: &str, sender: UserObject) {
+        info!(
+            "Receiving message from {} with content: {}",
+            sender.name(),
+            content
+        );
         let receiver = self.get_chatting_with();
 
-        if sender == receiver {
+        if sender == self.get_chatting_from() {
             info!("Both sender and receiver are the same. Stopping sending");
             return;
         }
 
-        let message = MessageObject::new(content.to_string(), false, receiver, sender);
+        let message = MessageObject::new(content.to_string(), false, receiver, sender.clone());
 
-        self.chatting_with_messages().append(&message);
+        sender.messages().append(&message);
     }
 
     fn create_message(&self, data: &MessageObject) -> MessageRow {
@@ -279,18 +282,29 @@ impl Window {
     fn create_user(&self, name: &str, is_owner: bool) -> UserObject {
         info!("Creating new user with name: {}", name);
         let messages = ListStore::new::<MessageObject>();
+        let ws = WSObject::new();
         let user_data = if is_owner {
-            UserObject::new(name, Some(generate_dicebear_link()), messages, None)
+            UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws)
         } else {
             UserObject::new(
                 name,
                 Some(generate_dicebear_link()),
                 messages,
                 Some(&self.get_owner_name_color()),
+                ws,
             )
         };
+        let receiver = user_data.handle_ws();
+        self.handle_ws_message(user_data.clone(), receiver);
         self.get_users_liststore().append(&user_data);
         user_data
+    }
+
+    fn handle_ws_message(&self, user: UserObject, receiver: Receiver<String>) {
+        receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
+            window.receive_message(&response, user_object);
+            ControlFlow::Continue
+        }));
     }
 
     fn get_user_list(&self) -> ListBox {
