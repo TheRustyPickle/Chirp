@@ -5,7 +5,7 @@ mod imp {
     use gtk::{glib, Box, CompositeTemplate, Label};
     use std::cell::{OnceCell, RefCell};
 
-    use crate::message_data::MessageObject;
+    use crate::message::MessageObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
@@ -61,8 +61,8 @@ use gtk::prelude::*;
 use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
 use tracing::info;
 
-use crate::message_data::MessageObject;
-use crate::user_data::UserObject;
+use crate::message::MessageObject;
+use crate::user::UserObject;
 
 wrapper! {
     pub struct MessageRow(ObjectSubclass<imp::MessageRow>)
