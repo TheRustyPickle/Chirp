@@ -25,6 +25,8 @@ mod imp {
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
+        #[property(get, set)]
+        pub user_id: OnceCell<u64>,
     }
 
     #[object_subclass]
@@ -138,7 +140,14 @@ impl UserObject {
             user_ws.connect_message(clone!(@weak self as user_object => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
                 let text = String::from_utf8(byte_slice).unwrap();
-                info!("Received from WS: {text}");
+                info!("{} Received from WS: {text}", user_object.name());
+
+                if text.starts_with("/update-user-id") {
+                    let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
+                    user_object.set_user_id(id);
+                    return;
+                }
+
                 sender.send(text).unwrap();
 
             }));

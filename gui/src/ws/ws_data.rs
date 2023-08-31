@@ -77,7 +77,6 @@ impl WSObject {
             Some(&cancel),
             move |result| match result {
                 Ok(connection) => {
-                    connection.send_text("Is it working?");
                     sender.send(Some(connection)).unwrap();
                 }
                 Err(error) => {
@@ -106,6 +105,13 @@ impl WSObject {
                 ControlFlow::Continue
             }),
         );
+    }
+
+    pub fn update_chatting_with(&self, id: u64) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Sending request for updating chatting with id {}", id);
+            conn.send_text(&format!("/update-chatting-with {}", id))
+        }
     }
 
     pub fn set_id(&self, id: SignalHandlerId) {

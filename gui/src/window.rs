@@ -126,6 +126,8 @@ impl Window {
                 .downcast::<UserObject>()
                 .expect("It should be an UserObject");
                 info!("Selected a new User from list");
+                let selected_chat_id = selected_chat.user_id();
+                window.get_chatting_from().user_ws().update_chatting_with(selected_chat_id);
                 window.set_chatting_with(selected_chat);
             }));
 
@@ -145,7 +147,6 @@ impl Window {
         button_action.connect_activate(clone!(@weak self as window => move |_, _| {
             info!("ctrl enter or the send button has been triggered");
             window.send_message();
-            window.receive_message("Bot message received. A very long message is about to be sent to test how the ui is doing on handling the wrapping and the size.", window.get_chatting_with());
             window.grab_focus();
         }));
 
@@ -243,6 +244,9 @@ impl Window {
         if content.is_empty() {
             info!("Empty text found");
             return;
+        }
+        if let Some(conn) = self.get_chatting_from().user_ws().ws_conn() {
+            conn.send_text(&content);
         }
         info!("Text of message to send: {}", content);
         buffer.set_text("");
