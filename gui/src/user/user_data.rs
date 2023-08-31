@@ -9,6 +9,8 @@ mod imp {
     use gtk::glib;
     use std::cell::{OnceCell, RefCell};
 
+    use crate::ws::WSObject;
+
     use super::UserData;
 
     #[derive(Properties, Default)]
@@ -21,6 +23,10 @@ mod imp {
         pub data: RefCell<UserData>,
         #[property(get, set)]
         pub messages: OnceCell<ListStore>,
+        #[property(get, set)]
+        pub user_ws: OnceCell<WSObject>,
+        #[property(get, set)]
+        pub user_id: OnceCell<u64>,
     }
 
     #[object_subclass]
@@ -43,7 +49,7 @@ mod imp {
 }
 
 use adw::prelude::*;
-use gio::glib::{clone, MainContext, Priority, Receiver};
+use gio::glib::{clone, closure_local, MainContext, Priority, Receiver, Sender};
 use gio::{spawn_blocking, ListStore};
 use glib::{Bytes, ControlFlow, Object};
 use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
@@ -51,6 +57,7 @@ use gtk::{glib, Image};
 use tracing::info;
 
 use crate::utils::{get_avatar, get_random_color};
+use crate::ws::WSObject;
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -62,6 +69,7 @@ impl UserObject {
         image_link: Option<String>,
         messages: ListStore,
         color_to_ignore: Option<&str>,
+        user_ws: WSObject,
     ) -> Self {
         let random_color = get_random_color(color_to_ignore);
 
@@ -72,7 +80,7 @@ impl UserObject {
             .property("name-color", random_color)
             .build();
 
-        /*if image_link.is_some() {
+        if image_link.is_some() {
             info!("Starting channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
@@ -80,22 +88,23 @@ impl UserObject {
                 let avatar = get_avatar(image_link.unwrap());
                 sender.send(avatar).unwrap();
             });
-        }*/
+        }
+        obj.set_user_ws(user_ws);
         obj
     }
 
-    fn set_user_image(&self, receiver: Receiver<Vec<u8>>) {
+    fn set_user_image(&self, receiver: Receiver<Bytes>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
-                    let pixbuf = Texture::from_bytes(&Bytes::from(&image_data)).unwrap();
+                    let texture = Texture::from_bytes(&image_data).unwrap();
 
-                    let buf = pixbuf_get_from_texture(&pixbuf).unwrap();
-                    let image = Image::from_pixbuf(Some(&buf));
-                    image.set_width_request(buf.width());
-                    image.set_height_request(buf.height());
-                    image.set_pixel_size(buf.width());
+                    let pixbuf = pixbuf_get_from_texture(&texture).unwrap();
+                    let image = Image::from_pixbuf(Some(&pixbuf));
+                    image.set_width_request(pixbuf.width());
+                    image.set_height_request(pixbuf.height());
+                    image.set_pixel_size(pixbuf.width());
                     let paintable = image.paintable().unwrap();
                     user_object.set_image(paintable.clone());
                     let status = paintable.to_value().get::<Paintable>().unwrap();
@@ -105,6 +114,45 @@ impl UserObject {
                 }
             ),
         );
+    }
+
+    pub fn handle_ws(&self) -> Receiver<String> {
+        let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
+        let user_object = self.clone();
+        let user_ws = self.user_ws();
+        user_ws.connect_closure(
+            "ws-success",
+            false,
+            closure_local!(move |_from: WSObject, success: bool| {
+                if success {
+                    user_object.start_listening(sender.clone());
+                }
+            }),
+        );
+
+        receiver
+    }
+
+    fn start_listening(&self, sender: Sender<String>) {
+        let user_ws = self.user_ws().ws_conn().unwrap();
+
+        let id =
+            user_ws.connect_message(clone!(@weak self as user_object => move |_ws, _s, bytes| {
+                let byte_slice = bytes.to_vec();
+                let text = String::from_utf8(byte_slice).unwrap();
+                info!("{} Received from WS: {text}", user_object.name());
+
+                if text.starts_with("/update-user-id") {
+                    let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
+                    user_object.set_user_id(id);
+                    return;
+                }
+
+                sender.send(text).unwrap();
+
+            }));
+
+        self.user_ws().set_id(id);
     }
 }
 

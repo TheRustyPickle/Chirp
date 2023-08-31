@@ -1,9 +1,8 @@
-mod message_data;
-mod message_row;
-mod user_data;
-mod user_row;
+mod message;
+mod user;
 mod utils;
 mod window;
+mod ws;
 
 use adw::Application;
 use gdk::Display;

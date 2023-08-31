@@ -5,7 +5,7 @@ mod imp {
     use gtk::{glib, Box, CompositeTemplate, Label, Popover};
     use std::cell::{Cell, OnceCell, RefCell};
 
-    use crate::user_data::UserObject;
+    use crate::user::UserObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_row.xml")]
@@ -47,7 +47,7 @@ mod imp {
     impl BoxImpl for UserRow {}
 }
 
-use crate::user_data::UserObject;
+use crate::user::UserObject;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gio::glib::closure_local;

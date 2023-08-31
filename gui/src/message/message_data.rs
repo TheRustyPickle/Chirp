@@ -1,7 +1,7 @@
 mod imp {
     use std::cell::RefCell;
 
-    use crate::user_data::UserObject;
+    use crate::user::UserObject;
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use glib::{derived_properties, object_subclass, Properties};
@@ -36,7 +36,7 @@ use glib::Object;
 use gtk::glib;
 use gtk::prelude::*;
 
-use crate::user_data::UserObject;
+use crate::user::UserObject;
 
 wrapper! {
     pub struct MessageObject(ObjectSubclass<imp::MessageObject>);

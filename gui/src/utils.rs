@@ -1,4 +1,8 @@
+use gio::Cancellable;
+use gtk::glib::Bytes;
 use rand::Rng;
+use soup::prelude::*;
+use soup::{Message, Session};
 use tracing::info;
 
 const COLORS: [&str; 10] = [
@@ -6,13 +10,13 @@ const COLORS: [&str; 10] = [
     "purple-2", "brown-1",
 ];
 
-pub fn get_avatar(link: String) -> Vec<u8> {
+pub fn get_avatar(link: String) -> Bytes {
     info!("Starting fetching avatar...");
-    reqwest::blocking::get(&link)
-        .unwrap()
-        .bytes()
-        .unwrap()
-        .to_vec()
+    let session = Session::new();
+    let message = Message::new("GET", &link).unwrap();
+    let cancel = Cancellable::new();
+
+    session.send_and_read(&message, Some(&cancel)).unwrap()
 }
 
 fn generate_random_number(length: usize) -> String {
