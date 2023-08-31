@@ -77,7 +77,9 @@ impl Actor for WsChatSession {
                 match res {
                     Ok(res) => {
                         println!("Setting WsChatSession ID to {}", res);
-                        act.id = res},
+                        act.id = res;
+                        act.name = Some("Main WebSocket".to_string());
+                    }
                     // something is wrong with chat server
                     _ => ctx.stop(),
                 }
@@ -127,13 +129,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 if m.starts_with('/') {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
-                        "/name" => {
-                            if v.len() == 2 {
-                                self.name = Some(v[1].to_owned());
-                            } else {
-                                ctx.text("!!! name is required");
-                            }
-                        }
+                        "/update-chatting-with" => self.addr.do_send(server::ChattingWithUpdate {
+                            user_id: self.id,
+                            chatting_with: v[1].parse().unwrap(),
+                        }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 } else {
@@ -144,10 +143,8 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     };
                     // send message to chat server
                     println!("Creating new ClientMessage with id: {} {}", self.id, msg);
-                    self.addr.do_send(server::ClientMessage {
-                        id: self.id,
-                        msg
-                    })
+                    self.addr
+                        .do_send(server::ClientMessage { id: self.id, msg })
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),

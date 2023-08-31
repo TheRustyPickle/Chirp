@@ -28,7 +28,6 @@ pub struct Disconnect {
     pub id: usize,
 }
 
-
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct ClientMessage {
@@ -38,18 +37,24 @@ pub struct ClientMessage {
     pub msg: String,
 }
 
+#[derive(Message)]
+#[rtype(result = "()")]
+pub struct ChattingWithUpdate {
+    /// Id of the client session
+    pub user_id: usize,
+    /// Peer message
+    pub chatting_with: usize,
+}
 
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Join {
-    pub id: usize
+    pub id: usize,
 }
-
 
 #[derive(Debug)]
 pub struct ChatServer {
     sessions: HashMap<usize, (Option<usize>, Recipient<Message>)>,
-    //available_chats: HashSet<usize>,
     rng: ThreadRng,
 }
 
@@ -59,7 +64,7 @@ impl ChatServer {
         println!("New Chat Server getting created");
         ChatServer {
             sessions: HashMap::new(),
-            rng: rand::thread_rng()
+            rng: rand::thread_rng(),
         }
     }
 }
@@ -74,8 +79,17 @@ impl ChatServer {
                 receiver_ws.do_send(Message(message.to_owned()));
             }
         }
+    }
 
-        
+    fn send_user_id(&self, id: usize) {
+        let (_, receiver_ws) = self.sessions.get(&id).unwrap();
+        receiver_ws.do_send(Message(format!("/update-user-id {}", id)))
+    }
+
+    fn update_chatting_with(&mut self, user_id: usize, update_with: usize) {
+        if let Some(chatting_data) = self.sessions.get_mut(&user_id) {
+            chatting_data.0 = Some(update_with);
+        };
     }
 }
 
@@ -93,22 +107,12 @@ impl Handler<Connect> for ChatServer {
     type Result = usize;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        self.send_message( "Someone joined", 0);
-
+        self.send_message("Someone joined", 0);
 
         let id = self.rng.gen::<usize>();
 
-        let chatting_with = if self.sessions.len() > 0 {
-            let mut target_key = 0;
-            for x in self.sessions.keys() {
-                target_key = x.clone();
-            }
-            Some(target_key)
-        } else {
-            None
-        };
-
-        self.sessions.insert(id, (chatting_with, msg.addr));
+        self.sessions.insert(id, (None, msg.addr));
+        self.send_user_id(id);
         id
     }
 }
@@ -120,8 +124,6 @@ impl Handler<Disconnect> for ChatServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         println!("Someone disconnected");
         self.sessions.remove(&msg.id);
-
-        
     }
 }
 
@@ -130,7 +132,22 @@ impl Handler<ClientMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        println!("Preparing for sending message {:?}. ClientMessageID: {}", msg.msg, msg.id);
-        self.send_message( msg.msg.as_str(), msg.id);
+        println!(
+            "Preparing for sending message {:?}. ClientMessageID: {}",
+            msg.msg, msg.id
+        );
+        self.send_message(msg.msg.as_str(), msg.id);
+    }
+}
+
+impl Handler<ChattingWithUpdate> for ChatServer {
+    type Result = ();
+
+    fn handle(&mut self, msg: ChattingWithUpdate, _: &mut Context<Self>) {
+        println!(
+            "Updating user id {} chatting with {}",
+            msg.user_id, msg.chatting_with
+        );
+        self.update_chatting_with(msg.user_id, msg.chatting_with);
     }
 }

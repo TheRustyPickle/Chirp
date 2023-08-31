@@ -1,8 +1,8 @@
-use std::time::Instant;
 use actix::*;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web::middleware::Logger;
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
+use std::time::Instant;
 
 mod server;
 mod session;
