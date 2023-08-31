@@ -267,7 +267,7 @@ impl Window {
             return;
         }
 
-        let message = MessageObject::new(content.to_string(), false, receiver, sender.clone());
+        let message = MessageObject::new(content.to_string(), false, sender.clone(), receiver);
 
         sender.messages().append(&message);
     }
