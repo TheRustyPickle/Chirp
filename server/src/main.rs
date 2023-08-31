@@ -1,48 +1,43 @@
-use actix::{Actor, AsyncContext, StreamHandler};
+use std::time::Instant;
+use actix::*;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
+use actix_web::middleware::Logger;
 use actix_web_actors::ws;
-use std::time::Duration;
+
+mod server;
+mod session;
+
+/// Entry point for our websocket route
+async fn chat_route(
+    req: HttpRequest,
+    stream: web::Payload,
+    srv: web::Data<Addr<server::ChatServer>>,
+) -> Result<HttpResponse, Error> {
+    ws::start(
+        session::WsChatSession {
+            id: 0,
+            hb: Instant::now(),
+            name: None,
+            addr: srv.get_ref().clone(),
+        },
+        &req,
+        stream,
+    )
+}
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    HttpServer::new(|| App::new().route("/ws/", web::get().to(index)))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
-}
+    // start chat server actor
+    let server = server::ChatServer::new().start();
 
-struct MyWs;
-
-impl Actor for MyWs {
-    type Context = ws::WebsocketContext<Self>;
-
-    fn started(&mut self, ctx: &mut Self::Context) {
-        ctx.run_interval(Duration::from_secs(1), move |_, n| {
-            n.text(format!(
-                "random reply with number {}",
-                rand::random::<u64>()
-            ))
-        });
-    }
-}
-
-/// Handler for ws::Message message
-impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for MyWs {
-    fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
-        match msg {
-            Ok(ws::Message::Ping(msg)) => ctx.pong(&msg),
-            Ok(ws::Message::Text(text)) => {
-                println!("Received message: {}", text);
-                ctx.text(format!("You said: {}", text));
-            }
-            Ok(ws::Message::Binary(bin)) => ctx.binary(bin),
-            _ => (),
-        }
-    }
-}
-
-async fn index(req: HttpRequest, stream: web::Payload) -> Result<HttpResponse, Error> {
-    let resp = ws::start(MyWs {}, &req, stream);
-    println!("{:?}", resp);
-    resp
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(server.clone()))
+            .route("/ws/", web::get().to(chat_route))
+            .wrap(Logger::default())
+    })
+    .workers(2)
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
