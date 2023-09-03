@@ -8,11 +8,13 @@ edition = "2021"
 [dependencies]
 adw = { version = "0.5.2", package = "libadwaita", features = ["gtk_v4_10", "v1_3"] }
 gio = "0.18.1"
-gtk = { version = "0.7.1", package = "gtk4", features = ["v4_10"] }
+gtk = { version = "0.7.2", package = "gtk4", features = ["v4_12"] }
 rand = "0.8.5"
 soup3 = "0.5.0"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
+serde = { version = "1.0.140", features = ["derive"]}
+serde_json = "1.0.105"
 
 [build-dependencies]
 glib-build-tools = "0.18.0"

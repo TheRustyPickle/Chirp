@@ -436,6 +436,8 @@ dependencies = [
  "gtk4",
  "libadwaita",
  "rand",
+ "serde",
+ "serde_json",
  "soup3",
  "tracing",
  "tracing-subscriber",
@@ -450,6 +452,10 @@ dependencies = [
  "actix-web",
  "actix-web-actors",
  "rand",
+ "serde",
+ "serde_json",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

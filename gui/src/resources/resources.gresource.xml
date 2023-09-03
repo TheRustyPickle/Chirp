@@ -4,6 +4,7 @@
         <file compressed="true" preprocess="xml-stripblanks">window.xml</file>
         <file compressed="true" preprocess="xml-stripblanks">message_row.xml</file>
         <file compressed="true" preprocess="xml-stripblanks">user_row.xml</file>
+        <file compressed="true" preprocess="xml-stripblanks">user_prompt.xml</file>
         <file compressed="true">style.css</file>
     </gresource>
 </gresources>

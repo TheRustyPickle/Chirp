@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+	<template class="UserPrompt" parent="AdwMessageDialog">
+		<property name="body">Enter the User ID you want to chat with</property>
+		<property name="close-response">close</property>
+		<property name="default-response">chat</property>
+		<property name="extra-child">
+			<object class="GtkEntry" id="id_entry">
+				<property name="css-classes">id-entry</property>
+				<property name="placeholder-text">ID Number</property>
+			</object>
+		</property>
+	</template>
+</interface>
