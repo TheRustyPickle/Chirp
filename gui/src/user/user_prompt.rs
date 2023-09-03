@@ -2,7 +2,7 @@ mod imp {
     use adw::{subclass::prelude::*, MessageDialog};
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
-    use gtk::{glib, CompositeTemplate, Entry, Label, Popover};
+    use gtk::{glib, CompositeTemplate, Entry};
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_prompt.xml")]

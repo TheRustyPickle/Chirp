@@ -39,8 +39,8 @@ pub fn generate_dicebear_link() -> String {
 pub fn get_random_color(to_ignore: Option<&str>) -> &str {
     let mut colors_vector: Vec<&str> = COLORS.to_vec();
 
-    if to_ignore.is_some() {
-        colors_vector.retain(|&color| color != to_ignore.unwrap());
+    if let Some(ignore_color) = to_ignore {
+        colors_vector.retain(|&color| color != ignore_color);
     }
 
     let selected_index = rand::thread_rng().gen_range(0..colors_vector.len());
