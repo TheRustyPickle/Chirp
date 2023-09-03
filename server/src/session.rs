@@ -2,49 +2,29 @@ use std::time::{Duration, Instant};
 
 use actix::prelude::*;
 use actix_web_actors::ws;
+use tracing::info;
 
 use crate::server;
 
-/// How often heartbeat pings are sent
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
-/// How long before lack of client response causes a timeout
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
 #[derive(Debug)]
 pub struct WsChatSession {
-    /// unique session id
     pub id: usize,
-
-    /// Client must send ping at least once per 10 seconds (CLIENT_TIMEOUT),
-    /// otherwise we drop connection.
     pub hb: Instant,
-
-    /// peer name
     pub name: Option<String>,
-
-    /// Chat server
     pub addr: Addr<server::ChatServer>,
 }
 
 impl WsChatSession {
-    /// helper method that sends ping to client every 5 seconds (HEARTBEAT_INTERVAL).
-    ///
-    /// also this method checks heartbeats from client
     fn hb(&self, ctx: &mut ws::WebsocketContext<Self>) {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
-            // check client heartbeats
             if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
-                // heartbeat timed out
-                println!("Websocket Client heartbeat failed, disconnecting!");
-
-                // notify chat server
+                info!("Websocket Client heartbeat failed, disconnecting!");
                 act.addr.do_send(server::Disconnect { id: act.id });
-
-                // stop actor
                 ctx.stop();
-
-                // don't try to send a ping
                 return;
             }
 
@@ -56,17 +36,8 @@ impl WsChatSession {
 impl Actor for WsChatSession {
     type Context = ws::WebsocketContext<Self>;
 
-    /// Method is called on actor start.
-    /// We register ws session with ChatServer
     fn started(&mut self, ctx: &mut Self::Context) {
-        // we'll start heartbeat process on session start.
         self.hb(ctx);
-
-        // register self in chat server. `AsyncContext::wait` register
-        // future within context, but context waits until this future resolves
-        // before processing any other events.
-        // HttpContext::state() is instance of WsChatSessionState, state is shared
-        // across all routes within application
         let addr = ctx.address();
         self.addr
             .send(server::Connect {
@@ -76,11 +47,10 @@ impl Actor for WsChatSession {
             .then(|res, act, ctx| {
                 match res {
                     Ok(res) => {
-                        println!("Setting WsChatSession ID to {}", res);
+                        info!("Setting WsChatSession ID to {}", res);
                         act.id = res;
                         act.name = Some("Main WebSocket".to_string());
                     }
-                    // something is wrong with chat server
                     _ => ctx.stop(),
                 }
                 fut::ready(())
@@ -89,13 +59,11 @@ impl Actor for WsChatSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        // notify chat server
         self.addr.do_send(server::Disconnect { id: self.id });
         Running::Stop
     }
 }
 
-/// Handle messages from chat server, we simply send it to peer websocket
 impl Handler<server::Message> for WsChatSession {
     type Result = ();
 
@@ -104,7 +72,6 @@ impl Handler<server::Message> for WsChatSession {
     }
 }
 
-/// WebSocket message handler
 impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
     fn handle(&mut self, msg: Result<ws::Message, ws::ProtocolError>, ctx: &mut Self::Context) {
         let msg = match msg {
@@ -130,8 +97,18 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
                         "/update-chatting-with" => self.addr.do_send(server::ChattingWithUpdate {
-                            user_id: self.id,
+                            chatting_from: self.id,
                             chatting_with: v[1].parse().unwrap(),
+                        }),
+                        "/get-user-data" => self.addr.do_send(server::CommunicateUser {
+                            user_id: 0,
+                            user_data: v[1].to_string(),
+                            is_send: true,
+                        }),
+                        "/update-user-data" => self.addr.do_send(server::CommunicateUser {
+                            user_id: self.id,
+                            user_data: v[1].to_string(),
+                            is_send: false,
                         }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
@@ -141,8 +118,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     } else {
                         m.to_owned()
                     };
-                    // send message to chat server
-                    println!("Creating new ClientMessage with id: {} {}", self.id, msg);
                     self.addr
                         .do_send(server::ClientMessage { id: self.id, msg })
                 }
