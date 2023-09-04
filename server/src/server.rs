@@ -1,7 +1,7 @@
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use tracing::info;
 
 #[derive(Message)]
@@ -72,19 +72,31 @@ impl UserData {
 
     fn update_id(self, id: usize) -> Self {
         UserData {
-            id: id,
+            id,
             name: self.name,
             image_link: self.image_link,
         }
     }
 }
 
+#[derive(Debug, PartialEq)]
+pub struct WsData {
+    user_id: usize,
+    ws_id: usize,
+}
+
+impl WsData {
+    fn new(user_id: usize, ws_id: usize) -> Self {
+        WsData { user_id, ws_id }
+    }
+}
+
 #[derive(Debug)]
 pub struct ChatServer {
-    // {session id: {session_user_id, chatting_with_ws_id, recipient}}
+    // {session id: {user id this session belongs to, chatting_with_ws_id, recipient}}
     sessions: HashMap<usize, (usize, Option<usize>, Recipient<Message>)>,
-    users: HashMap<usize, UserData>,
-    user_sessions: HashMap<usize, HashSet<usize>>,
+    user_data: HashMap<usize, UserData>,
+    user_session: HashMap<usize, Vec<WsData>>,
     rng: ThreadRng,
 }
 
@@ -93,8 +105,8 @@ impl ChatServer {
         info!("New Chat Server getting created");
         ChatServer {
             sessions: HashMap::new(),
-            users: HashMap::new(),
-            user_sessions: HashMap::new(),
+            user_data: HashMap::new(),
+            user_session: HashMap::new(),
             rng: rand::thread_rng(),
         }
     }
@@ -102,35 +114,20 @@ impl ChatServer {
 
 impl ChatServer {
     fn send_message(&self, message: &str, sent_from: usize) {
-        info!("Sessions: {:?}\n", self.sessions);
-        info!("User Sessions: {:?}\n", self.user_sessions);
-
-        /*for i in self.user_sessions.keys() {
-            let ws_id = &self.user_sessions[i];
-
-            for session in ws_id {
-                let (_, _, receiver_ws) = self.sessions.get(session).unwrap();
-                receiver_ws.do_send(Message(message.to_owned()));
-            }
-
-            
-        }*/
-
-        if let Some((my_id, chatting_with, my_ws)) = self.sessions.get(&sent_from) {
-            for session_id in self.user_sessions[&my_id].iter() {
-                info!(
-                    "Sending the message to user with {my_id} ws id {}",
-                    session_id
-                );
-                let (_, _, receiver_ws) = self.sessions.get(session_id).unwrap();
-                receiver_ws.do_send(Message(message.to_owned()));
-                my_ws.do_send(Message(message.to_owned()));
+        if let Some((sent_from, chatting_with, _)) = self.sessions.get(&sent_from) {
+            if let Some(chatting_with_id) = chatting_with {
+                for i in self.user_session[chatting_with_id].iter() {
+                    if sent_from == &i.user_id {
+                        info!("Sending message from {} to {}", sent_from, i.user_id);
+                        let receiver_ws = &self.sessions.get(&i.ws_id).unwrap().2;
+                        receiver_ws.do_send(Message(message.to_string()))
+                    }
+                }
             }
         }
     }
 
     fn send_session_id(&self, id: usize) {
-        info!("Sending WS session ID {id}");
         if let Some((_, _, receiver_ws)) = self.sessions.get(&id) {
             receiver_ws.do_send(Message(format!("/update-session-id {}", id)))
         };
@@ -143,7 +140,7 @@ impl ChatServer {
             ws_id
         );
         let user_data = UserData::new(other_data).update_id(user_id);
-        self.users.insert(user_id, user_data);
+        self.user_data.insert(user_id, user_data);
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (session_user_id, _, receiver_ws) = entry;
@@ -151,18 +148,17 @@ impl ChatServer {
             receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
         }
 
-        //self.user_sessions.entry(user_id).or_insert(HashSet::new()).insert(ws_id);
+        let ws_data = WsData::new(user_id, ws_id);
 
-        if !self.user_sessions.contains_key(&user_id) {
-            self.user_sessions.insert(user_id, HashSet::new());
-        } else {
-            self.user_sessions.get_mut(&user_id).unwrap().insert(ws_id);
-        }
+        self.user_session
+            .entry(user_id)
+            .or_insert(Vec::new())
+            .push(ws_data);
     }
 
     fn send_user_data(&mut self, ws_id: usize, id: usize) {
         info!("Sending user data of with id {}", id);
-        if let Some(data) = self.users.get(&id) {
+        if let Some(data) = self.user_data.get(&id) {
             let user_data = data.to_json();
             if let Some((_, _, receiver_ws)) = self.sessions.get(&ws_id) {
                 receiver_ws.do_send(Message(format!("/get-user-data {}", user_data)))
@@ -181,14 +177,19 @@ impl ChatServer {
         };
     }
 
-    fn update_ids(&mut self, ws_id: usize, user_id: usize) {
+    fn update_ids(&mut self, ws_id: usize, user_id: usize, client_id: usize) {
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (session_user_id, _, _) = entry;
             *session_user_id = user_id;
-        } else {
-            info!("Session id not found");
         }
-        self.user_sessions.get_mut(&user_id).unwrap().insert(ws_id);
+
+        let ws_data = WsData::new(user_id, ws_id);
+
+        let session_data = self.user_session.get_mut(&client_id).unwrap();
+
+        if !session_data.contains(&ws_data) {
+            session_data.push(ws_data);
+        }
     }
 }
 
@@ -241,9 +242,16 @@ impl Handler<CommunicateUser> for ChatServer {
             CommunicationType::SendUserData => {
                 self.send_user_data(msg.ws_id, msg.user_data.parse().unwrap())
             }
-            CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.user_data),
+            CommunicationType::CreateNewUser => {
+                self.create_new_user(msg.ws_id, msg.user_data);
+            }
             CommunicationType::UpdateUserIDs => {
-                self.update_ids(msg.ws_id, msg.user_data.parse().unwrap())
+                let data: Vec<&str> = msg.user_data.split(' ').collect();
+                self.update_ids(
+                    msg.ws_id,
+                    data[0].parse().unwrap(),
+                    data[1].parse().unwrap(),
+                );
             }
         }
     }

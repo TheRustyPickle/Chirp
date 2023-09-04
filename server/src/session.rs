@@ -4,7 +4,10 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use tracing::info;
 
-use crate::server::{self, CommunicationType};
+use crate::server::{
+    ChatServer, ChattingWithUpdate, ClientMessage, CommunicateUser, CommunicationType, Connect,
+    Disconnect, Message,
+};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -16,7 +19,7 @@ pub struct WsChatSession {
     pub user_id: usize,
     pub hb: Instant,
     pub name: Option<String>,
-    pub addr: Addr<server::ChatServer>,
+    pub addr: Addr<ChatServer>,
 }
 
 impl WsChatSession {
@@ -24,7 +27,7 @@ impl WsChatSession {
         ctx.run_interval(HEARTBEAT_INTERVAL, |act, ctx| {
             if Instant::now().duration_since(act.hb) > CLIENT_TIMEOUT {
                 info!("Websocket Client heartbeat failed, disconnecting!");
-                act.addr.do_send(server::Disconnect { id: act.id });
+                act.addr.do_send(Disconnect { id: act.id });
                 ctx.stop();
                 return;
             }
@@ -41,7 +44,7 @@ impl Actor for WsChatSession {
         self.hb(ctx);
         let addr = ctx.address();
         self.addr
-            .send(server::Connect {
+            .send(Connect {
                 addr: addr.recipient(),
             })
             .into_actor(self)
@@ -59,15 +62,15 @@ impl Actor for WsChatSession {
     }
 
     fn stopping(&mut self, _: &mut Self::Context) -> Running {
-        self.addr.do_send(server::Disconnect { id: self.id });
+        self.addr.do_send(Disconnect { id: self.id });
         Running::Stop
     }
 }
 
-impl Handler<server::Message> for WsChatSession {
+impl Handler<Message> for WsChatSession {
     type Result = ();
 
-    fn handle(&mut self, msg: server::Message, ctx: &mut Self::Context) {
+    fn handle(&mut self, msg: Message, ctx: &mut Self::Context) {
         ctx.text(msg.0);
     }
 }
@@ -95,21 +98,21 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 if m.starts_with('/') {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
-                        "/create-new-user" => self.addr.do_send(server::CommunicateUser {
+                        "/create-new-user" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::CreateNewUser,
                         }),
-                        "/update-chatting-with" => self.addr.do_send(server::ChattingWithUpdate {
+                        "/update-chatting-with" => self.addr.do_send(ChattingWithUpdate {
                             chatting_from: self.id,
                             chatting_with: v[1].parse().unwrap(),
                         }),
-                        "/get-user-data" => self.addr.do_send(server::CommunicateUser {
+                        "/get-user-data" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::SendUserData,
                         }),
-                        "/update-ids" => self.addr.do_send(server::CommunicateUser {
+                        "/update-ids" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
@@ -117,13 +120,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 } else {
-                    let msg = if let Some(ref name) = self.name {
-                        format!("{name}: {m}")
-                    } else {
-                        m.to_owned()
-                    };
-                    self.addr
-                        .do_send(server::ClientMessage { id: self.id, msg })
+                    self.addr.do_send(ClientMessage {
+                        id: self.id,
+                        msg: m.to_string(),
+                    })
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),
