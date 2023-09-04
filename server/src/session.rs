@@ -4,7 +4,7 @@ use actix::prelude::*;
 use actix_web_actors::ws;
 use tracing::info;
 
-use crate::server;
+use crate::server::{self, CommunicationType};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -13,6 +13,7 @@ const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 #[derive(Debug)]
 pub struct WsChatSession {
     pub id: usize,
+    pub user_id: usize,
     pub hb: Instant,
     pub name: Option<String>,
     pub addr: Addr<server::ChatServer>,
@@ -47,7 +48,6 @@ impl Actor for WsChatSession {
             .then(|res, act, ctx| {
                 match res {
                     Ok(res) => {
-                        info!("Setting WsChatSession ID to {}", res);
                         act.id = res;
                         act.name = Some("Main WebSocket".to_string());
                     }
@@ -92,23 +92,27 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
             }
             ws::Message::Text(text) => {
                 let m = text.trim();
-                // we check for /sss type of messages
                 if m.starts_with('/') {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
+                        "/create-new-user" => self.addr.do_send(server::CommunicateUser {
+                            ws_id: self.id,
+                            user_data: v[1].to_string(),
+                            comm_type: CommunicationType::CreateNewUser,
+                        }),
                         "/update-chatting-with" => self.addr.do_send(server::ChattingWithUpdate {
                             chatting_from: self.id,
                             chatting_with: v[1].parse().unwrap(),
                         }),
                         "/get-user-data" => self.addr.do_send(server::CommunicateUser {
-                            user_id: 0,
+                            ws_id: self.id,
                             user_data: v[1].to_string(),
-                            is_send: true,
+                            comm_type: CommunicationType::SendUserData,
                         }),
-                        "/update-user-data" => self.addr.do_send(server::CommunicateUser {
-                            user_id: self.id,
+                        "/update-ids" => self.addr.do_send(server::CommunicateUser {
+                            ws_id: self.id,
                             user_data: v[1].to_string(),
-                            is_send: false,
+                            comm_type: CommunicationType::UpdateUserIDs,
                         }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }

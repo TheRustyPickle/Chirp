@@ -28,7 +28,7 @@ fn generate_random_number(length: usize) -> String {
 
 pub fn generate_robohash_link() -> String {
     let random_num = generate_random_number(5);
-    format!("https://robohash.org/{random_num}.png")
+    format!("https://robohash.org/{random_num}.svg")
 }
 
 pub fn generate_dicebear_link() -> String {

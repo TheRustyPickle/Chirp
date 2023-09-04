@@ -39,13 +39,12 @@ mod imp {
 use adw::subclass::prelude::*;
 use adw::MessageDialog;
 use adw::{prelude::*, ResponseAppearance};
-use gio::glib::{clone, closure_local};
+use gio::glib::clone;
 use glib::{wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Orientable, Root, ShortcutManager,
     Widget, Window,
 };
-use gtk::{prelude::*, Entry};
 use tracing::info;
 
 use crate::window;

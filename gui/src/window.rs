@@ -77,7 +77,6 @@ use adw::{prelude::*, NavigationDirection};
 use gio::glib::{ControlFlow, Receiver};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, Object};
-use gtk::prelude::*;
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
@@ -108,7 +107,6 @@ impl Window {
         imp.leaflet
             .connect_folded_notify(clone!(@weak self as window => move |leaflet| {
                 if !leaflet.is_child_transition_running() && leaflet.is_folded() {
-                    info!("Forwarding leaflet");
                     leaflet.navigate(NavigationDirection::Forward);
                     leaflet.navigate(NavigationDirection::Forward);
                 }
@@ -141,7 +139,6 @@ impl Window {
     fn setup_actions(&self) {
         let button_action = SimpleAction::new("send-message", None);
         button_action.connect_activate(clone!(@weak self as window => move |_, _| {
-            info!("ctrl enter or the send button has been triggered");
             window.send_message();
             window.grab_focus();
         }));
@@ -160,13 +157,10 @@ impl Window {
 
         info!("Setting own profile");
         self.imp().own_profile.replace(Some(data));
-
-        info!("Creating own profile UserRow");
         let user_row = UserRow::new(user_clone_1);
         user_row.bind();
         self.get_user_list().append(&user_row);
 
-        info!("Selecting chatting with owner");
         self.set_chatting_with(user_clone_2);
 
         if let Some(row) = self.get_user_list().row_at_index(0) {
@@ -181,7 +175,6 @@ impl Window {
             .borrow()
             .clone()
             .expect("Expected an UserObject");
-        info!("Got chatting with {}", obj.name());
         obj
     }
 
@@ -205,14 +198,11 @@ impl Window {
     }
 
     pub fn get_chatting_from(&self) -> UserObject {
-        let obj = self
-            .imp()
+        self.imp()
             .own_profile
             .borrow()
             .clone()
-            .expect("Expected an UserObject");
-        info!("Got chatting from: {}", obj.name());
-        obj
+            .expect("Expected an UserObject")
     }
 
     fn get_users_liststore(&self) -> ListStore {
@@ -230,7 +220,6 @@ impl Window {
     }
 
     fn send_message(&self) {
-        info!("Sending new message");
         let buffer = self.imp().message_box.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
@@ -281,14 +270,12 @@ impl Window {
     }
 
     fn create_message(&self, data: &MessageObject) -> MessageRow {
-        info!("Creating new message row with data: {}", data.message());
         let row = MessageRow::new(data.clone());
         row.bind();
         row
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
-        info!("Creating owner profile with name: {}", name);
         let messages = ListStore::new::<MessageObject>();
         let ws = WSObject::new();
         let user_data = UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws);

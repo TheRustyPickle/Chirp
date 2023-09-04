@@ -172,6 +172,13 @@ impl UserObject {
     fn start_listening(&self, sender: Sender<String>) {
         let user_ws = self.user_ws();
 
+        if self.imp().user_id.get().is_none() {
+            let user_data = self.convert_to_json();
+            user_ws.create_new_user(user_data);
+        } else {
+            user_ws.update_ids(self.user_id())
+        }
+
         let id = user_ws.ws_conn().unwrap().connect_message(
             clone!(@weak self as user_object => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
@@ -179,13 +186,10 @@ impl UserObject {
                 info!("{} Received from WS: {text}", user_object.name());
 
                 if text.starts_with("/update-user-id") {
-                    if user_object.imp().user_id.get().is_none() {
-                        let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
-                        user_object.set_user_id(id);
-                        let json_data = user_object.convert_to_json();
-                        user_ws.update_user_data(json_data);
-                    }
+                    let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
+                    user_object.set_user_id(id);
                     return;
+
                 } else if text.starts_with("/update-session-id") {
                     let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
                     user_object.user_ws().set_ws_id(id);
@@ -199,8 +203,13 @@ impl UserObject {
     }
 
     fn convert_to_json(&self) -> String {
+        let user_id = if self.imp().user_id.get().is_none() {
+            0
+        } else {
+            self.user_id()
+        };
         let user_data = FullUserData {
-            id: self.user_id(),
+            id: user_id,
             name: self.name(),
             image_link: self.image_link(),
         };
