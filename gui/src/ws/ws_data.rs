@@ -111,14 +111,14 @@ impl WSObject {
 
     pub fn create_new_user(&self, user_data: String) {
         if let Some(conn) = self.ws_conn() {
-            info!("Connecting to create a new user");
+            info!("Connecting to WS to create a new user");
             conn.send_text(&format!("/create-new-user {}", user_data));
         }
     }
 
     pub fn update_chatting_with(&self, id: u64) {
         if let Some(conn) = self.ws_conn() {
-            info!("Sending request for updating chatting with id {}", id);
+            info!("Sending request for updating chatting with id to {}", id);
             conn.send_text(&format!("/update-chatting-with {}", id))
         }
     }
@@ -133,10 +133,10 @@ impl WSObject {
         }
     }
 
-    pub fn update_ids(&self, id: u64) {
+    pub fn update_ids(&self, id: u64, client_id: u64) {
         if let Some(conn) = self.ws_conn() {
-            info!("Sending info to update ws ids");
-            conn.send_text(&format!("/update-ids {}", id))
+            info!("Sending info to update ids");
+            conn.send_text(&format!("/update-ids {} {}", id, client_id))
         }
     }
 

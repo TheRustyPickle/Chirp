@@ -53,7 +53,6 @@ use adw::subclass::prelude::*;
 use gio::glib::closure_local;
 use glib::{wrapper, Object};
 use gtk::gdk::Paintable;
-use gtk::prelude::*;
 use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
 use tracing::info;
 

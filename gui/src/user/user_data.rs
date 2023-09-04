@@ -152,7 +152,7 @@ impl UserObject {
         );
     }
 
-    pub fn handle_ws(&self) -> Receiver<String> {
+    pub fn handle_ws(&self, owner_id: u64) -> Receiver<String> {
         let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
         let user_object = self.clone();
         let user_ws = self.user_ws();
@@ -161,7 +161,7 @@ impl UserObject {
             false,
             closure_local!(move |_from: WSObject, success: bool| {
                 if success {
-                    user_object.start_listening(sender.clone());
+                    user_object.start_listening(sender.clone(), owner_id);
                 }
             }),
         );
@@ -169,14 +169,14 @@ impl UserObject {
         receiver
     }
 
-    fn start_listening(&self, sender: Sender<String>) {
+    fn start_listening(&self, sender: Sender<String>, owner_id: u64) {
         let user_ws = self.user_ws();
 
         if self.imp().user_id.get().is_none() {
             let user_data = self.convert_to_json();
             user_ws.create_new_user(user_data);
         } else {
-            user_ws.update_ids(self.user_id())
+            user_ws.update_ids(self.user_id(), owner_id)
         }
 
         let id = user_ws.ws_conn().unwrap().connect_message(

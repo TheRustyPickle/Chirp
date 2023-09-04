@@ -118,12 +118,13 @@ impl Window {
                 let index = row.index();
                 let selected_chat = window.get_users_liststore()
                 .item(index as u32)
-                .expect("There should be an item here")
+                .unwrap()
                 .downcast::<UserObject>()
-                .expect("It should be an UserObject");
+                .unwrap();
+
                 info!("Selected a new User from list");
-                let selected_chat_id = selected_chat.user_ws().ws_id();
-                window.get_chatting_from().user_ws().update_chatting_with(selected_chat_id);
+                let selected_user_id = selected_chat.user_id();
+                window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
                 window.set_chatting_with(selected_chat);
             }));
 
@@ -169,13 +170,11 @@ impl Window {
     }
 
     fn get_chatting_with(&self) -> UserObject {
-        let obj = self
-            .imp()
+        self.imp()
             .chatting_with
             .borrow()
             .clone()
-            .expect("Expected an UserObject");
-        obj
+            .expect("Expected an UserObject")
     }
 
     fn set_chatting_with(&self, user: UserObject) {
@@ -205,6 +204,10 @@ impl Window {
             .expect("Expected an UserObject")
     }
 
+    pub fn get_owner_id(&self) -> u64 {
+        self.get_chatting_from().user_id()
+    }
+
     fn get_users_liststore(&self) -> ListStore {
         self.imp()
             .users
@@ -214,9 +217,7 @@ impl Window {
     }
 
     fn chatting_with_messages(&self) -> ListStore {
-        let chatting_with = self.get_chatting_with();
-        info!("Retrieving all messages from {}", chatting_with.name());
-        chatting_with.messages()
+        self.get_chatting_with().messages()
     }
 
     fn send_message(&self) {
@@ -233,15 +234,18 @@ impl Window {
 
         // NOTE dummy (number) will create a dummy user on the server
         if content.starts_with("dummy") {
+            info!("Creating dummy user");
             let dummy_type: Vec<&str> = content.splitn(2, ' ').collect();
             self.create_dummy_user(dummy_type[1].parse().unwrap());
             return;
         }
 
+        info!("Sending new text message: {}", content);
+
         if let Some(conn) = self.get_chatting_from().user_ws().ws_conn() {
             conn.send_text(&content);
         }
-        info!("Text of message to send: {}", content);
+
         buffer.set_text("");
 
         let sender = self.get_chatting_from();
@@ -280,7 +284,8 @@ impl Window {
         let ws = WSObject::new();
         let user_data = UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws);
 
-        let receiver = user_data.handle_ws();
+        // It's a new user + owner so the ID will be generated on the server side
+        let receiver = user_data.handle_ws(0);
         self.handle_ws_message(user_data.clone(), receiver);
 
         self.get_users_liststore().append(&user_data);
@@ -298,7 +303,7 @@ impl Window {
         };
         let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws);
 
-        let receiver = user_data.handle_ws();
+        let receiver = user_data.handle_ws(self.get_owner_id());
         self.handle_ws_message(user_data.clone(), receiver);
     }
 
@@ -335,7 +340,7 @@ impl Window {
             Some(&self.get_owner_name_color()),
             ws,
         );
-        let receiver = new_user_data.handle_ws();
+        let receiver = new_user_data.handle_ws(self.get_owner_id());
         self.handle_ws_message(new_user_data.clone(), receiver);
         self.get_users_liststore().append(&new_user_data);
         new_user_data
@@ -346,9 +351,7 @@ impl Window {
     }
 
     fn get_owner_name_color(&self) -> String {
-        let color = self.get_chatting_from().name_color();
-        info!("Got owner name color: {}", color);
-        color
+        self.get_chatting_from().name_color()
     }
 
     fn grab_focus(&self) {
