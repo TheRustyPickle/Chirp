@@ -34,7 +34,6 @@ mod imp {
 use glib::wrapper;
 use glib::Object;
 use gtk::glib;
-use gtk::prelude::*;
 
 use crate::user::UserObject;
 

@@ -8,6 +8,8 @@ Chirp is my playground for exploring the world of GTK4-rs while working on a cha
 
 🎨 **User Interface (UI):** Chirp features an interface crafted using GTK4-rs. I'm refining it into a chat app that offers a practical and smooth experience, where messages are composed and displayed effortlessly.
 
+<div align=center><a href=""><img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/e62798e9-e79e-4b69-b2f2-142210451ff5" alt="wakatime"></a></div>
+
 ## What's on the Horizon?
 
 I've got some ideas that are brewing:

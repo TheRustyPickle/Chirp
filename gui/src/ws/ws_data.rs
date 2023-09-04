@@ -7,7 +7,7 @@ mod imp {
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::glib;
     use soup::WebsocketConnection;
-    use std::cell::RefCell;
+    use std::cell::{OnceCell, RefCell};
     use std::rc::Rc;
 
     #[derive(Properties, Default)]
@@ -15,7 +15,9 @@ mod imp {
     pub struct WSObject {
         #[property(get, set)]
         pub ws_conn: Rc<RefCell<Option<WebsocketConnection>>>,
-        pub ws_id: RefCell<Option<SignalHandlerId>>,
+        #[property(get, set)]
+        pub ws_id: OnceCell<u64>,
+        pub ws_signal_id: RefCell<Option<SignalHandlerId>>,
     }
 
     #[object_subclass]
@@ -65,7 +67,7 @@ impl WSObject {
         let websocket_url = "ws://127.0.0.1:8080/ws/";
 
         let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-        let message = Message::new("GET", &websocket_url).unwrap();
+        let message = Message::new("GET", websocket_url).unwrap();
         let cancel = Cancellable::new();
 
         info!("Starting websocket connection with {}", websocket_url);
@@ -107,14 +109,38 @@ impl WSObject {
         );
     }
 
+    pub fn create_new_user(&self, user_data: String) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Connecting to WS to create a new user");
+            conn.send_text(&format!("/create-new-user {}", user_data));
+        }
+    }
+
     pub fn update_chatting_with(&self, id: u64) {
         if let Some(conn) = self.ws_conn() {
-            info!("Sending request for updating chatting with id {}", id);
+            info!("Sending request for updating chatting with id to {}", id);
             conn.send_text(&format!("/update-chatting-with {}", id))
         }
     }
 
-    pub fn set_id(&self, id: SignalHandlerId) {
-        self.imp().ws_id.replace(Some(id));
+    pub fn get_user_data(&self, id: u64) {
+        if let Some(conn) = self.ws_conn() {
+            info!(
+                "Sending request for getting UserObject Data with id: {}",
+                id
+            );
+            conn.send_text(&format!("/get-user-data {}", id))
+        }
+    }
+
+    pub fn update_ids(&self, id: u64, client_id: u64) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Sending info to update ids");
+            conn.send_text(&format!("/update-ids {} {}", id, client_id))
+        }
+    }
+
+    pub fn set_signal_id(&self, id: SignalHandlerId) {
+        self.imp().ws_signal_id.replace(Some(id));
     }
 }

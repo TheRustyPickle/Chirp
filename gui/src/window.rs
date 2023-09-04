@@ -77,7 +77,6 @@ use adw::{prelude::*, NavigationDirection};
 use gio::glib::{ControlFlow, Receiver};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, Object};
-use gtk::prelude::*;
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
@@ -85,7 +84,7 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{UserObject, UserRow};
+use crate::user::{FullUserData, UserObject, UserPrompt, UserRow};
 use crate::utils::{generate_dicebear_link, generate_robohash_link};
 use crate::ws::WSObject;
 
@@ -107,12 +106,9 @@ impl Window {
         imp.stack.set_visible_child_name("main");
         imp.leaflet
             .connect_folded_notify(clone!(@weak self as window => move |leaflet| {
-                if !leaflet.is_child_transition_running() {
-                    if leaflet.is_folded() {
-                        info!("Forwarding leaflet");
-                        leaflet.navigate(NavigationDirection::Forward);
-                        leaflet.navigate(NavigationDirection::Forward);
-                    }
+                if !leaflet.is_child_transition_running() && leaflet.is_folded() {
+                    leaflet.navigate(NavigationDirection::Forward);
+                    leaflet.navigate(NavigationDirection::Forward);
                 }
 
             }));
@@ -122,12 +118,13 @@ impl Window {
                 let index = row.index();
                 let selected_chat = window.get_users_liststore()
                 .item(index as u32)
-                .expect("There should be an item here")
+                .unwrap()
                 .downcast::<UserObject>()
-                .expect("It should be an UserObject");
+                .unwrap();
+
                 info!("Selected a new User from list");
-                let selected_chat_id = selected_chat.user_id();
-                window.get_chatting_from().user_ws().update_chatting_with(selected_chat_id);
+                let selected_user_id = selected_chat.user_id();
+                window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
                 window.set_chatting_with(selected_chat);
             }));
 
@@ -135,17 +132,14 @@ impl Window {
             .new_chat
             .connect_clicked(clone!(@weak self as window => move |_| {
                 info!("Creating new test user");
-                let user_data = window.create_user("test user", false);
-                let user_row = UserRow::new(user_data);
-                user_row.bind();
-                window.get_user_list().append(&user_row);
+                let prompt = UserPrompt::new(&window);
+                prompt.present();
             }));
     }
 
     fn setup_actions(&self) {
         let button_action = SimpleAction::new("send-message", None);
         button_action.connect_activate(clone!(@weak self as window => move |_, _| {
-            info!("ctrl enter or the send button has been triggered");
             window.send_message();
             window.grab_focus();
         }));
@@ -157,20 +151,17 @@ impl Window {
         let users = ListStore::new::<UserObject>();
         self.imp().users.set(users).expect("Could not set users");
 
-        let data = self.create_user("Me", true);
+        let data: UserObject = self.create_owner("Me");
 
         let user_clone_1 = data.clone();
         let user_clone_2 = data.clone();
 
         info!("Setting own profile");
         self.imp().own_profile.replace(Some(data));
-
-        info!("Creating own profile UserRow");
         let user_row = UserRow::new(user_clone_1);
         user_row.bind();
         self.get_user_list().append(&user_row);
 
-        info!("Selecting chatting with owner");
         self.set_chatting_with(user_clone_2);
 
         if let Some(row) = self.get_user_list().row_at_index(0) {
@@ -179,14 +170,11 @@ impl Window {
     }
 
     fn get_chatting_with(&self) -> UserObject {
-        let obj = self
-            .imp()
+        self.imp()
             .chatting_with
             .borrow()
             .clone()
-            .expect("Expected an UserObject");
-        info!("Got chatting with {}", obj.name());
-        obj
+            .expect("Expected an UserObject")
     }
 
     fn set_chatting_with(&self, user: UserObject) {
@@ -208,15 +196,16 @@ impl Window {
         self.imp().chatting_with.replace(Some(user));
     }
 
-    fn get_chatting_from(&self) -> UserObject {
-        let obj = self
-            .imp()
+    pub fn get_chatting_from(&self) -> UserObject {
+        self.imp()
             .own_profile
             .borrow()
             .clone()
-            .expect("Expected an UserObject");
-        info!("Got chatting from: {}", obj.name());
-        obj
+            .expect("Expected an UserObject")
+    }
+
+    pub fn get_owner_id(&self) -> u64 {
+        self.get_chatting_from().user_id()
     }
 
     fn get_users_liststore(&self) -> ListStore {
@@ -228,13 +217,10 @@ impl Window {
     }
 
     fn chatting_with_messages(&self) -> ListStore {
-        let chatting_with = self.get_chatting_with();
-        info!("Retrieving all messages from {}", chatting_with.name());
-        chatting_with.messages()
+        self.get_chatting_with().messages()
     }
 
     fn send_message(&self) {
-        info!("Sending new message");
         let buffer = self.imp().message_box.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
@@ -245,10 +231,21 @@ impl Window {
             info!("Empty text found");
             return;
         }
+
+        // NOTE dummy (number) will create a dummy user on the server
+        if content.starts_with("dummy") {
+            info!("Creating dummy user");
+            let dummy_type: Vec<&str> = content.splitn(2, ' ').collect();
+            self.create_dummy_user(dummy_type[1].parse().unwrap());
+            return;
+        }
+
+        info!("Sending new text message: {}", content);
+
         if let Some(conn) = self.get_chatting_from().user_ws().ws_conn() {
             conn.send_text(&content);
         }
-        info!("Text of message to send: {}", content);
+
         buffer.set_text("");
 
         let sender = self.get_chatting_from();
@@ -277,38 +274,76 @@ impl Window {
     }
 
     fn create_message(&self, data: &MessageObject) -> MessageRow {
-        info!("Creating new message row with data: {}", data.message());
         let row = MessageRow::new(data.clone());
         row.bind();
         row
     }
 
-    fn create_user(&self, name: &str, is_owner: bool) -> UserObject {
-        info!("Creating new user with name: {}", name);
+    fn create_owner(&self, name: &str) -> UserObject {
         let messages = ListStore::new::<MessageObject>();
         let ws = WSObject::new();
-        let user_data = if is_owner {
-            UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws)
-        } else {
-            UserObject::new(
-                name,
-                Some(generate_dicebear_link()),
-                messages,
-                Some(&self.get_owner_name_color()),
-                ws,
-            )
-        };
-        let receiver = user_data.handle_ws();
+        let user_data = UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws);
+
+        // It's a new user + owner so the ID will be generated on the server side
+        let receiver = user_data.handle_ws(0);
         self.handle_ws_message(user_data.clone(), receiver);
+
         self.get_users_liststore().append(&user_data);
+
         user_data
+    }
+
+    fn create_dummy_user(&self, image_type: u8) {
+        let messages = ListStore::new::<MessageObject>();
+        let ws = WSObject::new();
+        let image_link = if image_type == 0 {
+            generate_robohash_link()
+        } else {
+            generate_dicebear_link()
+        };
+        let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws);
+
+        let receiver = user_data.handle_ws(self.get_owner_id());
+        self.handle_ws_message(user_data.clone(), receiver);
     }
 
     fn handle_ws_message(&self, user: UserObject, receiver: Receiver<String>) {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
-            window.receive_message(&response, user_object);
+            let response_data: Vec<&str> = response.splitn(2, ' ').collect();
+            match response_data[0] {
+                "/get-user-data" => {
+                    let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
+                    let user = window.create_user(user_data);
+                    let user_row = UserRow::new(user);
+                    user_row.bind();
+                    window.get_user_list().append(&user_row);
+                }
+                _ => window.receive_message(&response, user_object),
+            }
             ControlFlow::Continue
         }));
+    }
+
+    fn create_user(&self, user_data: FullUserData) -> UserObject {
+        info!(
+            "Creating new user with name: {}, id: {}",
+            user_data.name, user_data.id
+        );
+        let messages = ListStore::new::<MessageObject>();
+        let ws = WSObject::new();
+
+        let new_user_data = UserObject::new_with_id(
+            user_data.id,
+            &user_data.name,
+            user_data.image_link,
+            messages,
+            Some(&self.get_owner_name_color()),
+            ws,
+        );
+        let receiver = new_user_data.handle_ws(self.get_owner_id());
+        self.handle_ws_message(new_user_data.clone(), receiver);
+        self.get_users_liststore().append(&new_user_data);
+        new_user_data
     }
 
     fn get_user_list(&self) -> ListBox {
@@ -316,9 +351,7 @@ impl Window {
     }
 
     fn get_owner_name_color(&self) -> String {
-        let color = self.get_chatting_from().name_color();
-        info!("Got owner name color: {}", color);
-        color
+        self.get_chatting_from().name_color()
     }
 
     fn grab_focus(&self) {
