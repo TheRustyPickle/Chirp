@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<interface>
+  <template class="UserProfile" parent="AdwWindow">
+    <property name="default_width">400</property>
+    <property name="default_height">450</property>
+    <property name="title" translatable="yes">Profile</property>
+    <property name="content">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <property name="vexpand">True</property>
+        <child>
+          <object class="AdwHeaderBar">
+            <style>
+              <class name="flat" />
+            </style>
+          </object>
+        </child>
+        <child>
+          <object class="GtkScrolledWindow">
+            <property name="vexpand">True</property>
+            <property name="hscrollbar-policy">never</property>
+            <property name="child">
+              <object class="AdwClamp">
+                <property name="child">
+                  <object class="GtkBox">
+                    <property name="orientation">vertical</property>
+                    <property name="margin-top">20</property>
+                    <property name="margin-bottom">20</property>
+                    <property name="margin-start">20</property>
+                    <property name="margin-end">20</property>
+                    <property name="spacing">20</property>
+                    <child>
+                      <object class="AdwAvatar">
+                        <property name="show-initials">true</property>
+                        <property name="size">100</property>
+                        <property name="text">Me</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkListBox">
+                        <property name="selection-mode">none</property>
+                        <style>
+                          <class name="boxed-list" />
+                        </style>
+                        <child>
+                          <object class="AdwActionRow">
+                            <property name="title">Name</property>
+                            <property name="subtitle">My Name Here</property>
+                            <child>
+                              <object class="GtkButton">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">document-edit-symbolic</property>
+                                <property name="has-frame">false</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="AdwActionRow">
+                            <property name="title">User ID</property>
+                            <property name="subtitle">UserID Here</property>
+                            <child>
+                              <object class="GtkButton">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">edit-copy-symbolic</property>
+                                <property name="has-frame">false</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="AdwActionRow">
+                            <property name="title">Default Image Type</property>
+                            <property name="subtitle">Image Type Here</property>
+                            <child>
+                              <object class="GtkButton">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">preferences-system-symbolic</property>
+                                <property name="has-frame">false</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                        <child>
+                          <object class="AdwActionRow">
+                            <property name="title">Image Link</property>
+                            <property name="subtitle">Image Link Here</property>
+                            <child>
+                              <object class="GtkButton">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">edit-copy-symbolic</property>
+                                <property name="has-frame">false</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">view-refresh-symbolic</property>
+                                <property name="has-frame">false</property>
+                              </object>
+                            </child>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                  </object>
+                </property>
+              </object>
+            </property>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
+</interface>
