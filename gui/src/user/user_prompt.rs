@@ -13,7 +13,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for UserPrompt {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "UserPrompt";
         type Type = super::UserPrompt;
         type ParentType = MessageDialog;
@@ -62,7 +61,7 @@ impl UserPrompt {
         obj.set_response_enabled("chat", false);
         obj.set_response_appearance("chat", ResponseAppearance::Suggested);
         obj.set_transient_for(Some(window));
-
+        obj.imp().id_entry.add_css_class("blue-entry");
         obj.imp()
             .id_entry
             .connect_changed(clone!(@weak obj as prompt => move |entry| {
@@ -72,9 +71,11 @@ impl UserPrompt {
                 prompt.set_response_enabled("chat", !empty);
 
                 if empty {
+                    entry.remove_css_class("blue-entry");
                     entry.add_css_class("error");
                 } else {
                     entry.remove_css_class("error");
+                    entry.add_css_class("blue-entry");
                 }
             }));
 
