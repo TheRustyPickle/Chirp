@@ -2,7 +2,7 @@
 <interface>
   <template class="UserProfile" parent="AdwWindow">
     <property name="default_width">400</property>
-    <property name="default_height">450</property>
+    <property name="default_height">420</property>
     <property name="title" translatable="yes">Profile</property>
     <property name="content">
       <object class="GtkBox">
@@ -30,10 +30,9 @@
                     <property name="margin-end">20</property>
                     <property name="spacing">20</property>
                     <child>
-                      <object class="AdwAvatar">
+                      <object class="AdwAvatar" id="profile_avatar">
                         <property name="show-initials">true</property>
-                        <property name="size">100</property>
-                        <property name="text">Me</property>
+                        <property name="size">150</property>
                       </object>
                     </child>
                     <child>
@@ -43,11 +42,10 @@
                           <class name="boxed-list" />
                         </style>
                         <child>
-                          <object class="AdwActionRow">
+                          <object class="AdwActionRow" id="name_row">
                             <property name="title">Name</property>
-                            <property name="subtitle">My Name Here</property>
                             <child>
-                              <object class="GtkButton">
+                              <object class="GtkButton" id="name_edit">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">document-edit-symbolic</property>
                                 <property name="has-frame">false</property>
@@ -56,11 +54,18 @@
                           </object>
                         </child>
                         <child>
-                          <object class="AdwActionRow">
+                          <object class="AdwActionRow" id="id_row">
                             <property name="title">User ID</property>
-                            <property name="subtitle">UserID Here</property>
                             <child>
-                              <object class="GtkButton">
+                              <object class="GtkImage" id="id_warning">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">dialog-warning</property>
+                                <property name="visible">false</property>
+                                <property name="tooltip-text">Failed to get User ID</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="id_copy">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">edit-copy-symbolic</property>
                                 <property name="has-frame">false</property>
@@ -69,31 +74,18 @@
                           </object>
                         </child>
                         <child>
-                          <object class="AdwActionRow">
-                            <property name="title">Default Image Type</property>
-                            <property name="subtitle">Image Type Here</property>
-                            <child>
-                              <object class="GtkButton">
-                                <property name="can-focus">false</property>
-                                <property name="icon-name">preferences-system-symbolic</property>
-                                <property name="has-frame">false</property>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
-                        <child>
-                          <object class="AdwActionRow">
+                          <object class="AdwActionRow" id="image_link_row">
                             <property name="title">Image Link</property>
-                            <property name="subtitle">Image Link Here</property>
+                            <property name="subtitle-lines">1</property>
                             <child>
-                              <object class="GtkButton">
+                              <object class="GtkButton" id="image_copy">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">edit-copy-symbolic</property>
                                 <property name="has-frame">false</property>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkButton">
+                              <object class="GtkButton" id="image_reload">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">view-refresh-symbolic</property>
                                 <property name="has-frame">false</property>
