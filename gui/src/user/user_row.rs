@@ -49,8 +49,8 @@ use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gio::glib::clone;
 use glib::{wrapper, Object};
-use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
 use gtk::gdk::Rectangle;
+use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
 
 wrapper! {
     pub struct UserRow(ObjectSubclass<imp::UserRow>)
@@ -66,9 +66,9 @@ impl UserRow {
         let motion = gtk::EventControllerMotion::new();
         row.imp().user_avatar.get().add_controller(motion.clone());
 
-        // NOTE couldn't use clone! here as gtk was giving me children left error. couldn't find a solution
+        // NOTE couldn't use clone! here as gtk was giving me children left error on exit. couldn't find a solution
         let row_clone = row.clone();
-        motion.connect_enter( move |_, _, _| {
+        motion.connect_enter(move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
                 let popover = row_clone.imp().user_popover.get();
                 let position = row_clone.imp().user_avatar.get().allocation();

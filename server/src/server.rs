@@ -119,8 +119,9 @@ impl ChatServer {
                 for i in self.user_session[chatting_with_id].iter() {
                     if sent_from == &i.user_id {
                         info!("Sending message from {} to {}", sent_from, i.user_id);
-                        let receiver_ws = &self.sessions.get(&i.ws_id).unwrap().2;
-                        receiver_ws.do_send(Message(message.to_string()))
+                        if let Some(receiver_data) = self.sessions.get(&i.ws_id) {
+                            receiver_data.2.do_send(Message(message.to_string()))
+                        }
                     }
                 }
             }

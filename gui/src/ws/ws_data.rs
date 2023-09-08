@@ -101,7 +101,7 @@ impl WSObject {
                     info!("WebSocket connection success");
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
                 } else {
-                    info!("WebSocket connection failed");
+                    error!("WebSocket connection failed");
                     ws_object.emit_by_name::<()>("ws-success", &[&false]);
                 }
                 ControlFlow::Continue
