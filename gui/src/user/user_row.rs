@@ -37,24 +37,20 @@ mod imp {
         }
     }
 
-    // Trait shared by all GObjects
     impl ObjectImpl for UserRow {}
 
-    // Trait shared by all widgets
     impl WidgetImpl for UserRow {}
 
-    // Trait shared by all boxes
     impl BoxImpl for UserRow {}
 }
 
 use crate::user::UserObject;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gio::glib::closure_local;
+use gio::glib::clone;
 use glib::{wrapper, Object};
-use gtk::gdk::Paintable;
 use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
-use tracing::info;
+use gtk::gdk::Rectangle;
 
 wrapper! {
     pub struct UserRow(ObjectSubclass<imp::UserRow>)
@@ -67,44 +63,36 @@ impl UserRow {
         let row: UserRow = Object::builder().build();
         row.imp().popover_visible.set(false);
 
-        let avatar = row.imp().user_avatar.get();
-
-        let row_clone = row.clone();
-
         let motion = gtk::EventControllerMotion::new();
-        avatar.add_controller(motion.clone());
+        row.imp().user_avatar.get().add_controller(motion.clone());
 
+        // NOTE couldn't use clone! here as gtk was giving me children left error. couldn't find a solution
         let row_clone = row.clone();
-
-        motion.connect_enter(move |_, _, _| {
+        motion.connect_enter( move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
                 let popover = row_clone.imp().user_popover.get();
-                let avatar = row_clone.imp().user_avatar.get();
-
+                let position = row_clone.imp().user_avatar.get().allocation();
                 let popover_text = row_clone.imp().user_data.get().unwrap().name();
-
-                let position = avatar.allocation();
 
                 let x_position = position.x() + 40;
                 let y_position = position.y() + 20;
 
-                let position = gtk::gdk::Rectangle::new(x_position, y_position, -1, -1);
+                let position = Rectangle::new(x_position, y_position, -1, -1);
 
                 popover.set_pointing_to(Some(&position));
                 row_clone.imp().popover_label.set_label(&popover_text);
 
-                row_clone.imp().user_popover.get().set_visible(true);
+                popover.set_visible(true);
                 row_clone.imp().popover_visible.set(true);
             }
         });
 
-        let row_clone = row.clone();
-        motion.connect_leave(move |_| {
-            if row_clone.imp().popover_visible.get() {
-                row_clone.imp().user_popover.get().set_visible(false);
-                row_clone.imp().popover_visible.set(false);
+        motion.connect_leave(clone!(@weak row => move |_| {
+            if row.imp().popover_visible.get() {
+                row.imp().user_popover.get().set_visible(false);
+                row.imp().popover_visible.set(false);
             }
-        });
+        }));
 
         row.imp().user_data.set(object).unwrap();
         row.bind();
