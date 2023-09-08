@@ -49,6 +49,7 @@
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">document-edit-symbolic</property>
                                 <property name="has-frame">false</property>
+                                <property name="tooltip-text">Update name</property>
                               </object>
                             </child>
                           </object>
@@ -69,6 +70,7 @@
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">edit-copy-symbolic</property>
                                 <property name="has-frame">false</property>
+                                <property name="tooltip-text">Copy User ID</property>
                               </object>
                             </child>
                           </object>
@@ -78,17 +80,27 @@
                             <property name="title">Image Link</property>
                             <property name="subtitle-lines">1</property>
                             <child>
-                              <object class="GtkButton" id="image_copy">
+                              <object class="GtkButton" id="image_link_copy">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">edit-copy-symbolic</property>
                                 <property name="has-frame">false</property>
+                                <property name="tooltip-text">Copy image link</property>
                               </object>
                             </child>
                             <child>
-                              <object class="GtkButton" id="image_reload">
+                              <object class="GtkButton" id="image_link_reload">
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">view-refresh-symbolic</property>
                                 <property name="has-frame">false</property>
+                                <property name="tooltip-text">Use a new random image</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkButton" id="image_link_edit">
+                                <property name="can-focus">false</property>
+                                <property name="icon-name">document-edit-symbolic</property>
+                                <property name="has-frame">false</property>
+                                <property name="tooltip-text">Update image link</property>
                               </object>
                             </child>
                           </object>

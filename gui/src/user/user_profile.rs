@@ -24,9 +24,11 @@ mod imp {
         #[template_child]
         pub image_link_row: TemplateChild<ActionRow>,
         #[template_child]
-        pub image_copy: TemplateChild<Button>,
+        pub image_link_copy: TemplateChild<Button>,
         #[template_child]
-        pub image_reload: TemplateChild<Button>,
+        pub image_link_reload: TemplateChild<Button>,
+        #[template_child]
+        pub image_link_edit: TemplateChild<Button>,
         pub bindings: RefCell<Vec<Binding>>,
     }
 
@@ -56,15 +58,16 @@ mod imp {
     impl MessageDialogImpl for UserProfile {}
 }
 
-use crate::user::UserObject;
-use adw::subclass::prelude::*;
+use crate::user::{UserObject, UserPrompt};
+use crate::window;
 use adw::prelude::*;
+use adw::subclass::prelude::*;
 use gio::glib::clone;
 use glib::{wrapper, Object};
 use gtk::{
-    glib, Accessible, Buildable, ConstraintTarget, Native, Root,
-    ShortcutManager, Widget, Window,
+    glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
+use tracing::info;
 
 wrapper! {
     pub struct UserProfile(ObjectSubclass<imp::UserProfile>)
@@ -73,8 +76,11 @@ wrapper! {
 }
 
 impl UserProfile {
-    pub fn new(user_data: UserObject) -> Self {
+    pub fn new(user_data: UserObject, window: &window::Window) -> Self {
         let obj: UserProfile = Object::builder().build();
+        obj.set_transient_for(Some(window));
+        obj.set_modal(true);
+        obj.set_visible(true);
         obj.bind(&user_data);
         obj.connect_button_signals();
         obj
@@ -135,9 +141,37 @@ impl UserProfile {
 
     fn connect_button_signals(&self) {
         let name_edit = self.imp().name_edit.get();
+        let image_link_edit = self.imp().image_link_edit.get();
+        let id_copy = self.imp().id_copy.get();
+        let image_link_copy = self.imp().image_link_copy.get();
+        let image_link_reload = self.imp().image_link_reload.get();
 
         name_edit.connect_clicked(clone!(@weak self as window => move |_| {
-            println!("Editing to be added here");
+            info!("Opening prompt to get new name");
+            let prompt = UserPrompt::new("Confirm").edit_name(&window);
+            prompt.present();
+        }));
+
+        image_link_edit.connect_clicked(clone!(@weak self as window => move |_| {
+            info!("Opening prompt to get new image link");
+            let prompt = UserPrompt::new("Confirm").edit_image_link(&window);
+            prompt.present();
+        }));
+
+        id_copy.connect_clicked(clone!(@weak self as window => move |_| {
+            let text = window.imp().id_row.get().subtitle().unwrap();
+            info!("Copying User ID {text} to clipboard.");
+            window.clipboard().set(&text);
+        }));
+
+        image_link_copy.connect_clicked(clone!(@weak self as window => move |_| {
+            let text = window.imp().image_link_row.get().subtitle().unwrap();
+            info!("Copying Image Link {text} to clipboard.");
+            window.clipboard().set(&text);
+        }));
+
+        image_link_reload.connect_clicked(clone!(@weak self as window => move |_| {
+            info!("Updating Image Link with a new random link");
         }));
     }
 }

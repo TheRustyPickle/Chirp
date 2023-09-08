@@ -46,6 +46,7 @@ use gtk::{
 };
 use tracing::info;
 
+use crate::user::UserProfile;
 use crate::window;
 
 wrapper! {
@@ -55,20 +56,20 @@ wrapper! {
 }
 
 impl UserPrompt {
-    pub fn new(window: &window::Window) -> Self {
+    pub fn new(accept_name: &str) -> Self {
         let obj: UserPrompt = Object::builder().build();
-        obj.add_responses(&[("cancel", "Cancel"), ("chat", "Start Chat")]);
-        obj.set_response_enabled("chat", false);
-        obj.set_response_appearance("chat", ResponseAppearance::Suggested);
-        obj.set_transient_for(Some(window));
+        obj.add_responses(&[("cancel", "Cancel"), ("accept", accept_name)]);
+        obj.set_response_enabled("accept", false);
+        obj.set_response_appearance("accept", ResponseAppearance::Suggested);
         obj.imp().id_entry.add_css_class("blue-entry");
+
         obj.imp()
             .id_entry
             .connect_changed(clone!(@weak obj as prompt => move |entry| {
                 let text = entry.text();
                 let empty = text.is_empty();
 
-                prompt.set_response_enabled("chat", !empty);
+                prompt.set_response_enabled("accept", !empty);
 
                 if empty {
                     entry.remove_css_class("blue-entry");
@@ -79,14 +80,23 @@ impl UserPrompt {
                 }
             }));
 
-        let entry = obj.imp().id_entry.get();
+        obj
+    }
 
-        obj.connect_response(
+    pub fn add_user(self, window: &window::Window) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().id_entry.get();
+
+        entry.set_placeholder_text(Some("User ID"));
+        self.set_body("Enter the User ID you want to chat with");
+
+        self.connect_response(
             None,
             clone!(@weak window, @weak entry => move |dialog, response| {
-                if response != "chat" {
+                if response != "accept" {
                     return;
                 }
+                // TODO parse number properly
                 let entry_data = entry.text();
                 info!("Entry data: {}", entry_data);
                 let conn = window.get_chatting_from().user_ws();
@@ -95,8 +105,52 @@ impl UserPrompt {
             }),
         );
 
-        obj
+        self
     }
 
-    pub fn bind(&self) {}
+    pub fn edit_name(self, window: &UserProfile) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().id_entry.get();
+
+        entry.set_placeholder_text(Some("Name"));
+        self.set_body("Enter your new name");
+
+        self.connect_response(
+            None,
+            clone!(@weak window, @weak entry => move |dialog, response| {
+                if response != "accept" {
+                    return;
+                }
+                let entry_data = entry.text();
+                info!("Entry data: {}", entry_data);
+                info!("Have to update name");
+                dialog.destroy();
+            }),
+        );
+
+        self
+    }
+
+    pub fn edit_image_link(self, window: &UserProfile) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().id_entry.get();
+
+        entry.set_placeholder_text(Some("Direct Image Link"));
+        self.set_body("Enter your new image link");
+
+        self.connect_response(
+            None,
+            clone!(@weak window, @weak entry => move |dialog, response| {
+                if response != "accept" {
+                    return;
+                }
+                let entry_data = entry.text();
+                info!("Entry data: {}", entry_data);
+                info!("Have to update image link");
+                dialog.destroy();
+            }),
+        );
+
+        self
+    }
 }
