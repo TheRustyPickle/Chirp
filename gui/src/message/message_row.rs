@@ -2,14 +2,12 @@ mod imp {
     use crate::message::MessageObject;
     use adw::{subclass::prelude::*, Avatar};
     use glib::subclass::InitializingObject;
-    use glib::{object_subclass, Binding, Properties};
-    use gtk::prelude::*;
+    use glib::{object_subclass, Binding};
     use gtk::{glib, Box, CompositeTemplate, Label};
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
 
-    #[derive(Default, Properties, CompositeTemplate)]
+    #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
-    #[properties(wrapper_type = super::MessageRow)]
     pub struct MessageRow {
         #[template_child]
         pub message_content: TemplateChild<Box>,
@@ -24,8 +22,8 @@ mod imp {
         #[template_child]
         pub receiver: TemplateChild<Avatar>,
         pub bindings: RefCell<Vec<Binding>>,
-        #[property(get, set)]
         pub message_data: OnceCell<MessageObject>,
+        pub random_val: Cell<bool>,
     }
 
     #[object_subclass]
@@ -82,8 +80,9 @@ impl MessageRow {
                 .add_css_class("message-row-received")
         }
 
+        row.imp().message_data.set(object).unwrap();
         row.bind();
-        row.set_message_data(object);
+
         row
     }
 
@@ -93,10 +92,10 @@ impl MessageRow {
         let sent_by = self.imp().sent_by.get();
         let message = self.imp().message.get();
 
-        let message_object = self.message_data();
+        let message_object = self.imp().message_data.get().unwrap();
         let is_sent = message_object.is_send();
 
-        let sender = self.message_data().sent_from().unwrap();
+        let sender = self.imp().message_data.get().unwrap().sent_from().unwrap();
 
         sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 
