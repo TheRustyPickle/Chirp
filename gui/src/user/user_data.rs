@@ -1,13 +1,11 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gio::glib::once_cell::sync::Lazy;
-    use gio::glib::subclass::Signal;
     use gio::ListStore;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::gdk::Paintable;
     use gtk::glib;
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
 
     use crate::ws::WSObject;
 
@@ -26,7 +24,7 @@ mod imp {
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
         #[property(get, set)]
-        pub user_id: OnceCell<u64>,
+        pub user_id: Cell<u64>,
     }
 
     #[object_subclass]
@@ -36,16 +34,7 @@ mod imp {
     }
 
     #[derived_properties]
-    impl ObjectImpl for UserObject {
-        fn signals() -> &'static [Signal] {
-            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-                vec![Signal::builder("updating-image")
-                    .param_types([Paintable::static_type()])
-                    .build()]
-            });
-            SIGNALS.as_ref()
-        }
-    }
+    impl ObjectImpl for UserObject {}
 }
 
 use adw::prelude::*;
@@ -83,7 +72,7 @@ impl UserObject {
             .build();
 
         if let Some(image_link) = image_link {
-            info!("Starting channel to update image");
+            info!("Starting a new channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
             spawn_blocking(move || {
@@ -92,6 +81,7 @@ impl UserObject {
                 sender.send(avatar).unwrap();
             });
         }
+        obj.set_user_id(0);
         obj.set_user_ws(user_ws);
         obj
     }
@@ -116,7 +106,7 @@ impl UserObject {
         obj.set_user_id(id);
 
         if let Some(image_link) = image_link {
-            info!("Starting channel to update image");
+            info!("Starting a new channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             obj.set_user_image(receiver);
             spawn_blocking(move || {
@@ -135,7 +125,6 @@ impl UserObject {
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
                     let texture = Texture::from_bytes(&image_data).unwrap();
-
                     let pixbuf = pixbuf_get_from_texture(&texture).unwrap();
                     let image = Image::from_pixbuf(Some(&pixbuf));
                     image.set_width_request(pixbuf.width());
@@ -143,10 +132,7 @@ impl UserObject {
                     image.set_pixel_size(pixbuf.width());
                     let paintable = image.paintable().unwrap();
                     user_object.set_image(paintable.clone());
-                    let status = paintable.to_value().get::<Paintable>().unwrap();
-                    user_object.emit_by_name::<()>("updating-image", &[&status]);
-                    info!("Emitted image update for {}", user_object.name());
-                    ControlFlow::Continue
+                    ControlFlow::Break
                 }
             ),
         );
@@ -172,7 +158,7 @@ impl UserObject {
     fn start_listening(&self, sender: Sender<String>, owner_id: u64) {
         let user_ws = self.user_ws();
 
-        if self.imp().user_id.get().is_none() {
+        if self.imp().user_id.get() == 0 {
             let user_data = self.convert_to_json();
             user_ws.create_new_user(user_data);
         } else {
@@ -203,11 +189,7 @@ impl UserObject {
     }
 
     fn convert_to_json(&self) -> String {
-        let user_id = if self.imp().user_id.get().is_none() {
-            0
-        } else {
-            self.user_id()
-        };
+        let user_id = self.user_id();
         let user_data = FullUserData {
             id: user_id,
             name: self.name(),
