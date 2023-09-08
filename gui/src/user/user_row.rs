@@ -71,16 +71,6 @@ impl UserRow {
 
         let row_clone = row.clone();
 
-        object.connect_closure(
-            "updating-image",
-            false,
-            closure_local!(move |from: UserObject, status: Paintable| {
-                info!("Updating image for avatar {} on UserRow", from.name());
-                let avatar = row_clone.imp().user_avatar.get();
-                avatar.set_custom_image(Some(&status))
-            }),
-        );
-
         let motion = gtk::EventControllerMotion::new();
         avatar.add_controller(motion.clone());
 
@@ -117,6 +107,7 @@ impl UserRow {
         });
 
         row.imp().user_data.set(object).unwrap();
+        row.bind();
         row
     }
 
@@ -126,20 +117,17 @@ impl UserRow {
 
         let user_object = self.imp().user_data.get().unwrap();
 
-        let image_available = user_object.image();
-
         let avatar_text_binding = user_object
             .bind_property("name", &user_avatar, "text")
             .sync_create()
             .build();
 
-        if image_available.is_some() {
-            let avatar_image_binding = user_object
-                .bind_property("image", &user_avatar, "custom-image")
-                .sync_create()
-                .build();
-            bindings.push(avatar_image_binding);
-        }
+        let avatar_image_binding = user_object
+            .bind_property("image", &user_avatar, "custom-image")
+            .sync_create()
+            .build();
+        bindings.push(avatar_image_binding);
+
         bindings.push(avatar_text_binding);
     }
 }
