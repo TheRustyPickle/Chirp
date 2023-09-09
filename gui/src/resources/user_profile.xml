@@ -92,7 +92,7 @@
                                 <property name="can-focus">false</property>
                                 <property name="icon-name">view-refresh-symbolic</property>
                                 <property name="has-frame">false</property>
-                                <property name="tooltip-text">Use a new random image</property>
+                                <property name="tooltip-text">Generate a new random image</property>
                               </object>
                             </child>
                             <child>
@@ -115,6 +115,8 @@
         </child>
         <child>
           <object class="GtkRevealer" id="copy_revealer">
+            <property name="transition-duration">800</property>
+            <property name="visible">false</property>
             <child>
               <object class="GtkBox">
                 <property name="css-classes">notification-box</property>

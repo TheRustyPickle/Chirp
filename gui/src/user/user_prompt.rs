@@ -8,7 +8,7 @@ mod imp {
     #[template(resource = "/com/github/therustypickle/chirp/user_prompt.xml")]
     pub struct UserPrompt {
         #[template_child]
-        pub id_entry: TemplateChild<Entry>,
+        pub prompt_entry: TemplateChild<Entry>,
     }
 
     #[object_subclass]
@@ -46,7 +46,7 @@ use gtk::{
 };
 use tracing::info;
 
-use crate::user::UserProfile;
+use crate::user::{UserObject, UserProfile};
 use crate::window;
 
 wrapper! {
@@ -58,34 +58,36 @@ wrapper! {
 impl UserPrompt {
     pub fn new(accept_name: &str) -> Self {
         let obj: UserPrompt = Object::builder().build();
+        let id_entry = obj.imp().prompt_entry.get();
+
         obj.add_responses(&[("cancel", "Cancel"), ("accept", accept_name)]);
         obj.set_response_enabled("accept", false);
         obj.set_response_appearance("accept", ResponseAppearance::Suggested);
-        obj.imp().id_entry.add_css_class("blue-entry");
 
-        obj.imp()
-            .id_entry
-            .connect_changed(clone!(@weak obj as prompt => move |entry| {
-                let text = entry.text();
-                let empty = text.is_empty();
+        id_entry.add_css_class("blue-entry");
+        id_entry.set_activates_default(true);
 
-                prompt.set_response_enabled("accept", !empty);
+        id_entry.connect_changed(clone!(@weak obj as prompt => move |entry| {
+            let text = entry.text();
+            let empty = text.is_empty();
 
-                if empty {
-                    entry.remove_css_class("blue-entry");
-                    entry.add_css_class("error");
-                } else {
-                    entry.remove_css_class("error");
-                    entry.add_css_class("blue-entry");
-                }
-            }));
+            prompt.set_response_enabled("accept", !empty);
+
+            if empty {
+                entry.remove_css_class("blue-entry");
+                entry.add_css_class("error");
+            } else {
+                entry.remove_css_class("error");
+                entry.add_css_class("blue-entry");
+            }
+        }));
 
         obj
     }
 
     pub fn add_user(self, window: &window::Window) -> Self {
         self.set_transient_for(Some(window));
-        let entry = self.imp().id_entry.get();
+        let entry = self.imp().prompt_entry.get();
 
         entry.set_placeholder_text(Some("User ID"));
         self.set_body("Enter the User ID you want to chat with");
@@ -108,22 +110,23 @@ impl UserPrompt {
         self
     }
 
-    pub fn edit_name(self, window: &UserProfile) -> Self {
+    pub fn edit_name(self, window: &UserProfile, user_data: &UserObject) -> Self {
         self.set_transient_for(Some(window));
-        let entry = self.imp().id_entry.get();
+        let entry = self.imp().prompt_entry.get();
 
         entry.set_placeholder_text(Some("Name"));
         self.set_body("Enter your new name");
 
         self.connect_response(
             None,
-            clone!(@weak window, @weak entry => move |dialog, response| {
+            clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
                 if response != "accept" {
                     return;
                 }
                 let entry_data = entry.text();
-                info!("Entry data: {}", entry_data);
-                info!("Have to update name");
+                info!("Updating name to: {}", entry_data);
+                window.start_revealer(&format!("Updating name to: {}", entry_data));
+                user_data.set_new_name(entry_data.to_string());
                 dialog.destroy();
             }),
         );
@@ -131,22 +134,23 @@ impl UserPrompt {
         self
     }
 
-    pub fn edit_image_link(self, window: &UserProfile) -> Self {
+    pub fn edit_image_link(self, window: &UserProfile, user_data: &UserObject) -> Self {
         self.set_transient_for(Some(window));
-        let entry = self.imp().id_entry.get();
+        let entry = self.imp().prompt_entry.get();
 
         entry.set_placeholder_text(Some("Direct Image Link"));
         self.set_body("Enter your new image link");
 
         self.connect_response(
             None,
-            clone!(@weak window, @weak entry => move |dialog, response| {
+            clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
                 if response != "accept" {
                     return;
                 }
                 let entry_data = entry.text();
-                info!("Entry data: {}", entry_data);
-                info!("Have to update image link");
+                info!("Updating image link to: {}", entry_data);
+                window.start_revealer("Starting updating image...");
+                user_data.set_new_image_link(entry_data.to_string());
                 dialog.destroy();
             }),
         );

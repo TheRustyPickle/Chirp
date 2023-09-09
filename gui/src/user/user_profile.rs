@@ -4,7 +4,9 @@ mod imp {
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
     use gtk::{glib, Button, CompositeTemplate, Image, Label, Revealer};
-    use std::cell::RefCell;
+    use std::cell::{OnceCell, RefCell};
+
+    use crate::user::UserObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_profile.xml")]
@@ -33,6 +35,7 @@ mod imp {
         pub copy_revealer: TemplateChild<Revealer>,
         #[template_child]
         pub copy_info: TemplateChild<Label>,
+        pub user_data: OnceCell<UserObject>,
         pub bindings: RefCell<Vec<Binding>>,
     }
 
@@ -67,7 +70,7 @@ use crate::window;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gio::glib::clone;
-use glib::{timeout_add_seconds_local, wrapper, ControlFlow, Object};
+use glib::{timeout_add_seconds_local_once, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
@@ -87,6 +90,7 @@ impl UserProfile {
         obj.set_visible(true);
         obj.bind(&user_data);
         obj.connect_button_signals();
+        obj.imp().user_data.set(user_data).unwrap();
         obj
     }
 
@@ -152,46 +156,52 @@ impl UserProfile {
 
         name_edit.connect_clicked(clone!(@weak self as window => move |_| {
             info!("Opening prompt to get new name");
-            let prompt = UserPrompt::new("Confirm").edit_name(&window);
+            let user_data = window.imp().user_data.get().unwrap();
+            let prompt = UserPrompt::new("Confirm").edit_name(&window, user_data);
             prompt.present();
         }));
 
         image_link_edit.connect_clicked(clone!(@weak self as window => move |_| {
             info!("Opening prompt to get new image link");
-            let prompt = UserPrompt::new("Confirm").edit_image_link(&window);
+            let user_data = window.imp().user_data.get().unwrap();
+            let prompt = UserPrompt::new("Confirm").edit_image_link(&window, user_data);
             prompt.present();
         }));
 
         id_copy.connect_clicked(clone!(@weak self as window => move |_| {
             let text = window.imp().id_row.get().subtitle().unwrap();
             info!("Copying User ID {text} to clipboard.");
+
             window.clipboard().set(&text);
-
-            window.imp().copy_info.get().set_label(&format!("User ID {text} has been copied"));
-            window.imp().copy_revealer.get().set_reveal_child(true);
-
-            timeout_add_seconds_local(2, move || {
-                window.imp().copy_revealer.get().set_reveal_child(false);
-                ControlFlow::Break
-            });
+            window.start_revealer(&format!("User ID {text} has been copied"));
         }));
 
         image_link_copy.connect_clicked(clone!(@weak self as window => move |_| {
             let text = window.imp().image_link_row.get().subtitle().unwrap();
             info!("Copying Image Link {text} to clipboard.");
+
             window.clipboard().set(&text);
-
-            window.imp().copy_info.get().set_label(&format!("Image Link has been copied"));
-            window.imp().copy_revealer.get().set_reveal_child(true);
-
-            timeout_add_seconds_local(2, move || {
-                window.imp().copy_revealer.get().set_reveal_child(false);
-                ControlFlow::Break
-            });
+            window.start_revealer("Image Link has been copied");
         }));
 
         image_link_reload.connect_clicked(clone!(@weak self as window => move |_| {
             info!("Updating Image Link with a new random link");
+            window.start_revealer("Starting updating image...");
+
+            let user_data = window.imp().user_data.get().unwrap();
+            user_data.set_random_image();
         }));
+    }
+
+    pub fn start_revealer(&self, label_text: &str) {
+        self.imp().copy_info.get().set_label(label_text);
+
+        let revealer = self.imp().copy_revealer.get();
+        revealer.set_visible(true);
+        revealer.set_reveal_child(true);
+
+        timeout_add_seconds_local_once(1, move || {
+            revealer.set_reveal_child(false);
+        });
     }
 }

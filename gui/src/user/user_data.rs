@@ -40,12 +40,12 @@ use adw::prelude::*;
 use gio::glib::{clone, closure_local, MainContext, Priority, Receiver, Sender};
 use gio::{spawn_blocking, ListStore};
 use glib::{Bytes, ControlFlow, Object};
-use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
-use gtk::{glib, Image};
+use gdk::{Paintable, Texture};
+use gtk::{glib, Image, gdk};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::utils::{get_avatar, get_random_color};
+use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::ws::WSObject;
 
 glib::wrapper! {
@@ -79,26 +79,29 @@ impl UserObject {
         obj
     }
 
+    // TODO: Pass a result instead of Bytes directly
     fn check_image_link(&self) {
         if let Some(image_link) = self.image_link() {
             info!("Starting a new channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             self.set_user_image(receiver);
             spawn_blocking(move || {
-                info!("image link: {:?}", image_link);
+                info!("Image link: {:?}", image_link);
                 let avatar = get_avatar(image_link);
                 sender.send(avatar).unwrap();
             });
         }
     }
 
+    // TODO: Verify image link
+    #[allow(deprecated)]
     fn set_user_image(&self, receiver: Receiver<Bytes>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
                     let texture = Texture::from_bytes(&image_data).unwrap();
-                    let pixbuf = pixbuf_get_from_texture(&texture).unwrap();
+                    let pixbuf = gdk::pixbuf_get_from_texture(&texture).unwrap();
                     let image = Image::from_pixbuf(Some(&pixbuf));
                     image.set_width_request(pixbuf.width());
                     image.set_height_request(pixbuf.height());
@@ -109,6 +112,23 @@ impl UserObject {
                 }
             ),
         );
+    }
+
+    // TODO: Broadcast to the ws to every single instance
+    pub fn set_new_name(&self, name: String) {
+        self.set_name(name);
+    }
+
+    // TODO: Broadcast to the ws to every single instance
+    pub fn set_new_image_link(&self, link: String) {
+        self.set_image_link(link);
+        self.check_image_link()
+    }
+
+    pub fn set_random_image(&self) {
+        let new_link = generate_random_avatar_link();
+        info!("Generated random image link: {}", new_link);
+        self.set_new_image_link(new_link);
     }
 
     pub fn handle_ws(&self, owner_id: u64) -> Receiver<String> {

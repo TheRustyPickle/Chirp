@@ -4,8 +4,8 @@
 		<property name="close-response">close</property>
 		<property name="default-response">accept</property>
 		<property name="extra-child">
-			<object class="GtkEntry" id="id_entry">
-				<property name="css-classes">id-entry</property>
+			<object class="GtkEntry" id="prompt_entry">
+				<property name="css-classes">prompt-entry</property>
 			</object>
 		</property>
 	</template>
