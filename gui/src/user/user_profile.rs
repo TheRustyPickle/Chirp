@@ -3,7 +3,7 @@ mod imp {
     use gio::glib::Binding;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
-    use gtk::{glib, Button, CompositeTemplate, Image};
+    use gtk::{glib, Button, CompositeTemplate, Image, Label, Revealer};
     use std::cell::RefCell;
 
     #[derive(Default, CompositeTemplate)]
@@ -29,6 +29,10 @@ mod imp {
         pub image_link_reload: TemplateChild<Button>,
         #[template_child]
         pub image_link_edit: TemplateChild<Button>,
+        #[template_child]
+        pub copy_revealer: TemplateChild<Revealer>,
+        #[template_child]
+        pub copy_info: TemplateChild<Label>,
         pub bindings: RefCell<Vec<Binding>>,
     }
 
@@ -63,7 +67,7 @@ use crate::window;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gio::glib::clone;
-use glib::{wrapper, Object};
+use glib::{timeout_add_seconds_local, wrapper, ControlFlow, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
@@ -162,12 +166,28 @@ impl UserProfile {
             let text = window.imp().id_row.get().subtitle().unwrap();
             info!("Copying User ID {text} to clipboard.");
             window.clipboard().set(&text);
+
+            window.imp().copy_info.get().set_label(&format!("User ID {text} has been copied"));
+            window.imp().copy_revealer.get().set_reveal_child(true);
+
+            timeout_add_seconds_local(2, move || {
+                window.imp().copy_revealer.get().set_reveal_child(false);
+                ControlFlow::Break
+            });
         }));
 
         image_link_copy.connect_clicked(clone!(@weak self as window => move |_| {
             let text = window.imp().image_link_row.get().subtitle().unwrap();
             info!("Copying Image Link {text} to clipboard.");
             window.clipboard().set(&text);
+
+            window.imp().copy_info.get().set_label(&format!("Image Link has been copied"));
+            window.imp().copy_revealer.get().set_reveal_child(true);
+
+            timeout_add_seconds_local(2, move || {
+                window.imp().copy_revealer.get().set_reveal_child(false);
+                ControlFlow::Break
+            });
         }));
 
         image_link_reload.connect_clicked(clone!(@weak self as window => move |_| {

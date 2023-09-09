@@ -113,6 +113,20 @@
             </property>
           </object>
         </child>
+        <child>
+          <object class="GtkRevealer" id="copy_revealer">
+            <child>
+              <object class="GtkBox">
+                <property name="css-classes">notification-box</property>
+                <property name="orientation">vertical</property>
+                <child>
+                  <object class="GtkLabel" id="copy_info">
+                  </object>
+                </child>
+              </object>
+            </child>
+          </object>
+        </child>
       </object>
     </property>
   </template>

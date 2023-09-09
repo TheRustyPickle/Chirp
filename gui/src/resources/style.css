@@ -1,4 +1,4 @@
-.entry-box>scrolledwindow>textview {
+.entry-box > scrolledwindow > textview {
   background: #F5F5F5;
   border: 0px solid #ccc;
   border-radius: 15px;
@@ -8,7 +8,7 @@
     border-color 0.3s ease-in-out;
 }
 
-.entry-box>scrolledwindow>textview:focus {
+.entry-box > scrolledwindow > textview:focus {
   border: 2px solid #ccc;
   border-color: @accent_color;
 }
@@ -19,12 +19,12 @@
 
 }
 
-.entry-box>scrolledwindow>scrollbar {
+.entry-box > scrolledwindow > scrollbar {
   box-shadow: none;
   background: none;
 }
 
-.entry-box>scrolledwindow>scrollbar slider {
+.entry-box > scrolledwindow > scrollbar slider {
   min-height: 0;
 }
 
@@ -70,6 +70,18 @@ window {
 
 .avatar {
   padding: 3px;
+}
+
+.notification-box {
+  background-color: #F5F5F5;
+  border: 0px solid #ccc;
+  border-radius: 15px;
+  padding: 5px;
+  margin: 4px;
+}
+
+.notification-box > label {
+  font-weight: bold;
 }
 
 .sender-blue-1 {
