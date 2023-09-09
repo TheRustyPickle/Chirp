@@ -6,7 +6,6 @@ use std::time::Instant;
 mod server;
 mod session;
 
-/// Entry point for our websocket route
 async fn chat_route(
     req: HttpRequest,
     stream: web::Payload,
@@ -27,7 +26,6 @@ async fn chat_route(
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
-    // start chat server actor
     tracing_subscriber::fmt::init();
     let server = server::ChatServer::new().start();
 

@@ -23,7 +23,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for UserRow {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "UserRow";
         type Type = super::UserRow;
         type ParentType = Box;
@@ -37,24 +36,19 @@ mod imp {
         }
     }
 
-    // Trait shared by all GObjects
     impl ObjectImpl for UserRow {}
 
-    // Trait shared by all widgets
     impl WidgetImpl for UserRow {}
 
-    // Trait shared by all boxes
     impl BoxImpl for UserRow {}
 }
 
-use crate::user::UserObject;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gio::glib::closure_local;
-use glib::{wrapper, Object};
-use gtk::gdk::Paintable;
-use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
-use tracing::info;
+use glib::{clone, wrapper, Object};
+use gtk::{gdk::Rectangle, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+
+use crate::user::UserObject;
 
 wrapper! {
     pub struct UserRow(ObjectSubclass<imp::UserRow>)
@@ -63,60 +57,44 @@ wrapper! {
 }
 
 impl UserRow {
+    #[allow(deprecated)]
     pub fn new(object: UserObject) -> Self {
         let row: UserRow = Object::builder().build();
         row.imp().popover_visible.set(false);
 
-        let avatar = row.imp().user_avatar.get();
-
-        let row_clone = row.clone();
-
-        object.connect_closure(
-            "updating-image",
-            false,
-            closure_local!(move |from: UserObject, status: Paintable| {
-                info!("Updating image for avatar {} on UserRow", from.name());
-                let avatar = row_clone.imp().user_avatar.get();
-                avatar.set_custom_image(Some(&status))
-            }),
-        );
-
         let motion = gtk::EventControllerMotion::new();
-        avatar.add_controller(motion.clone());
+        row.imp().user_avatar.get().add_controller(motion.clone());
 
+        // NOTE couldn't use clone! here as gtk was giving me children left error on exit. couldn't find a solution
         let row_clone = row.clone();
-
         motion.connect_enter(move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
                 let popover = row_clone.imp().user_popover.get();
-                let avatar = row_clone.imp().user_avatar.get();
-
+                let position = row_clone.imp().user_avatar.get().allocation();
                 let popover_text = row_clone.imp().user_data.get().unwrap().name();
-
-                let position = avatar.allocation();
 
                 let x_position = position.x() + 40;
                 let y_position = position.y() + 20;
 
-                let position = gtk::gdk::Rectangle::new(x_position, y_position, -1, -1);
+                let position = Rectangle::new(x_position, y_position, -1, -1);
 
                 popover.set_pointing_to(Some(&position));
                 row_clone.imp().popover_label.set_label(&popover_text);
 
-                row_clone.imp().user_popover.get().set_visible(true);
+                popover.set_visible(true);
                 row_clone.imp().popover_visible.set(true);
             }
         });
 
-        let row_clone = row.clone();
-        motion.connect_leave(move |_| {
-            if row_clone.imp().popover_visible.get() {
-                row_clone.imp().user_popover.get().set_visible(false);
-                row_clone.imp().popover_visible.set(false);
+        motion.connect_leave(clone!(@weak row => move |_| {
+            if row.imp().popover_visible.get() {
+                row.imp().user_popover.get().set_visible(false);
+                row.imp().popover_visible.set(false);
             }
-        });
+        }));
 
         row.imp().user_data.set(object).unwrap();
+        row.bind();
         row
     }
 
@@ -126,20 +104,17 @@ impl UserRow {
 
         let user_object = self.imp().user_data.get().unwrap();
 
-        let image_available = user_object.image();
-
         let avatar_text_binding = user_object
             .bind_property("name", &user_avatar, "text")
             .sync_create()
             .build();
 
-        if image_available.is_some() {
-            let avatar_image_binding = user_object
-                .bind_property("image", &user_avatar, "custom-image")
-                .sync_create()
-                .build();
-            bindings.push(avatar_image_binding);
-        }
+        let avatar_image_binding = user_object
+            .bind_property("image", &user_avatar, "custom-image")
+            .sync_create()
+            .build();
+        bindings.push(avatar_image_binding);
+
         bindings.push(avatar_text_binding);
     }
 }

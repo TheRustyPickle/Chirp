@@ -15,9 +15,9 @@
             <property name="has-arrow">true</property>
             <property name="position">right</property>
             <property name="autohide">false</property>
+            <property name="visible">false</property>
             <property name="child">
               <object class="GtkLabel" id="popover_label">
-                <property name="label" translatable="yes">Additional text here</property>
               </object>
             </property>
           </object>

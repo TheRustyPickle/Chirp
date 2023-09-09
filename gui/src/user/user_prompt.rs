@@ -8,12 +8,11 @@ mod imp {
     #[template(resource = "/com/github/therustypickle/chirp/user_prompt.xml")]
     pub struct UserPrompt {
         #[template_child]
-        pub id_entry: TemplateChild<Entry>,
+        pub prompt_entry: TemplateChild<Entry>,
     }
 
     #[object_subclass]
     impl ObjectSubclass for UserPrompt {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "UserPrompt";
         type Type = super::UserPrompt;
         type ParentType = MessageDialog;
@@ -37,16 +36,15 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::MessageDialog;
-use adw::{prelude::*, ResponseAppearance};
-use gio::glib::clone;
-use glib::{wrapper, Object};
+use adw::{prelude::*, MessageDialog, ResponseAppearance};
+use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Orientable, Root, ShortcutManager,
     Widget, Window,
 };
 use tracing::info;
 
+use crate::user::{UserObject, UserProfile};
 use crate::window;
 
 wrapper! {
@@ -56,36 +54,49 @@ wrapper! {
 }
 
 impl UserPrompt {
-    pub fn new(window: &window::Window) -> Self {
+    pub fn new(accept_name: &str) -> Self {
         let obj: UserPrompt = Object::builder().build();
-        obj.add_responses(&[("cancel", "Cancel"), ("chat", "Start Chat")]);
-        obj.set_response_enabled("chat", false);
-        obj.set_response_appearance("chat", ResponseAppearance::Suggested);
-        obj.set_transient_for(Some(window));
+        let id_entry = obj.imp().prompt_entry.get();
 
-        obj.imp()
-            .id_entry
-            .connect_changed(clone!(@weak obj as prompt => move |entry| {
-                let text = entry.text();
-                let empty = text.is_empty();
+        obj.add_responses(&[("cancel", "Cancel"), ("accept", accept_name)]);
+        obj.set_response_enabled("accept", false);
+        obj.set_response_appearance("accept", ResponseAppearance::Suggested);
 
-                prompt.set_response_enabled("chat", !empty);
+        id_entry.add_css_class("blue-entry");
+        id_entry.set_activates_default(true);
 
-                if empty {
-                    entry.add_css_class("error");
-                } else {
-                    entry.remove_css_class("error");
-                }
-            }));
+        id_entry.connect_changed(clone!(@weak obj as prompt => move |entry| {
+            let text = entry.text();
+            let empty = text.is_empty();
 
-        let entry = obj.imp().id_entry.get();
+            prompt.set_response_enabled("accept", !empty);
 
-        obj.connect_response(
+            if empty {
+                entry.remove_css_class("blue-entry");
+                entry.add_css_class("error");
+            } else {
+                entry.remove_css_class("error");
+                entry.add_css_class("blue-entry");
+            }
+        }));
+
+        obj
+    }
+
+    pub fn add_user(self, window: &window::Window) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().prompt_entry.get();
+
+        entry.set_placeholder_text(Some("User ID"));
+        self.set_body("Enter the User ID you want to chat with");
+
+        self.connect_response(
             None,
             clone!(@weak window, @weak entry => move |dialog, response| {
-                if response != "chat" {
+                if response != "accept" {
                     return;
                 }
+                // TODO parse number properly
                 let entry_data = entry.text();
                 info!("Entry data: {}", entry_data);
                 let conn = window.get_chatting_from().user_ws();
@@ -94,8 +105,54 @@ impl UserPrompt {
             }),
         );
 
-        obj
+        self
     }
 
-    pub fn bind(&self) {}
+    pub fn edit_name(self, window: &UserProfile, user_data: &UserObject) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().prompt_entry.get();
+
+        entry.set_placeholder_text(Some("Name"));
+        self.set_body("Enter your new name");
+
+        self.connect_response(
+            None,
+            clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
+                if response != "accept" {
+                    return;
+                }
+                let entry_data = entry.text();
+                info!("Updating name to: {}", entry_data);
+                window.start_revealer(&format!("Updating name to: {}", entry_data));
+                user_data.set_new_name(entry_data.to_string());
+                dialog.destroy();
+            }),
+        );
+
+        self
+    }
+
+    pub fn edit_image_link(self, window: &UserProfile, user_data: &UserObject) -> Self {
+        self.set_transient_for(Some(window));
+        let entry = self.imp().prompt_entry.get();
+
+        entry.set_placeholder_text(Some("Direct Image Link"));
+        self.set_body("Enter your new image link");
+
+        self.connect_response(
+            None,
+            clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
+                if response != "accept" {
+                    return;
+                }
+                let entry_data = entry.text();
+                info!("Updating image link to: {}", entry_data);
+                window.start_revealer("Starting updating image...");
+                user_data.set_new_image_link(entry_data.to_string());
+                dialog.destroy();
+            }),
+        );
+
+        self
+    }
 }

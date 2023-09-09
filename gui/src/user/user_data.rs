@@ -1,12 +1,10 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gio::glib::once_cell::sync::Lazy;
-    use gio::glib::subclass::Signal;
+    use gdk::Paintable;
     use gio::ListStore;
     use glib::{derived_properties, object_subclass, Properties};
-    use gtk::gdk::Paintable;
-    use gtk::glib;
+    use gtk::{gdk, glib};
     use std::cell::{OnceCell, RefCell};
 
     use crate::ws::WSObject;
@@ -16,6 +14,7 @@ mod imp {
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::UserObject)]
     pub struct UserObject {
+        #[property(name = "user-id", get, set, type = u64, member = user_id)]
         #[property(name = "image", get, set, type = Option<Paintable>, member = image)]
         #[property(name = "name", get, set, type = String, member = name)]
         #[property(name = "name-color", get, set, type = String, member = name_color)]
@@ -25,8 +24,6 @@ mod imp {
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
-        #[property(get, set)]
-        pub user_id: OnceCell<u64>,
     }
 
     #[object_subclass]
@@ -36,29 +33,20 @@ mod imp {
     }
 
     #[derived_properties]
-    impl ObjectImpl for UserObject {
-        fn signals() -> &'static [Signal] {
-            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-                vec![Signal::builder("updating-image")
-                    .param_types([Paintable::static_type()])
-                    .build()]
-            });
-            SIGNALS.as_ref()
-        }
-    }
+    impl ObjectImpl for UserObject {}
 }
 
 use adw::prelude::*;
-use gio::glib::{clone, closure_local, MainContext, Priority, Receiver, Sender};
-use gio::subclass::prelude::ObjectSubclassIsExt;
+use gdk::{Paintable, Texture};
 use gio::{spawn_blocking, ListStore};
-use glib::{Bytes, ControlFlow, Object};
-use gtk::gdk::{pixbuf_get_from_texture, Paintable, Texture};
-use gtk::{glib, Image};
+use glib::{
+    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
+};
+use gtk::{gdk, glib, Image};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::utils::{get_avatar, get_random_color};
+use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::ws::WSObject;
 
 glib::wrapper! {
@@ -72,84 +60,76 @@ impl UserObject {
         messages: ListStore,
         color_to_ignore: Option<&str>,
         user_ws: WSObject,
+        user_id: Option<u64>,
     ) -> Self {
         let random_color = get_random_color(color_to_ignore);
 
+        let id = if let Some(id) = user_id { id } else { 0 };
+
         let obj: UserObject = Object::builder()
+            .property("user-id", id)
             .property("name", name)
             .property("image-link", image_link.clone())
             .property("messages", messages)
             .property("name-color", random_color)
             .build();
 
-        if let Some(image_link) = image_link {
-            info!("Starting channel to update image");
-            let (sender, receiver) = MainContext::channel(Priority::default());
-            obj.set_user_image(receiver);
-            spawn_blocking(move || {
-                info!("image link: {:?}", image_link);
-                let avatar = get_avatar(image_link);
-                sender.send(avatar).unwrap();
-            });
-        }
+        obj.check_image_link();
+
         obj.set_user_ws(user_ws);
         obj
     }
 
-    pub fn new_with_id(
-        id: u64,
-        name: &str,
-        image_link: Option<String>,
-        messages: ListStore,
-        color_to_ignore: Option<&str>,
-        user_ws: WSObject,
-    ) -> Self {
-        let random_color = get_random_color(color_to_ignore);
-
-        let obj: UserObject = Object::builder()
-            .property("name", name)
-            .property("image-link", image_link.clone())
-            .property("messages", messages)
-            .property("name-color", random_color)
-            .build();
-
-        obj.set_user_id(id);
-
-        if let Some(image_link) = image_link {
-            info!("Starting channel to update image");
+    // TODO: Pass a result instead of Bytes directly
+    fn check_image_link(&self) {
+        if let Some(image_link) = self.image_link() {
+            info!("Starting a new channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
-            obj.set_user_image(receiver);
+            self.set_user_image(receiver);
             spawn_blocking(move || {
-                info!("image link: {:?}", image_link);
+                info!("Image link: {:?}", image_link);
                 let avatar = get_avatar(image_link);
                 sender.send(avatar).unwrap();
             });
         }
-        obj.set_user_ws(user_ws);
-        obj
     }
 
+    // TODO: Verify image link
+    #[allow(deprecated)]
     fn set_user_image(&self, receiver: Receiver<Bytes>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
                 move |image_data| {
                     let texture = Texture::from_bytes(&image_data).unwrap();
-
-                    let pixbuf = pixbuf_get_from_texture(&texture).unwrap();
+                    let pixbuf = gdk::pixbuf_get_from_texture(&texture).unwrap();
                     let image = Image::from_pixbuf(Some(&pixbuf));
                     image.set_width_request(pixbuf.width());
                     image.set_height_request(pixbuf.height());
                     image.set_pixel_size(pixbuf.width());
                     let paintable = image.paintable().unwrap();
                     user_object.set_image(paintable.clone());
-                    let status = paintable.to_value().get::<Paintable>().unwrap();
-                    user_object.emit_by_name::<()>("updating-image", &[&status]);
-                    info!("Emitted image update for {}", user_object.name());
-                    ControlFlow::Continue
+                    ControlFlow::Break
                 }
             ),
         );
+    }
+
+    // TODO: Broadcast to the ws to every single instance
+    pub fn set_new_name(&self, name: String) {
+        self.set_name(name);
+    }
+
+    // TODO: Broadcast to the ws to every single instance
+    pub fn set_new_image_link(&self, link: String) {
+        self.set_image_link(link);
+        self.check_image_link()
+    }
+
+    pub fn set_random_image(&self) {
+        let new_link = generate_random_avatar_link();
+        info!("Generated random image link: {}", new_link);
+        self.set_new_image_link(new_link);
     }
 
     pub fn handle_ws(&self, owner_id: u64) -> Receiver<String> {
@@ -172,7 +152,7 @@ impl UserObject {
     fn start_listening(&self, sender: Sender<String>, owner_id: u64) {
         let user_ws = self.user_ws();
 
-        if self.imp().user_id.get().is_none() {
+        if self.user_id() == 0 {
             let user_data = self.convert_to_json();
             user_ws.create_new_user(user_data);
         } else {
@@ -203,13 +183,8 @@ impl UserObject {
     }
 
     fn convert_to_json(&self) -> String {
-        let user_id = if self.imp().user_id.get().is_none() {
-            0
-        } else {
-            self.user_id()
-        };
         let user_data = FullUserData {
-            id: user_id,
+            id: self.user_id(),
             name: self.name(),
             image_link: self.image_link(),
         };
@@ -220,6 +195,7 @@ impl UserObject {
 
 #[derive(Default, Clone)]
 pub struct UserData {
+    pub user_id: u64,
     pub name: String,
     pub name_color: String,
     pub image: Option<Paintable>,

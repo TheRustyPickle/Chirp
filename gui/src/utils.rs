@@ -1,8 +1,7 @@
 use gio::Cancellable;
 use gtk::glib::Bytes;
 use rand::Rng;
-use soup::prelude::*;
-use soup::{Message, Session};
+use soup::{prelude::*, Message, Session};
 use tracing::info;
 
 const COLORS: [&str; 10] = [
@@ -32,8 +31,34 @@ pub fn generate_robohash_link() -> String {
 }
 
 pub fn generate_dicebear_link() -> String {
+    let choices = [
+        "micah",
+        "bottts",
+        "lorelei",
+        "adventurer",
+        "identicon",
+        "open-peeps",
+    ];
+
+    let random_index = rand::thread_rng().gen_range(0..choices.len());
+    let selected_choice = choices[random_index];
+
     let random_num = generate_random_number(5);
-    format!("https://api.dicebear.com/6.x/micah/svg?seed={random_num}")
+    format!("https://api.dicebear.com/6.x/{selected_choice}/svg?seed={random_num}")
+}
+
+// TODO: Perhaps we can add other types of image here
+pub fn generate_random_avatar_link() -> String {
+    let choices = ["dicebear", "robohash"];
+
+    let random_index = rand::thread_rng().gen_range(0..choices.len());
+    let selected_choice = choices[random_index];
+
+    match selected_choice {
+        "dicebear" => generate_dicebear_link(),
+        "robohash" => generate_robohash_link(),
+        _ => unreachable!(),
+    }
 }
 
 pub fn get_random_color(to_ignore: Option<&str>) -> &str {

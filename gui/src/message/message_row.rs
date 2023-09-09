@@ -28,7 +28,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for MessageRow {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "MessageRow";
         type Type = super::MessageRow;
         type ParentType = Box;
@@ -42,27 +41,19 @@ mod imp {
         }
     }
 
-    // Trait shared by all GObjects
     impl ObjectImpl for MessageRow {}
 
-    // Trait shared by all widgets
     impl WidgetImpl for MessageRow {}
 
-    // Trait shared by all boxes
     impl BoxImpl for MessageRow {}
 }
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gio::glib::closure_local;
 use glib::{wrapper, Object};
-use gtk::gdk::Paintable;
-use gtk::prelude::*;
 use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
-use tracing::info;
 
 use crate::message::MessageObject;
-use crate::user::UserObject;
 
 wrapper! {
     pub struct MessageRow(ObjectSubclass<imp::MessageRow>)
@@ -89,32 +80,9 @@ impl MessageRow {
                 .add_css_class("message-row-received")
         }
 
-        let sent_from = object.sent_from().unwrap();
-        let sent_to = object.sent_to().unwrap();
-
-        let row_clone = row.clone();
-        sent_from.connect_closure(
-            "updating-image",
-            false,
-            closure_local!(move |from: UserObject, status: Paintable| {
-                info!("Updating image for sender {} on MessageRow", from.name());
-                let sender = row_clone.imp().sender.get();
-                sender.set_custom_image(Some(&status))
-            }),
-        );
-
-        let row_clone = row.clone();
-        sent_to.connect_closure(
-            "updating-image",
-            false,
-            closure_local!(move |from: UserObject, status: Paintable| {
-                info!("Updating image for receiver {} on MessageRow", from.name());
-                let receiver = row_clone.imp().receiver.get();
-                receiver.set_custom_image(Some(&status))
-            }),
-        );
-
         row.imp().message_data.set(object).unwrap();
+        row.bind();
+
         row
     }
 
@@ -127,11 +95,10 @@ impl MessageRow {
         let message_object = self.imp().message_data.get().unwrap();
         let is_sent = message_object.is_send();
 
-        let sender = self.imp().message_data.get().unwrap().sent_from().unwrap();
+        let sender = self.imp().message_data.get().unwrap().sent_from();
 
         sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 
-        let image = sender.image();
         let sender_avatar = if is_sent {
             self.imp().sender.get()
         } else {
@@ -151,13 +118,11 @@ impl MessageRow {
         bindings.push(sent_by_binding);
         bindings.push(avatar_fallback_binding);
 
-        if image.is_some() {
-            let image_binding = sender
-                .bind_property("image", &sender_avatar, "custom-image")
-                .sync_create()
-                .build();
-            bindings.push(image_binding);
-        }
+        let image_binding = sender
+            .bind_property("image", &sender_avatar, "custom-image")
+            .sync_create()
+            .build();
+        bindings.push(image_binding);
 
         let message_binding = message_object
             .bind_property("message", &message, "label")

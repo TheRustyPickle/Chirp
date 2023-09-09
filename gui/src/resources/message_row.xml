@@ -24,7 +24,7 @@
     <child>
       <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside gtkgrid without hexpand
       with hexpand can't add proper borders with css-->
-      <object class="GtkGrid" id="">
+      <object class="GtkGrid">
         <child>
           <object class="GtkBox" id="message_content">
             <property name="orientation">vertical</property>

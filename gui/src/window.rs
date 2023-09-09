@@ -1,5 +1,4 @@
 mod imp {
-
     use adw::subclass::prelude::*;
     use adw::{ApplicationWindow, Leaflet};
     use gio::ListStore;
@@ -37,7 +36,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for Window {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "MainWindow";
         type Type = super::Window;
         type ParentType = ApplicationWindow;
@@ -53,7 +51,6 @@ mod imp {
 
     impl ObjectImpl for Window {
         fn constructed(&self) {
-            // Call "constructed" on parent
             self.parent_constructed();
             let obj = self.obj();
             obj.setup_callbacks();
@@ -72,11 +69,9 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::Application;
-use adw::{prelude::*, NavigationDirection};
-use gio::glib::{ControlFlow, Receiver};
+use adw::{prelude::*, Application, NavigationDirection};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, wrapper, Object};
+use glib::{clone, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
@@ -84,7 +79,7 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{FullUserData, UserObject, UserPrompt, UserRow};
+use crate::user::{FullUserData, UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::{generate_dicebear_link, generate_robohash_link};
 use crate::ws::WSObject;
 
@@ -131,9 +126,14 @@ impl Window {
         self.imp()
             .new_chat
             .connect_clicked(clone!(@weak self as window => move |_| {
-                info!("Creating new test user");
-                let prompt = UserPrompt::new(&window);
+                let prompt = UserPrompt::new("Start Chat").add_user(&window);
                 prompt.present();
+            }));
+
+        self.imp()
+            .my_profile
+            .connect_clicked(clone!(@weak self as window => move |_| {
+                UserProfile::new(window.get_chatting_from(), &window);
             }));
     }
 
@@ -159,7 +159,6 @@ impl Window {
         info!("Setting own profile");
         self.imp().own_profile.replace(Some(data));
         let user_row = UserRow::new(user_clone_1);
-        user_row.bind();
         self.get_user_list().append(&user_row);
 
         self.set_chatting_with(user_clone_2);
@@ -185,7 +184,6 @@ impl Window {
         self.imp().message_list.bind_model(
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
-                info!("Model update triggered. Creating message row");
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
                 let row = window.create_message(message_data);
                 window.grab_focus();
@@ -275,14 +273,20 @@ impl Window {
 
     fn create_message(&self, data: &MessageObject) -> MessageRow {
         let row = MessageRow::new(data.clone());
-        row.bind();
         row
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
         let messages = ListStore::new::<MessageObject>();
         let ws = WSObject::new();
-        let user_data = UserObject::new(name, Some(generate_dicebear_link()), messages, None, ws);
+        let user_data = UserObject::new(
+            name,
+            Some(generate_dicebear_link()),
+            messages,
+            None,
+            ws,
+            None,
+        );
 
         // It's a new user + owner so the ID will be generated on the server side
         let receiver = user_data.handle_ws(0);
@@ -301,7 +305,7 @@ impl Window {
         } else {
             generate_dicebear_link()
         };
-        let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws);
+        let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws, None);
 
         let receiver = user_data.handle_ws(self.get_owner_id());
         self.handle_ws_message(user_data.clone(), receiver);
@@ -315,7 +319,6 @@ impl Window {
                     let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
-                    user_row.bind();
                     window.get_user_list().append(&user_row);
                 }
                 _ => window.receive_message(&response, user_object),
@@ -332,14 +335,15 @@ impl Window {
         let messages = ListStore::new::<MessageObject>();
         let ws = WSObject::new();
 
-        let new_user_data = UserObject::new_with_id(
-            user_data.id,
+        let new_user_data = UserObject::new(
             &user_data.name,
             user_data.image_link,
             messages,
             Some(&self.get_owner_name_color()),
             ws,
+            Some(user_data.id),
         );
+
         let receiver = new_user_data.handle_ws(self.get_owner_id());
         self.handle_ws_message(new_user_data.clone(), receiver);
         self.get_users_liststore().append(&new_user_data);

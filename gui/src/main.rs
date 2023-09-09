@@ -8,8 +8,7 @@ use adw::Application;
 use gdk::Display;
 use gio::resources_register_include;
 use glib::ExitCode;
-use gtk::{gdk, prelude::*, CssProvider};
-use gtk::{gio, glib};
+use gtk::{gdk, gio, glib, prelude::*, CssProvider};
 use tracing::info;
 use window::Window;
 

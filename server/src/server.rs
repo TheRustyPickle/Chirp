@@ -93,7 +93,7 @@ impl WsData {
 
 #[derive(Debug)]
 pub struct ChatServer {
-    // {session id: {user id this session belongs to, chatting_with_ws_id, recipient}}
+    // {session id: {user id this session belongs to, chatting_with_user_id, recipient}}
     sessions: HashMap<usize, (usize, Option<usize>, Recipient<Message>)>,
     user_data: HashMap<usize, UserData>,
     user_session: HashMap<usize, Vec<WsData>>,
@@ -119,8 +119,9 @@ impl ChatServer {
                 for i in self.user_session[chatting_with_id].iter() {
                     if sent_from == &i.user_id {
                         info!("Sending message from {} to {}", sent_from, i.user_id);
-                        let receiver_ws = &self.sessions.get(&i.ws_id).unwrap().2;
-                        receiver_ws.do_send(Message(message.to_string()))
+                        if let Some(receiver_data) = self.sessions.get(&i.ws_id) {
+                            receiver_data.2.do_send(Message(message.to_string()))
+                        }
                     }
                 }
             }
@@ -166,7 +167,7 @@ impl ChatServer {
         }
     }
 
-    /// Updates the current WS session ID chatting with another WS session ID
+    /// Updates the current WS session ID's chatting with with a user id
     fn update_chatting_with(&mut self, chatting_from: usize, chatting_with: usize) {
         info!(
             "Updating chatting with of {} with {}",
