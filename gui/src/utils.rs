@@ -1,8 +1,7 @@
 use gio::Cancellable;
 use gtk::glib::Bytes;
 use rand::Rng;
-use soup::prelude::*;
-use soup::{Message, Session};
+use soup::{prelude::*, Message, Session};
 use tracing::info;
 
 const COLORS: [&str; 10] = [

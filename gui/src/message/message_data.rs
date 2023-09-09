@@ -1,13 +1,12 @@
 mod imp {
-    use std::cell::RefCell;
-
-    use crate::user::UserObject;
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::glib;
+    use std::cell::{OnceCell, RefCell};
 
     use super::MessageData;
+    use crate::user::UserObject;
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::MessageObject)]
@@ -16,9 +15,9 @@ mod imp {
         #[property(name = "is-send", get, set, type = bool, member = is_send)]
         pub data: RefCell<MessageData>,
         #[property(get, set)]
-        pub sent_from: RefCell<Option<UserObject>>,
+        pub sent_from: OnceCell<UserObject>,
         #[property(get, set)]
-        pub sent_to: RefCell<Option<UserObject>>,
+        pub sent_to: OnceCell<UserObject>,
     }
 
     #[object_subclass]
@@ -31,8 +30,7 @@ mod imp {
     impl ObjectImpl for MessageObject {}
 }
 
-use glib::wrapper;
-use glib::Object;
+use glib::{wrapper, Object};
 use gtk::glib;
 
 use crate::user::UserObject;

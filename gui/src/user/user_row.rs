@@ -23,7 +23,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for UserRow {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "UserRow";
         type Type = super::UserRow;
         type ParentType = Box;
@@ -44,13 +43,12 @@ mod imp {
     impl BoxImpl for UserRow {}
 }
 
-use crate::user::UserObject;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gio::glib::clone;
-use glib::{wrapper, Object};
-use gtk::gdk::Rectangle;
-use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+use glib::{clone, wrapper, Object};
+use gtk::{gdk::Rectangle, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+
+use crate::user::UserObject;
 
 wrapper! {
     pub struct UserRow(ObjectSubclass<imp::UserRow>)
@@ -59,6 +57,7 @@ wrapper! {
 }
 
 impl UserRow {
+    #[allow(deprecated)]
     pub fn new(object: UserObject) -> Self {
         let row: UserRow = Object::builder().build();
         row.imp().popover_visible.set(false);

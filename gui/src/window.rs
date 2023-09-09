@@ -1,5 +1,4 @@
 mod imp {
-
     use adw::subclass::prelude::*;
     use adw::{ApplicationWindow, Leaflet};
     use gio::ListStore;
@@ -37,7 +36,6 @@ mod imp {
 
     #[object_subclass]
     impl ObjectSubclass for Window {
-        // `NAME` needs to match `class` attribute of template
         const NAME: &'static str = "MainWindow";
         type Type = super::Window;
         type ParentType = ApplicationWindow;
@@ -53,7 +51,6 @@ mod imp {
 
     impl ObjectImpl for Window {
         fn constructed(&self) {
-            // Call "constructed" on parent
             self.parent_constructed();
             let obj = self.obj();
             obj.setup_callbacks();
@@ -72,11 +69,9 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::Application;
-use adw::{prelude::*, NavigationDirection};
-use gio::glib::{ControlFlow, Receiver};
+use adw::{prelude::*, Application, NavigationDirection};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, wrapper, Object};
+use glib::{clone, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
@@ -189,7 +184,6 @@ impl Window {
         self.imp().message_list.bind_model(
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
-                info!("Model update triggered. Creating message row");
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
                 let row = window.create_message(message_data);
                 window.grab_focus();

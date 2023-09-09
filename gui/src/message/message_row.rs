@@ -1,10 +1,11 @@
 mod imp {
-    use crate::message::MessageObject;
     use adw::{subclass::prelude::*, Avatar};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{glib, Box, CompositeTemplate, Label};
-    use std::cell::{Cell, OnceCell, RefCell};
+    use std::cell::{OnceCell, RefCell};
+
+    use crate::message::MessageObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
@@ -23,7 +24,6 @@ mod imp {
         pub receiver: TemplateChild<Avatar>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
-        pub random_val: Cell<bool>,
     }
 
     #[object_subclass]
@@ -95,7 +95,7 @@ impl MessageRow {
         let message_object = self.imp().message_data.get().unwrap();
         let is_sent = message_object.is_send();
 
-        let sender = self.imp().message_data.get().unwrap().sent_from().unwrap();
+        let sender = self.imp().message_data.get().unwrap().sent_from();
 
         sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 

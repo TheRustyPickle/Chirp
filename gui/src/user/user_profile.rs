@@ -1,8 +1,7 @@
 mod imp {
     use adw::{subclass::prelude::*, ActionRow, Avatar, Window};
-    use gio::glib::Binding;
-    use glib::object_subclass;
     use glib::subclass::InitializingObject;
+    use glib::{object_subclass, Binding};
     use gtk::{glib, Button, CompositeTemplate, Image, Label, Revealer};
     use std::cell::{OnceCell, RefCell};
 
@@ -65,16 +64,16 @@ mod imp {
     impl MessageDialogImpl for UserProfile {}
 }
 
-use crate::user::{UserObject, UserPrompt};
-use crate::window;
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gio::glib::clone;
-use glib::{timeout_add_seconds_local_once, wrapper, Object};
+use glib::{clone, timeout_add_seconds_local_once, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
 use tracing::info;
+
+use crate::user::{UserObject, UserPrompt};
+use crate::window;
 
 wrapper! {
     pub struct UserProfile(ObjectSubclass<imp::UserProfile>)

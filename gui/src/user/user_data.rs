@@ -1,10 +1,10 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
+    use gdk::Paintable;
     use gio::ListStore;
     use glib::{derived_properties, object_subclass, Properties};
-    use gtk::gdk::Paintable;
-    use gtk::glib;
+    use gtk::{gdk, glib};
     use std::cell::{OnceCell, RefCell};
 
     use crate::ws::WSObject;
@@ -37,11 +37,12 @@ mod imp {
 }
 
 use adw::prelude::*;
-use gio::glib::{clone, closure_local, MainContext, Priority, Receiver, Sender};
-use gio::{spawn_blocking, ListStore};
-use glib::{Bytes, ControlFlow, Object};
 use gdk::{Paintable, Texture};
-use gtk::{glib, Image, gdk};
+use gio::{spawn_blocking, ListStore};
+use glib::{
+    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
+};
+use gtk::{gdk, glib, Image};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 

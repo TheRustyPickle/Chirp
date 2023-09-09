@@ -1,10 +1,9 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
-    use gio::glib::once_cell::sync::Lazy;
-    use gio::glib::subclass::Signal;
-    use gio::glib::SignalHandlerId;
-    use glib::{derived_properties, object_subclass, Properties};
+    use glib::once_cell::sync::Lazy;
+    use glib::subclass::Signal;
+    use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
     use gtk::glib;
     use soup::WebsocketConnection;
     use std::cell::{OnceCell, RefCell};
@@ -40,14 +39,10 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use gio::glib::{clone, MainContext, Priority, Receiver, SignalHandlerId};
 use gio::Cancellable;
-use glib::wrapper;
-use glib::{ControlFlow, Object};
-use gtk::glib;
-use gtk::prelude::*;
-use soup::prelude::*;
-use soup::{Message, Session, WebsocketConnection};
+use glib::{clone, wrapper, ControlFlow, MainContext, Object, Priority, Receiver, SignalHandlerId};
+use gtk::{glib, prelude::*};
+use soup::{prelude::*, Message, Session, WebsocketConnection};
 use tracing::{error, info};
 
 wrapper! {

@@ -36,10 +36,8 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::MessageDialog;
-use adw::{prelude::*, ResponseAppearance};
-use gio::glib::clone;
-use glib::{wrapper, Object};
+use adw::{prelude::*, MessageDialog, ResponseAppearance};
+use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Orientable, Root, ShortcutManager,
     Widget, Window,
