@@ -9,6 +9,7 @@
         <property name="transition-type">crossfade</property>
         <child>
           <!-- Initial page to show if own profile is not created-->
+          <!-- Still TODO likely will take a while-->
           <object class="GtkStackPage">
             <property name="name">placeholder</property>
             <property name="child">
@@ -126,11 +127,7 @@
                     </child>
                   </object>
                 </child>
-
-
               </object>
-
-
             </property>
           </object>
         </child>

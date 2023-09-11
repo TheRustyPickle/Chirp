@@ -54,6 +54,7 @@ mod imp {
             obj.setup_callbacks();
             obj.setup_users();
             obj.setup_actions();
+            obj.setup_binding();
         }
     }
 
@@ -137,6 +138,15 @@ impl Window {
         self.add_action(&button_action);
     }
 
+    fn setup_binding(&self) {
+        let chatting_with = self.get_chatting_with();
+        chatting_with
+            .bind_property("name", self, "title")
+            .transform_to(|_, name: String| Some(format!("Chirp - {}", name)))
+            .sync_create()
+            .build();
+    }
+
     fn setup_users(&self) {
         let users = ListStore::new::<UserObject>();
         self.imp().users.set(users).expect("Could not set users");
@@ -168,7 +178,6 @@ impl Window {
 
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
-        self.set_title(Some(&format!("Chirp - {}", user.name())));
         let message_list = user.messages();
         self.imp().message_list.bind_model(
             Some(&message_list),

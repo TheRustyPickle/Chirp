@@ -38,7 +38,7 @@ mod imp {
 }
 
 use adw::prelude::*;
-use gdk::{Paintable, Texture, gdk_pixbuf};
+use gdk::{gdk_pixbuf, Paintable, Texture};
 use gdk_pixbuf::InterpType;
 use gio::{spawn_blocking, ListStore};
 use glib::{
@@ -122,12 +122,10 @@ impl UserObject {
         );
     }
 
-    // TODO: Broadcast to the ws to every single instance
     pub fn set_new_name(&self, name: String) {
         self.set_name(name);
     }
 
-    // TODO: Broadcast to the ws to every single instance
     pub fn set_new_image_link(&self, link: String) {
         self.set_image_link(link);
         self.check_image_link()
