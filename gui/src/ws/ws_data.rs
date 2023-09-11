@@ -104,6 +104,13 @@ impl WSObject {
         );
     }
 
+    pub fn send_text_message(&self, message: &str) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Sending message to ws: {message}");
+            conn.send_text(&format!("/message {}", message));
+        }
+    }
+
     pub fn create_new_user(&self, user_data: String) {
         if let Some(conn) = self.ws_conn() {
             info!("Connecting to WS to create a new user");
@@ -132,6 +139,20 @@ impl WSObject {
         if let Some(conn) = self.ws_conn() {
             info!("Sending info to update ids");
             conn.send_text(&format!("/update-ids {} {}", id, client_id))
+        }
+    }
+
+    pub fn image_link_updated(&self, link: &str) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Sending updated image link: {link}");
+            conn.send_text(&format!("/image-updated {}", link))
+        }
+    }
+
+    pub fn name_updated(&self, name: &str) {
+        if let Some(conn) = self.ws_conn() {
+            info!("Sending updated name: {name}");
+            conn.send_text(&format!("/name-updated {}", name))
         }
     }
 

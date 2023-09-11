@@ -18,7 +18,6 @@ pub struct WsChatSession {
     pub id: usize,
     pub user_id: usize,
     pub hb: Instant,
-    pub name: Option<String>,
     pub addr: Addr<ChatServer>,
 }
 
@@ -52,7 +51,6 @@ impl Actor for WsChatSession {
                 match res {
                     Ok(res) => {
                         act.id = res;
-                        act.name = Some("Main WebSocket".to_string());
                     }
                     _ => ctx.stop(),
                 }
@@ -117,13 +115,23 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
                         }),
+                        "/message" => self.addr.do_send(ClientMessage {
+                            id: self.id,
+                            msg: v[1].to_string(),
+                        }),
+                        "/name-updated" => self.addr.do_send(CommunicateUser {
+                            ws_id: self.id,
+                            user_data: v[1].to_string(),
+                            comm_type: CommunicationType::UpdateName,
+                        }),
+                        "/image-updated" => self.addr.do_send(CommunicateUser {
+                            ws_id: self.id,
+                            user_data: v[1].to_string(),
+                            comm_type: CommunicationType::UpdateImageLink,
+                        }),
+
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
-                } else {
-                    self.addr.do_send(ClientMessage {
-                        id: self.id,
-                        msg: m.to_string(),
-                    })
                 }
             }
             ws::Message::Binary(_) => println!("Unexpected binary"),

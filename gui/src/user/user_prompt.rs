@@ -125,6 +125,7 @@ impl UserPrompt {
                 info!("Updating name to: {}", entry_data);
                 window.start_revealer(&format!("Updating name to: {}", entry_data));
                 user_data.set_new_name(entry_data.to_string());
+                user_data.user_ws().name_updated(&entry_data);
                 dialog.destroy();
             }),
         );
@@ -149,6 +150,7 @@ impl UserPrompt {
                 info!("Updating image link to: {}", entry_data);
                 window.start_revealer("Starting updating image...");
                 user_data.set_new_image_link(entry_data.to_string());
+                user_data.user_ws().image_link_updated(&entry_data);
                 dialog.destroy();
             }),
         );

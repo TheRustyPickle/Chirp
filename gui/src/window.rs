@@ -180,7 +180,6 @@ impl Window {
         info!("Setting chatting with {}", user.name());
         self.set_title(Some(&format!("Chirp - {}", user.name())));
         let message_list = user.messages();
-        info!("Binding model");
         self.imp().message_list.bind_model(
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
@@ -240,9 +239,9 @@ impl Window {
 
         info!("Sending new text message: {}", content);
 
-        if let Some(conn) = self.get_chatting_from().user_ws().ws_conn() {
-            conn.send_text(&content);
-        }
+        self.get_chatting_from()
+            .user_ws()
+            .send_text_message(&content);
 
         buffer.set_text("");
 
@@ -321,7 +320,8 @@ impl Window {
                     let user_row = UserRow::new(user);
                     window.get_user_list().append(&user_row);
                 }
-                _ => window.receive_message(&response, user_object),
+                "/message" => window.receive_message(&response_data[1], user_object),
+                _ => {}
             }
             ControlFlow::Continue
         }));

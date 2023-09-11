@@ -46,6 +46,8 @@ pub enum CommunicationType {
     SendUserData,
     CreateNewUser,
     UpdateUserIDs,
+    UpdateName,
+    UpdateImageLink,
 }
 
 #[derive(Message)]
@@ -120,7 +122,9 @@ impl ChatServer {
                     if sent_from == &i.user_id {
                         info!("Sending message from {} to {}", sent_from, i.user_id);
                         if let Some(receiver_data) = self.sessions.get(&i.ws_id) {
-                            receiver_data.2.do_send(Message(message.to_string()))
+                            receiver_data
+                                .2
+                                .do_send(Message(format!("/message {}", message)))
                         }
                     }
                 }
@@ -192,6 +196,42 @@ impl ChatServer {
             session_data.push(ws_data);
         }
     }
+
+    fn update_user_name(&mut self, ws_id: usize, new_name: String) {
+        let user_id = &self.sessions[&ws_id].0;
+
+        let user_info = self.user_data.get_mut(user_id).unwrap();
+        user_info.name = new_name.to_owned();
+
+        for (id, session_data) in self.user_session.iter() {
+            if id != user_id {
+                for session in session_data {
+                    if &session.user_id == user_id {
+                        let receiver = &self.sessions[&session.ws_id].2;
+                        receiver.do_send(Message(format!("/name-updated {new_name}")));
+                    }
+                }
+            }
+        }
+    }
+
+    fn update_user_image_link(&mut self, ws_id: usize, new_link: String) {
+        let user_id = &self.sessions[&ws_id].0;
+
+        let user_info = self.user_data.get_mut(user_id).unwrap();
+        user_info.image_link = Some(new_link.to_owned());
+
+        for (id, session_data) in self.user_session.iter() {
+            if id != user_id {
+                for session in session_data {
+                    if &session.user_id == user_id {
+                        let receiver = &self.sessions[&session.ws_id].2;
+                        receiver.do_send(Message(format!("/image-updated {new_link}")));
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl Actor for ChatServer {
@@ -243,9 +283,9 @@ impl Handler<CommunicateUser> for ChatServer {
             CommunicationType::SendUserData => {
                 self.send_user_data(msg.ws_id, msg.user_data.parse().unwrap())
             }
-            CommunicationType::CreateNewUser => {
-                self.create_new_user(msg.ws_id, msg.user_data);
-            }
+
+            CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.user_data),
+
             CommunicationType::UpdateUserIDs => {
                 let data: Vec<&str> = msg.user_data.split(' ').collect();
                 self.update_ids(
@@ -253,6 +293,10 @@ impl Handler<CommunicateUser> for ChatServer {
                     data[0].parse().unwrap(),
                     data[1].parse().unwrap(),
                 );
+            }
+            CommunicationType::UpdateName => self.update_user_name(msg.ws_id, msg.user_data),
+            CommunicationType::UpdateImageLink => {
+                self.update_user_image_link(msg.ws_id, msg.user_data)
             }
         }
     }
