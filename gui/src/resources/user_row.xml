@@ -7,7 +7,7 @@
         <property name="has-tooltip">true</property>
         <property name="visible">true</property>
         <property name="show-initials">true</property>
-        <property name="size">38</property>
+        <property name="size">45</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
         <child>

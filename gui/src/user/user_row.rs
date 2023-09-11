@@ -110,7 +110,7 @@ impl UserRow {
             .build();
 
         let avatar_image_binding = user_object
-            .bind_property("image", &user_avatar, "custom-image")
+            .bind_property("small-image", &user_avatar, "custom-image")
             .sync_create()
             .build();
         bindings.push(avatar_image_binding);

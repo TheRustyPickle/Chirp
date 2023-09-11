@@ -15,7 +15,8 @@ mod imp {
     #[properties(wrapper_type = super::UserObject)]
     pub struct UserObject {
         #[property(name = "user-id", get, set, type = u64, member = user_id)]
-        #[property(name = "image", get, set, type = Option<Paintable>, member = image)]
+        #[property(name = "big-image", get, set, type = Option<Paintable>, member = big_image)]
+        #[property(name = "small-image", get, set, type = Option<Paintable>, member = small_image)]
         #[property(name = "name", get, set, type = String, member = name)]
         #[property(name = "name-color", get, set, type = String, member = name_color)]
         #[property(name = "image-link", get, set, type = Option<String>, member = image_link)]
@@ -37,7 +38,8 @@ mod imp {
 }
 
 use adw::prelude::*;
-use gdk::{Paintable, Texture};
+use gdk::{Paintable, Texture, gdk_pixbuf};
+use gdk_pixbuf::InterpType;
 use gio::{spawn_blocking, ListStore};
 use glib::{
     clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
@@ -75,7 +77,6 @@ impl UserObject {
             .build();
 
         obj.check_image_link();
-
         obj.set_user_ws(user_ws);
         obj
     }
@@ -103,12 +104,18 @@ impl UserObject {
                 move |image_data| {
                     let texture = Texture::from_bytes(&image_data).unwrap();
                     let pixbuf = gdk::pixbuf_get_from_texture(&texture).unwrap();
-                    let image = Image::from_pixbuf(Some(&pixbuf));
-                    image.set_width_request(pixbuf.width());
-                    image.set_height_request(pixbuf.height());
-                    image.set_pixel_size(pixbuf.width());
-                    let paintable = image.paintable().unwrap();
-                    user_object.set_image(paintable.clone());
+
+                    let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
+                    let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
+
+                    let big_image = Image::from_pixbuf(Some(&big_image_buf));
+                    let small_image = Image::from_pixbuf(Some(&small_image_buf));
+
+                    let paintable = big_image.paintable().unwrap();
+                    user_object.set_big_image(paintable);
+
+                    let paintable = small_image.paintable().unwrap();
+                    user_object.set_small_image(paintable);
                     ControlFlow::Break
                 }
             ),
@@ -208,7 +215,8 @@ pub struct UserData {
     pub user_id: u64,
     pub name: String,
     pub name_color: String,
-    pub image: Option<Paintable>,
+    pub big_image: Option<Paintable>,
+    pub small_image: Option<Paintable>,
     pub image_link: Option<String>,
 }
 
