@@ -29,6 +29,7 @@
                     <property name="margin-start">20</property>
                     <property name="margin-end">20</property>
                     <property name="spacing">20</property>
+                    <!-- Top avatar-->
                     <child>
                       <object class="AdwAvatar" id="profile_avatar">
                         <property name="show-initials">true</property>
@@ -42,6 +43,7 @@
                           <class name="boxed-list" />
                         </style>
                         <child>
+                          <!-- The name row-->
                           <object class="AdwActionRow" id="name_row">
                             <property name="title">Name</property>
                             <child>
@@ -55,6 +57,7 @@
                           </object>
                         </child>
                         <child>
+                          <!-- The ID row-->
                           <object class="AdwActionRow" id="id_row">
                             <property name="title">User ID</property>
                             <child>
@@ -76,6 +79,7 @@
                           </object>
                         </child>
                         <child>
+                          <!-- The image link row-->
                           <object class="AdwActionRow" id="image_link_row">
                             <property name="title">Image Link</property>
                             <property name="subtitle-lines">1</property>
@@ -114,6 +118,7 @@
           </object>
         </child>
         <child>
+          <!-- The revealer that shows up upon actions like copy or reload iamge-->
           <object class="GtkRevealer" id="copy_revealer">
             <property name="transition-duration">800</property>
             <property name="visible">false</property>
@@ -123,6 +128,9 @@
                 <property name="orientation">vertical</property>
                 <child>
                   <object class="GtkLabel" id="copy_info">
+                    <property name="ellipsize">end</property>
+                    <property name="lines">1</property>
+                    <property name="max-width-chars">25</property>
                   </object>
                 </child>
               </object>
