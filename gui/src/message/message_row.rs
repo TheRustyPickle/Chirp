@@ -119,7 +119,7 @@ impl MessageRow {
         bindings.push(avatar_fallback_binding);
 
         let image_binding = sender
-            .bind_property("image", &sender_avatar, "custom-image")
+            .bind_property("small-image", &sender_avatar, "custom-image")
             .sync_create()
             .build();
         bindings.push(image_binding);

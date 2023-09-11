@@ -108,7 +108,7 @@ impl UserProfile {
             .build();
 
         let avatar_image_binding = user_data
-            .bind_property("image", &profile_avatar, "custom-image")
+            .bind_property("big-image", &profile_avatar, "custom-image")
             .sync_create()
             .build();
 

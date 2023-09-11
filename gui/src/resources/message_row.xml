@@ -8,7 +8,7 @@
         <property name="css-classes">avatar</property>
         <property name="visible">false</property>
         <property name="show-initials">true</property>
-        <property name="size">40</property>
+        <property name="size">45</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
       </object>
@@ -61,7 +61,7 @@
         <property name="css-classes">avatar</property>
         <property name="visible">false</property>
         <property name="show-initials">true</property>
-        <property name="size">40</property>
+        <property name="size">45</property>
         <property name="valign">end</property>
         <property name="margin-bottom">5</property>
       </object>

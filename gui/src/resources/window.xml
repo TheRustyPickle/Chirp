@@ -9,6 +9,7 @@
         <property name="transition-type">crossfade</property>
         <child>
           <!-- Initial page to show if own profile is not created-->
+          <!-- Still TODO likely will take a while-->
           <object class="GtkStackPage">
             <property name="name">placeholder</property>
             <property name="child">
@@ -30,97 +31,96 @@
             <!-- main page-->
             <property name="name">main</property>
             <property name="child">
-              <!-- left side of the leaflet-->
-              <object class="AdwLeaflet" id="leaflet">
-                <property name="can-navigate-forward">true</property>
+              <object class="GtkBox">
+                <property name="orientation">vertical</property>
                 <child>
-                  <object class="GtkBox">
-                    <property name="orientation">vertical</property>
-                    <child>
-                      <!-- This is the listbox that will contain the users list available for
-                      chatting-->
-                      <object class="GtkScrolledWindow">
-                        <property name="hscrollbar-policy">never</property>
-                        <property name="vexpand">True</property>
-                        <property name="child">
-                          <object class="GtkListBox" id="user_list">
-                          </object>
-                        </property>
+                  <object class="AdwHeaderBar">
+                    <!-- The own profile button -->
+                    <child type="start">
+                      <object class="GtkButton" id="my_profile">
+                        <property name="icon-name">preferences-desktop-personal</property>
+                        <property name="hexpand">false</property>
+                        <property name="tooltip-text" translatable="yes">Your Profile</property>
+                      </object>
+                    </child>
+                    <!-- The new chat button -->
+                    <child type="end">
+                      <object class="GtkButton" id="new_chat">
+                        <property name="icon-name">list-add</property>
+                        <property name="hexpand">false</property>
+                        <property name="tooltip-text" translatable="yes">Add New Chat</property>
                       </object>
                     </child>
                   </object>
                 </child>
                 <child>
-                  <!-- right side of the leaflet-->
-                  <object class="AdwLeafletPage">
-                    <property name="child">
+                  <object class="GtkBox">
+                    <property name="orientation">horizontal</property>
+                    <child>
+                      <object class="GtkBox">
+                        <property name="orientation">vertical</property>
+                        <child>
+                          <!-- This is the listbox that will contain the users list available for
+                          chatting-->
+                          <object class="GtkScrolledWindow">
+                            <property name="hscrollbar-policy">never</property>
+                            <property name="vexpand">True</property>
+                            <property name="child">
+                              <object class="GtkListBox" id="user_list">
+                              </object>
+                            </property>
+                          </object>
+                        </child>
+                      </object>
+                    </child>
+                    <child>
                       <object class="GtkSeparator" />
-                    </property>
-                  </object>
-                </child>
-                <child>
-                  <object class="GtkBox">
-                    <property name="orientation">vertical</property>
-                    <child>
-                      <object class="AdwHeaderBar">
-                        <!-- The own profile button -->
-                        <child type="start">
-                          <object class="GtkButton" id="my_profile">
-                            <property name="icon-name">preferences-desktop-personal</property>
-                            <property name="hexpand">false</property>
-                            <property name="tooltip-text" translatable="yes">Your Profile</property>
-                          </object>
-                        </child>
-                        <!-- The new chat button -->
-                        <child type="end">
-                          <object class="GtkButton" id="new_chat">
-                            <property name="icon-name">list-add</property>
-                            <property name="hexpand">false</property>
-                            <property name="tooltip-text" translatable="yes">Add New Chat</property>
-                          </object>
-                        </child>
-                      </object>
-                    </child>
-                    <child>
-                      <!-- The listbox that contains all the message data-->
-                      <object class="GtkScrolledWindow">
-                        <property name="vexpand">True</property>
-                        <property name="hscrollbar-policy">never</property>
-                        <property name="child">
-                          <object class="GtkListBox" id="message_list">
-                            <property name="selection-mode">none</property>
-                          </object>
-                        </property>
-                      </object>
                     </child>
                     <child>
                       <object class="GtkBox">
-                        <property name="css-classes">entry-box</property>
+                        <property name="orientation">vertical</property>
                         <child>
-                          <!-- textview is the box where messages are typed-->
+                          <!-- The listbox that contains all the message data-->
                           <object class="GtkScrolledWindow">
-                            <property name="propagate-natural-height">true</property>
+                            <property name="vexpand">True</property>
                             <property name="hscrollbar-policy">never</property>
-                            <property name="max-content-height">100</property>
                             <property name="child">
-                              <object class="GtkTextView" id="message_box">
-                                <property name="hexpand">True</property>
-                                <property name="wrap-mode">word-char</property>
-                                <property name="valign">center</property>
-                                <property name="top-margin">6</property>
-                                <property name="bottom-margin">6</property>
+                              <object class="GtkListBox" id="message_list">
+                                <property name="selection-mode">none</property>
                               </object>
                             </property>
                           </object>
                         </child>
                         <child>
-                          <!-- The button that is used for sending-->
-                          <object class="GtkButton" id="send_button">
-                            <property name="icon-name">go-next-symbolic</property>
-                            <property name="valign">end</property>
-                            <!-- Emits this on button press and gets emitted on ctrl + enter
-                            press-->
-                            <property name="action-name">win.send-message</property>
+                          <object class="GtkBox">
+                            <property name="css-classes">entry-box</property>
+                            <child>
+                              <!-- textview is the box where messages are typed-->
+                              <object class="GtkScrolledWindow">
+                                <property name="propagate-natural-height">true</property>
+                                <property name="hscrollbar-policy">never</property>
+                                <property name="max-content-height">100</property>
+                                <property name="child">
+                                  <object class="GtkTextView" id="message_box">
+                                    <property name="hexpand">True</property>
+                                    <property name="wrap-mode">word-char</property>
+                                    <property name="valign">center</property>
+                                    <property name="top-margin">6</property>
+                                    <property name="bottom-margin">6</property>
+                                  </object>
+                                </property>
+                              </object>
+                            </child>
+                            <child>
+                              <!-- The button that is used for sending-->
+                              <object class="GtkButton" id="send_button">
+                                <property name="icon-name">go-next-symbolic</property>
+                                <property name="valign">end</property>
+                                <!-- Emits this on button press and gets emitted on ctrl + enter
+                                press-->
+                                <property name="action-name">win.send-message</property>
+                              </object>
+                            </child>
                           </object>
                         </child>
                       </object>

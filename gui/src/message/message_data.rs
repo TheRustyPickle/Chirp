@@ -41,13 +41,12 @@ wrapper! {
 
 impl MessageObject {
     pub fn new(message: String, is_send: bool, sent_from: UserObject, sent_to: UserObject) -> Self {
-        let obj: MessageObject = Object::builder()
+        Object::builder()
             .property("is-send", is_send)
             .property("message", message)
             .property("sent-from", sent_from)
             .property("sent-to", sent_to)
-            .build();
-        obj
+            .build()
     }
 }
 

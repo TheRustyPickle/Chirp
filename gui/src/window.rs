@@ -1,6 +1,6 @@
 mod imp {
     use adw::subclass::prelude::*;
-    use adw::{ApplicationWindow, Leaflet};
+    use adw::ApplicationWindow;
     use gio::ListStore;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
@@ -13,8 +13,6 @@ mod imp {
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
     pub struct Window {
-        #[template_child]
-        pub leaflet: TemplateChild<Leaflet>,
         #[template_child]
         pub message_box: TemplateChild<TextView>,
         #[template_child]
@@ -56,6 +54,7 @@ mod imp {
             obj.setup_callbacks();
             obj.setup_users();
             obj.setup_actions();
+            obj.setup_binding();
         }
     }
 
@@ -69,7 +68,7 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::{prelude::*, Application, NavigationDirection};
+use adw::{prelude::*, Application};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
@@ -99,14 +98,6 @@ impl Window {
         let imp = self.imp();
         imp.message_box.grab_focus();
         imp.stack.set_visible_child_name("main");
-        imp.leaflet
-            .connect_folded_notify(clone!(@weak self as window => move |leaflet| {
-                if !leaflet.is_child_transition_running() && leaflet.is_folded() {
-                    leaflet.navigate(NavigationDirection::Forward);
-                    leaflet.navigate(NavigationDirection::Forward);
-                }
-
-            }));
 
         imp.user_list
             .connect_row_activated(clone!(@weak self as window => move |_, row| {
@@ -147,6 +138,15 @@ impl Window {
         self.add_action(&button_action);
     }
 
+    fn setup_binding(&self) {
+        let chatting_with = self.get_chatting_with();
+        chatting_with
+            .bind_property("name", self, "title")
+            .transform_to(|_, name: String| Some(format!("Chirp - {}", name)))
+            .sync_create()
+            .build();
+    }
+
     fn setup_users(&self) {
         let users = ListStore::new::<UserObject>();
         self.imp().users.set(users).expect("Could not set users");
@@ -178,7 +178,6 @@ impl Window {
 
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
-        self.set_title(Some(&format!("Chirp - {}", user.name())));
         let message_list = user.messages();
         self.imp().message_list.bind_model(
             Some(&message_list),
