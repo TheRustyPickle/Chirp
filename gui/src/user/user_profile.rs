@@ -84,22 +84,23 @@ wrapper! {
 impl UserProfile {
     pub fn new(user_data: UserObject, window: &window::Window) -> Self {
         let obj: UserProfile = Object::builder().build();
+        obj.imp().user_data.set(user_data).unwrap();
         obj.set_transient_for(Some(window));
         obj.set_modal(true);
         obj.set_visible(true);
-        obj.bind(&user_data);
+        obj.bind();
         obj.connect_button_signals();
-        obj.imp().user_data.set(user_data).unwrap();
         obj
     }
 
-    fn bind(&self, user_data: &UserObject) {
+    fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
         let profile_avatar = self.imp().profile_avatar.get();
         let name_row = self.imp().name_row.get();
         let id_row = self.imp().id_row.get();
         let image_link_row = self.imp().image_link_row.get();
         let id_warning = self.imp().id_warning.get();
+        let user_data = self.imp().user_data.get().unwrap();
 
         let avatar_text_binding = user_data
             .bind_property("name", &profile_avatar, "text")

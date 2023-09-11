@@ -129,6 +129,7 @@ impl UserObject {
     pub fn set_random_image(&self) {
         let new_link = generate_random_avatar_link();
         info!("Generated random image link: {}", new_link);
+        self.user_ws().image_link_updated(&new_link);
         self.set_new_image_link(new_link);
     }
 
@@ -165,17 +166,26 @@ impl UserObject {
                 let text = String::from_utf8(byte_slice).unwrap();
                 info!("{} Received from WS: {text}", user_object.name());
 
-                if text.starts_with("/update-user-id") {
-                    let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
-                    user_object.set_user_id(id);
-                    return;
-
-                } else if text.starts_with("/update-session-id") {
-                    let id: u64 = text.split(' ').collect::<Vec<&str>>()[1].parse().unwrap();
-                    user_object.user_ws().set_ws_id(id);
-                    return;
+                if text.starts_with('/') {
+                    let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
+                    match splitted_data[0] {
+                        "/update-user-id" => {
+                            let id: u64 = splitted_data[1].parse().unwrap();
+                            user_object.set_user_id(id);
+                        }
+                        "/update-session-id" => {
+                            let id: u64 = splitted_data[1].parse().unwrap();
+                            user_object.user_ws().set_ws_id(id);
+                        }
+                        "/image-updated" => {
+                            user_object.set_image_link(splitted_data[1]);
+                            user_object.check_image_link();
+                        },
+                        "/name-updated" => user_object.set_name(splitted_data[1]),
+                        "/message" | "/get-user-data"=> sender.send(text).unwrap(),
+                        _ => {}
+                    }
                 }
-                sender.send(text).unwrap();
             }),
         );
 

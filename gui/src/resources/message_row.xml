@@ -30,6 +30,9 @@
             <property name="orientation">vertical</property>
             <child>
               <object class="GtkLabel" id="sent_by">
+                <property name="ellipsize">end</property>
+                <property name="lines">1</property>
+                <property name="max-width-chars">25</property>
                 <property name="selectable">true</property>
                 <property name="margin-start">6</property>
                 <property name="margin-end">6</property>

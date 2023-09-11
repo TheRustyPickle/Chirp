@@ -16,7 +16,6 @@ async fn chat_route(
             id: 0,
             user_id: 0,
             hb: Instant::now(),
-            name: None,
             addr: srv.get_ref().clone(),
         },
         &req,
