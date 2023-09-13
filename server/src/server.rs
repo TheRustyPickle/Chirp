@@ -20,11 +20,18 @@ pub struct Disconnect {
     pub id: usize,
 }
 
-#[derive(Message)]
+#[derive(Message, Deserialize, Serialize)]
 #[rtype(result = "()")]
 pub struct ClientMessage {
-    pub id: usize,
+    pub from_user: usize,
+    pub to_user: usize,
     pub msg: String,
+}
+
+impl ClientMessage {
+    pub fn new(data: &str) -> Self {
+        serde_json::from_str(&data).unwrap()
+    }
 }
 
 #[derive(Message)]
@@ -48,6 +55,7 @@ pub enum CommunicationType {
     UpdateUserIDs,
     UpdateName,
     UpdateImageLink,
+    ReconnectUser,
 }
 
 #[derive(Message)]
@@ -115,20 +123,21 @@ impl ChatServer {
 }
 
 impl ChatServer {
-    fn send_message(&self, message: &str, sent_from: usize) {
-        if let Some((sent_from, chatting_with, _)) = self.sessions.get(&sent_from) {
-            if let Some(chatting_with_id) = chatting_with {
-                for i in self.user_session[chatting_with_id].iter() {
-                    if sent_from == &i.user_id {
-                        info!("Sending message from {} to {}", sent_from, i.user_id);
-                        if let Some(receiver_data) = self.sessions.get(&i.ws_id) {
-                            receiver_data
-                                .2
-                                .do_send(Message(format!("/message {}", message)))
-                        }
+    fn send_message(&self, message: &str, from_user: usize, to_user: usize) {
+        info!("Sending message from {} to {}", from_user, to_user);
+        if let Some(receiver_ws_data) = self.user_session.get(&to_user) {
+            for i in receiver_ws_data {
+                if i.user_id == from_user {
+                    let ws_id = i.ws_id;
+                    if let Some(receiver_data) = self.sessions.get(&ws_id) {
+                        receiver_data
+                            .2
+                            .do_send(Message(format!("/message {}", message)))
                     }
                 }
             }
+        } else {
+            info!("No active session id found with this user ID");
         }
     }
 
@@ -151,6 +160,24 @@ impl ChatServer {
             let (session_user_id, _, receiver_ws) = entry;
             *session_user_id = user_id;
             receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
+        }
+
+        let ws_data = WsData::new(user_id, ws_id);
+
+        self.user_session
+            .entry(user_id)
+            .or_insert(Vec::new())
+            .push(ws_data);
+    }
+
+    fn reconnect_user(&mut self, ws_id: usize, user_id: usize, other_data: String) {
+        info!("Reconnecting user");
+        let user_data = UserData::new(other_data).update_id(user_id);
+        self.user_data.insert(user_id, user_data);
+
+        if let Some(entry) = self.sessions.get_mut(&ws_id) {
+            let (session_user_id, _, _receiver_ws) = entry;
+            *session_user_id = user_id;
         }
 
         let ws_data = WsData::new(user_id, ws_id);
@@ -263,7 +290,7 @@ impl Handler<ClientMessage> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(msg.msg.as_str(), msg.id);
+        self.send_message(&msg.msg, msg.from_user, msg.to_user);
     }
 }
 
@@ -283,9 +310,7 @@ impl Handler<CommunicateUser> for ChatServer {
             CommunicationType::SendUserData => {
                 self.send_user_data(msg.ws_id, msg.user_data.parse().unwrap())
             }
-
             CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.user_data),
-
             CommunicationType::UpdateUserIDs => {
                 let data: Vec<&str> = msg.user_data.split(' ').collect();
                 self.update_ids(
@@ -297,6 +322,10 @@ impl Handler<CommunicateUser> for ChatServer {
             CommunicationType::UpdateName => self.update_user_name(msg.ws_id, msg.user_data),
             CommunicationType::UpdateImageLink => {
                 self.update_user_image_link(msg.ws_id, msg.user_data)
+            }
+            CommunicationType::ReconnectUser => {
+                let data: Vec<&str> = msg.user_data.splitn(2, ' ').collect();
+                self.reconnect_user(msg.ws_id, data[0].parse().unwrap(), data[1].to_string());
             }
         }
     }
