@@ -72,6 +72,7 @@ impl WSObject {
         let session = Session::new();
         let sender = self.imp().ws_sender.get().unwrap().clone();
 
+        // TODO: update it dynamically based on a yaml, json or something file
         let websocket_url = "ws://127.0.0.1:8080/ws/";
 
         let message = Message::new("GET", websocket_url).unwrap();
@@ -104,17 +105,16 @@ impl WSObject {
 
     fn set_ws(&self) {
         let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-
-        self.imp().ws_sender.set(sender).unwrap();
-
         let (notifier_send, notifier_receive) = MainContext::channel(Priority::DEFAULT);
 
+        self.imp().ws_sender.set(sender).unwrap();
         self.imp().notifier.set(notifier_send).unwrap();
 
         self.set_reconnecting(false);
-
         self.connect_to_ws();
 
+        // If ws connection failed, try to reconnect every 10 seconds
+        // otherwise save the websocket connection and ping it
         receiver.attach(
             None,
             clone!(@weak self as ws_object => @default-return ControlFlow::Break, move |conn| {
@@ -143,6 +143,7 @@ impl WSObject {
         );
     }
 
+    /// Sends a message
     pub fn send_text_message(&self, message: &str) {
         info!("Sending message to ws: {message}");
         self.ws_conn()
@@ -150,6 +151,7 @@ impl WSObject {
             .send_text(&format!("/message {}", message));
     }
 
+    /// Calls the server to create a new user with the given data
     pub fn create_new_user(&self, user_data: String) {
         info!("Connecting to WS to create a new user");
         self.ws_conn()
@@ -157,6 +159,7 @@ impl WSObject {
             .send_text(&format!("/create-new-user {}", user_data));
     }
 
+    /// Called when a new user is selected from the user list
     pub fn update_chatting_with(&self, id: &u64) {
         info!("Sending request for updating chatting with id to {}", id);
         self.ws_conn()
@@ -164,6 +167,7 @@ impl WSObject {
             .send_text(&format!("/update-chatting-with {}", id))
     }
 
+    /// Calls the server to get profile data of a user
     pub fn get_user_data(&self, id: &u64) {
         info!(
             "Sending request for getting UserObject Data with id: {}",
@@ -174,6 +178,7 @@ impl WSObject {
             .send_text(&format!("/get-user-data {}", id))
     }
 
+    /// Calls the server to update necessary IDs
     pub fn update_ids(&self, id: u64, client_id: u64) {
         info!("Sending info to update ids");
         self.ws_conn()
@@ -181,6 +186,7 @@ impl WSObject {
             .send_text(&format!("/update-ids {} {}", id, client_id))
     }
 
+    /// Calls the server to update the user image link
     pub fn image_link_updated(&self, link: &str) {
         info!("Sending updated image link: {link}");
         self.ws_conn()
@@ -188,6 +194,7 @@ impl WSObject {
             .send_text(&format!("/image-updated {}", link))
     }
 
+    /// Calls the server to update the user name
     pub fn name_updated(&self, name: &str) {
         info!("Sending updated name: {name}");
         self.ws_conn()
@@ -195,6 +202,7 @@ impl WSObject {
             .send_text(&format!("/name-updated {}", name))
     }
 
+    /// Pings and follows if the connection was closed
     pub fn start_pinging(&self) {
         let conn = self.ws_conn().unwrap();
         conn.set_keepalive_interval(5);
@@ -207,6 +215,7 @@ impl WSObject {
         }));
     }
 
+    /// Connects to the WS to reconnect with previously server deleted user data
     pub fn reconnect_user(&self, owner_id: u64, user_data: String) {
         info!("Updating WS to reconnect old owner: {}", owner_id);
         self.ws_conn()
@@ -214,6 +223,7 @@ impl WSObject {
             .send_text(&format!("/reconnect-user {} {user_data}", owner_id))
     }
 
+    /// Saves the signal ID of the Websocket Message Signal
     pub fn set_signal_id(&self, id: SignalHandlerId) {
         self.imp().ws_signal_id.replace(Some(id));
     }

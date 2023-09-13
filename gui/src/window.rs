@@ -79,9 +79,9 @@ use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{
-    FullUserData, MessageData, RequestType, UserObject, UserProfile, UserPrompt, UserRow,
+    FullUserData, RequestType, SendMessageData, UserObject, UserProfile, UserPrompt, UserRow,
 };
-use crate::utils::{generate_dicebear_link, generate_robohash_link};
+use crate::utils::generate_random_avatar_link;
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -185,7 +185,7 @@ impl Window {
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
-                let row = window.create_message(message_data);
+                let row = window.get_message_row(message_data);
                 window.grab_focus();
                 row.upcast()
             }),
@@ -230,25 +230,13 @@ impl Window {
             return;
         }
 
-        // NOTE dummy (number) will create a dummy user on the server
-        if content.starts_with("dummy") {
-            info!("Creating dummy user");
-            let dummy_type: Vec<&str> = content.splitn(2, ' ').collect();
-            self.create_dummy_user(dummy_type[1].parse().unwrap());
-            return;
-        }
-
         info!("Sending new text message: {}", content);
-
-        //self.get_chatting_from()
-        //.user_ws()
-        //.send_text_message(&content);
 
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
         self.get_chatting_from()
-            .add_to_queue(RequestType::SendMessage(MessageData::new(
+            .add_to_queue(RequestType::SendMessage(SendMessageData::new(
                 sender.user_id(),
                 receiver.user_id(),
                 content.to_string(),
@@ -278,38 +266,18 @@ impl Window {
         sender.messages().append(&message);
     }
 
-    fn create_message(&self, data: &MessageObject) -> MessageRow {
-        let row = MessageRow::new(data.clone());
-        row
+    fn get_message_row(&self, data: &MessageObject) -> MessageRow {
+        MessageRow::new(data.clone())
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
         // It's a new user + owner so the ID will be generated on the server side
-        let user_data = UserObject::new(name, Some(generate_dicebear_link()), None, None, 0);
+        let user_data = UserObject::new(name, Some(generate_random_avatar_link()), None, None, 0);
 
         user_data.handle_ws(self.clone());
-
         self.get_users_liststore().append(&user_data);
 
         user_data
-    }
-
-    fn create_dummy_user(&self, image_type: u8) {
-        let image_link = if image_type == 0 {
-            generate_robohash_link()
-        } else {
-            generate_dicebear_link()
-        };
-        let user_data = UserObject::new(
-            "Dummy user",
-            Some(image_link),
-            None,
-            None,
-            self.get_owner_id(),
-        );
-
-        user_data.handle_ws(self.clone());
-        //self.handle_ws_message(user_data.clone(), receiver);
     }
 
     pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
@@ -322,7 +290,7 @@ impl Window {
                     let user_row = UserRow::new(user);
                     window.get_user_list().append(&user_row);
                 }
-                "/message" => window.receive_message(&response_data[1], user_object),
+                "/message" => window.receive_message(response_data[1], user_object),
                 _ => {}
             }
             ControlFlow::Continue

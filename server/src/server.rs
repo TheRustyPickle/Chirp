@@ -141,12 +141,14 @@ impl ChatServer {
         }
     }
 
+    /// Sends the WS Connection ID to the client
     fn send_session_id(&self, id: usize) {
         if let Some((_, _, receiver_ws)) = self.sessions.get(&id) {
             receiver_ws.do_send(Message(format!("/update-session-id {}", id)))
         };
     }
 
+    /// Creates a new user and allocates necessary data to communicate with it
     fn create_new_user(&mut self, ws_id: usize, other_data: String) {
         let user_id = self.rng.gen::<usize>();
         info!(
@@ -170,6 +172,7 @@ impl ChatServer {
             .push(ws_data);
     }
 
+    /// Allocates necessary data to communicate with a previously deleted user
     fn reconnect_user(&mut self, ws_id: usize, user_id: usize, other_data: String) {
         info!("Reconnecting user");
         let user_data = UserData::new(other_data).update_id(user_id);
@@ -188,6 +191,7 @@ impl ChatServer {
             .push(ws_data);
     }
 
+    /// Sends user profile data to the client
     fn send_user_data(&mut self, ws_id: usize, id: usize) {
         info!("Sending user data of with id {}", id);
         if let Some(data) = self.user_data.get(&id) {
@@ -209,6 +213,7 @@ impl ChatServer {
         };
     }
 
+    /// Used to keep track of active user ws connections
     fn update_ids(&mut self, ws_id: usize, user_id: usize, client_id: usize) {
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (session_user_id, _, _) = entry;
@@ -224,6 +229,7 @@ impl ChatServer {
         }
     }
 
+    /// Updates user name
     fn update_user_name(&mut self, ws_id: usize, new_name: String) {
         let user_id = &self.sessions[&ws_id].0;
 
@@ -242,6 +248,7 @@ impl ChatServer {
         }
     }
 
+    /// Updates image link of a user
     fn update_user_image_link(&mut self, ws_id: usize, new_link: String) {
         let user_id = &self.sessions[&ws_id].0;
 

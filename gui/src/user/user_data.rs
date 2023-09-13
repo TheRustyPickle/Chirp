@@ -88,13 +88,18 @@ impl UserObject {
 
         obj.check_image_link();
         obj.set_user_ws(ws);
+
         let user_object = obj.clone();
+
+        // This signal gets emitted when the connection is once lost but reconnected again
         obj.user_ws().connect_closure(
             "ws-reconnect",
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
-                info!("Reconnected");
                 let old_queue = user_object.imp().request_queue.borrow().clone();
+                // As the server lost it's previous data, the reconnection must be done
+                // first before any other pending request can be processed.
+                // So reconnect -> process previous pending requests
                 user_object.imp().request_queue.replace(Vec::new());
                 user_object
                     .add_to_queue(RequestType::ReconnectUser)
@@ -149,18 +154,22 @@ impl UserObject {
         );
     }
 
+    /// Adds stuff to queue and start the process to process them
     pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
         {
             let mut queue = self.imp().request_queue.borrow_mut();
             queue.push(request_type);
         }
 
+        // The process must not start twice otherwise the same
+        // request can get processed twice, creating disaster
         if !self.request_processing() {
             self.process_queue();
         };
         self
     }
 
+    /// Processes queued stuff if ws conn is available
     fn process_queue(&self) {
         self.set_request_processing(true);
 
@@ -198,8 +207,8 @@ impl UserObject {
             }
         }
 
+        // Remove the processed requests
         for _x in 0..highest_index {
-            info!("Removing {:?}", queue_list[0]);
             queue_list.remove(0);
         }
 
@@ -319,21 +328,21 @@ pub enum RequestType {
     ImageUpdated(String),
     ReconnectUser,
     UpdateIDs,
-    SendMessage(MessageData),
+    SendMessage(SendMessageData),
     UpdateChattingWith(u64),
     GetUserData(u64),
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct MessageData {
+pub struct SendMessageData {
     pub from_user: u64,
     pub to_user: u64,
     pub msg: String,
 }
 
-impl MessageData {
+impl SendMessageData {
     pub fn new(from_user: u64, to_user: u64, msg: String) -> Self {
-        MessageData {
+        SendMessageData {
             msg,
             from_user,
             to_user,
