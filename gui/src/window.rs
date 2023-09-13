@@ -78,9 +78,10 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{FullUserData, UserObject, UserProfile, UserPrompt, UserRow};
+use crate::user::{
+    FullUserData, MessageData, RequestType, UserObject, UserProfile, UserPrompt, UserRow,
+};
 use crate::utils::{generate_dicebear_link, generate_robohash_link};
-use crate::ws::WSObject;
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -110,7 +111,8 @@ impl Window {
 
                 info!("Selected a new User from list");
                 let selected_user_id = selected_chat.user_id();
-                window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
+                //window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
+                window.get_chatting_from().add_to_queue(RequestType::UpdateChattingWith(selected_user_id));
                 window.set_chatting_with(selected_chat);
             }));
 
@@ -238,14 +240,21 @@ impl Window {
 
         info!("Sending new text message: {}", content);
 
-        self.get_chatting_from()
-            .user_ws()
-            .send_text_message(&content);
-
-        buffer.set_text("");
+        //self.get_chatting_from()
+        //.user_ws()
+        //.send_text_message(&content);
 
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
+
+        self.get_chatting_from()
+            .add_to_queue(RequestType::SendMessage(MessageData::new(
+                sender.user_id(),
+                receiver.user_id(),
+                content.to_string(),
+            )));
+
+        buffer.set_text("");
         let message = MessageObject::new(content, true, sender, receiver);
 
         self.chatting_with_messages().append(&message);
@@ -275,20 +284,10 @@ impl Window {
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
-        let user_data = UserObject::new(
-            name,
-            Some(generate_dicebear_link()),
-            messages,
-            None,
-            ws,
-            None,
-        );
-
         // It's a new user + owner so the ID will be generated on the server side
-        let receiver = user_data.handle_ws(0);
-        self.handle_ws_message(user_data.clone(), receiver);
+        let user_data = UserObject::new(name, Some(generate_dicebear_link()), None, None, 0);
+
+        user_data.handle_ws(self.clone());
 
         self.get_users_liststore().append(&user_data);
 
@@ -296,20 +295,24 @@ impl Window {
     }
 
     fn create_dummy_user(&self, image_type: u8) {
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
         let image_link = if image_type == 0 {
             generate_robohash_link()
         } else {
             generate_dicebear_link()
         };
-        let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws, None);
+        let user_data = UserObject::new(
+            "Dummy user",
+            Some(image_link),
+            None,
+            None,
+            self.get_owner_id(),
+        );
 
-        let receiver = user_data.handle_ws(self.get_owner_id());
-        self.handle_ws_message(user_data.clone(), receiver);
+        user_data.handle_ws(self.clone());
+        //self.handle_ws_message(user_data.clone(), receiver);
     }
 
-    fn handle_ws_message(&self, user: UserObject, receiver: Receiver<String>) {
+    pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
             match response_data[0] {
@@ -331,20 +334,17 @@ impl Window {
             "Creating new user with name: {}, id: {}",
             user_data.name, user_data.id
         );
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
 
         let new_user_data = UserObject::new(
             &user_data.name,
             user_data.image_link,
-            messages,
             Some(&self.get_owner_name_color()),
-            ws,
             Some(user_data.id),
+            self.get_owner_id(),
         );
 
-        let receiver = new_user_data.handle_ws(self.get_owner_id());
-        self.handle_ws_message(new_user_data.clone(), receiver);
+        new_user_data.handle_ws(self.clone());
+        //self.handle_ws_message(new_user_data.clone(), receiver);
         self.get_users_liststore().append(&new_user_data);
         new_user_data
     }
