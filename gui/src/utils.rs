@@ -32,13 +32,7 @@ pub fn generate_robohash_link() -> String {
 }
 
 pub fn generate_dicebear_link() -> String {
-    let choices = [
-        "micah",
-        "bottts",
-        "lorelei",
-        "adventurer",
-        "open-peeps",
-    ];
+    let choices = ["micah", "bottts", "lorelei", "adventurer", "open-peeps"];
 
     let random_index = rand::thread_rng().gen_range(0..choices.len());
     let selected_choice = choices[random_index];
