@@ -32,13 +32,23 @@ pub fn generate_robohash_link() -> String {
 }
 
 pub fn generate_dicebear_link() -> String {
-    let choices = ["micah", "bottts", "lorelei", "adventurer", "open-peeps"];
+    let choices = [
+        "micah",
+        "bottts",
+        "lorelei",
+        "adventurer",
+        "open-peeps",
+        "bottts-neutral",
+        "notionists",
+        "rings",
+        "shapes",
+    ];
 
     let random_index = rand::thread_rng().gen_range(0..choices.len());
     let selected_choice = choices[random_index];
 
     let random_num = generate_random_number(5);
-    format!("https://api.dicebear.com/6.x/{selected_choice}/svg?seed={random_num}")
+    format!("https://api.dicebear.com/7.x/{selected_choice}/svg?seed={random_num}")
 }
 
 // TODO: Perhaps we can add other types of image here
