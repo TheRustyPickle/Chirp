@@ -30,7 +30,7 @@ pub struct ClientMessage {
 
 impl ClientMessage {
     pub fn new(data: &str) -> Self {
-        serde_json::from_str(&data).unwrap()
+        serde_json::from_str(data).unwrap()
     }
 }
 

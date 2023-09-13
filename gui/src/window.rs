@@ -272,8 +272,7 @@ impl Window {
 
     fn create_owner(&self, name: &str) -> UserObject {
         // It's a new user + owner so the ID will be generated on the server side
-        let user_data = UserObject::new(name, Some(generate_random_avatar_link()), None, None, 0);
-
+        let user_data = UserObject::new(name, Some(generate_random_avatar_link()), None, None);
         user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&user_data);
 
@@ -291,6 +290,13 @@ impl Window {
                     window.get_user_list().append(&user_row);
                 }
                 "/message" => window.receive_message(response_data[1], user_object),
+                "/update-user-id" => {
+                    let chatting_from = window.get_chatting_from();
+                    if user_object == chatting_from {
+                        let id = response_data[1].parse::<u64>().unwrap();
+                        chatting_from.set_owner_id(id);
+                    }
+                }
                 _ => {}
             }
             ControlFlow::Continue
@@ -308,11 +314,16 @@ impl Window {
             user_data.image_link,
             Some(&self.get_owner_name_color()),
             Some(user_data.id),
-            self.get_owner_id(),
         );
 
+        // Every single user in the UserList of the client will have the owner User ID for reference
+        let chatting_from = self.get_chatting_from();
+        chatting_from
+            .bind_property("user-id", &new_user_data, "owner-id")
+            .sync_create()
+            .build();
+
         new_user_data.handle_ws(self.clone());
-        //self.handle_ws_message(new_user_data.clone(), receiver);
         self.get_users_liststore().append(&new_user_data);
         new_user_data
     }

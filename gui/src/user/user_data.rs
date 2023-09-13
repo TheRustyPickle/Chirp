@@ -69,7 +69,6 @@ impl UserObject {
         image_link: Option<String>,
         color_to_ignore: Option<&str>,
         user_id: Option<u64>,
-        owner_id: u64,
     ) -> Self {
         let ws = WSObject::new();
         let messages = ListStore::new::<MessageObject>();
@@ -83,7 +82,6 @@ impl UserObject {
             .property("image-link", image_link.clone())
             .property("messages", messages)
             .property("name-color", random_color)
-            .property("owner-id", owner_id)
             .build();
 
         obj.check_image_link();
@@ -248,7 +246,6 @@ impl UserObject {
 
     fn start_listening(&self, sender: Sender<String>) {
         let user_ws = self.user_ws();
-
         if !user_ws.reconnecting() {
             if self.user_id() == 0 {
                 self.add_to_queue(RequestType::CreateNewUser);
@@ -269,10 +266,7 @@ impl UserObject {
                         "/update-user-id" => {
                             let id: u64 = splitted_data[1].parse().unwrap();
                             user_object.set_user_id(id);
-
-                            if user_object.owner_id() == 0 {
-                                user_object.set_owner_id(id);
-                            }
+                            sender.send(text).unwrap()
                         }
                         "/update-session-id" => {
                             let id: u64 = splitted_data[1].parse().unwrap();
