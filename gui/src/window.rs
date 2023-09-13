@@ -78,9 +78,10 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{FullUserData, UserObject, UserProfile, UserPrompt, UserRow};
-use crate::utils::{generate_dicebear_link, generate_robohash_link};
-use crate::ws::WSObject;
+use crate::user::{
+    FullUserData, RequestType, SendMessageData, UserObject, UserProfile, UserPrompt, UserRow,
+};
+use crate::utils::generate_random_avatar_link;
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -110,7 +111,8 @@ impl Window {
 
                 info!("Selected a new User from list");
                 let selected_user_id = selected_chat.user_id();
-                window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
+                //window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
+                window.get_chatting_from().add_to_queue(RequestType::UpdateChattingWith(selected_user_id));
                 window.set_chatting_with(selected_chat);
             }));
 
@@ -183,7 +185,7 @@ impl Window {
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
-                let row = window.create_message(message_data);
+                let row = window.get_message_row(message_data);
                 window.grab_focus();
                 row.upcast()
             }),
@@ -228,24 +230,19 @@ impl Window {
             return;
         }
 
-        // NOTE dummy (number) will create a dummy user on the server
-        if content.starts_with("dummy") {
-            info!("Creating dummy user");
-            let dummy_type: Vec<&str> = content.splitn(2, ' ').collect();
-            self.create_dummy_user(dummy_type[1].parse().unwrap());
-            return;
-        }
-
         info!("Sending new text message: {}", content);
-
-        self.get_chatting_from()
-            .user_ws()
-            .send_text_message(&content);
-
-        buffer.set_text("");
 
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
+
+        self.get_chatting_from()
+            .add_to_queue(RequestType::SendMessage(SendMessageData::new(
+                sender.user_id(),
+                receiver.user_id(),
+                content.to_string(),
+            )));
+
+        buffer.set_text("");
         let message = MessageObject::new(content, true, sender, receiver);
 
         self.chatting_with_messages().append(&message);
@@ -269,47 +266,20 @@ impl Window {
         sender.messages().append(&message);
     }
 
-    fn create_message(&self, data: &MessageObject) -> MessageRow {
-        let row = MessageRow::new(data.clone());
-        row
+    fn get_message_row(&self, data: &MessageObject) -> MessageRow {
+        MessageRow::new(data.clone())
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
-        let user_data = UserObject::new(
-            name,
-            Some(generate_dicebear_link()),
-            messages,
-            None,
-            ws,
-            None,
-        );
-
         // It's a new user + owner so the ID will be generated on the server side
-        let receiver = user_data.handle_ws(0);
-        self.handle_ws_message(user_data.clone(), receiver);
-
+        let user_data = UserObject::new(name, Some(generate_random_avatar_link()), None, None);
+        user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&user_data);
 
         user_data
     }
 
-    fn create_dummy_user(&self, image_type: u8) {
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
-        let image_link = if image_type == 0 {
-            generate_robohash_link()
-        } else {
-            generate_dicebear_link()
-        };
-        let user_data = UserObject::new("Dummy user", Some(image_link), messages, None, ws, None);
-
-        let receiver = user_data.handle_ws(self.get_owner_id());
-        self.handle_ws_message(user_data.clone(), receiver);
-    }
-
-    fn handle_ws_message(&self, user: UserObject, receiver: Receiver<String>) {
+    pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
             match response_data[0] {
@@ -319,7 +289,14 @@ impl Window {
                     let user_row = UserRow::new(user);
                     window.get_user_list().append(&user_row);
                 }
-                "/message" => window.receive_message(&response_data[1], user_object),
+                "/message" => window.receive_message(response_data[1], user_object),
+                "/update-user-id" => {
+                    let chatting_from = window.get_chatting_from();
+                    if user_object == chatting_from {
+                        let id = response_data[1].parse::<u64>().unwrap();
+                        chatting_from.set_owner_id(id);
+                    }
+                }
                 _ => {}
             }
             ControlFlow::Continue
@@ -331,20 +308,22 @@ impl Window {
             "Creating new user with name: {}, id: {}",
             user_data.name, user_data.id
         );
-        let messages = ListStore::new::<MessageObject>();
-        let ws = WSObject::new();
 
         let new_user_data = UserObject::new(
             &user_data.name,
             user_data.image_link,
-            messages,
             Some(&self.get_owner_name_color()),
-            ws,
             Some(user_data.id),
         );
 
-        let receiver = new_user_data.handle_ws(self.get_owner_id());
-        self.handle_ws_message(new_user_data.clone(), receiver);
+        // Every single user in the UserList of the client will have the owner User ID for reference
+        let chatting_from = self.get_chatting_from();
+        chatting_from
+            .bind_property("user-id", &new_user_data, "owner-id")
+            .sync_create()
+            .build();
+
+        new_user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&new_user_data);
         new_user_data
     }

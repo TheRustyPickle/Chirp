@@ -44,7 +44,7 @@ use gtk::{
 };
 use tracing::info;
 
-use crate::user::{UserObject, UserProfile};
+use crate::user::{RequestType, UserObject, UserProfile};
 use crate::window;
 
 wrapper! {
@@ -99,8 +99,8 @@ impl UserPrompt {
                 // TODO parse number properly
                 let entry_data = entry.text();
                 info!("Entry data: {}", entry_data);
-                let conn = window.get_chatting_from().user_ws();
-                conn.get_user_data(entry_data.parse().unwrap());
+                window.get_chatting_from().add_to_queue(RequestType::GetUserData(entry_data.parse().unwrap()));
+
                 dialog.destroy();
             }),
         );
@@ -125,7 +125,7 @@ impl UserPrompt {
                 info!("Updating name to: {}", entry_data);
                 window.start_revealer(&format!("Updating name to: {}", entry_data));
                 user_data.set_new_name(entry_data.to_string());
-                user_data.user_ws().name_updated(&entry_data);
+                user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
                 dialog.destroy();
             }),
         );

@@ -1,22 +1,26 @@
 mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
+    use gio::glib::Sender;
     use glib::once_cell::sync::Lazy;
     use glib::subclass::Signal;
     use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
     use gtk::glib;
     use soup::WebsocketConnection;
-    use std::cell::{OnceCell, RefCell};
-    use std::rc::Rc;
+    use std::cell::{Cell, OnceCell, RefCell};
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::WSObject)]
     pub struct WSObject {
         #[property(get, set)]
-        pub ws_conn: Rc<RefCell<Option<WebsocketConnection>>>,
+        pub ws_conn: RefCell<Option<WebsocketConnection>>,
         #[property(get, set)]
-        pub ws_id: OnceCell<u64>,
+        pub ws_id: Cell<u64>,
         pub ws_signal_id: RefCell<Option<SignalHandlerId>>,
+        pub ws_sender: OnceCell<Sender<Option<WebsocketConnection>>>,
+        pub notifier: OnceCell<Sender<bool>>,
+        #[property(get, set)]
+        pub reconnecting: Cell<bool>,
     }
 
     #[object_subclass]
@@ -29,9 +33,14 @@ mod imp {
     impl ObjectImpl for WSObject {
         fn signals() -> &'static [Signal] {
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-                vec![Signal::builder("ws-success")
-                    .param_types([bool::static_type()])
-                    .build()]
+                vec![
+                    Signal::builder("ws-success")
+                        .param_types([bool::static_type()])
+                        .build(),
+                    Signal::builder("ws-reconnect")
+                        .param_types([bool::static_type()])
+                        .build(),
+                ]
             });
             SIGNALS.as_ref()
         }
@@ -40,9 +49,12 @@ mod imp {
 
 use adw::subclass::prelude::*;
 use gio::Cancellable;
-use glib::{clone, wrapper, ControlFlow, MainContext, Object, Priority, Receiver, SignalHandlerId};
+use glib::{
+    clone, timeout_add_seconds_local_once, wrapper, ControlFlow, MainContext, Object, Priority,
+    SignalHandlerId,
+};
 use gtk::{glib, prelude::*};
-use soup::{prelude::*, Message, Session, WebsocketConnection};
+use soup::{prelude::*, Message, Session};
 use tracing::{error, info};
 
 wrapper! {
@@ -56,14 +68,18 @@ impl WSObject {
         obj
     }
 
-    pub fn get_ws_receiver(&self) -> Receiver<Option<WebsocketConnection>> {
+    pub fn connect_to_ws(&self) {
         let session = Session::new();
+        let sender = self.imp().ws_sender.get().unwrap().clone();
 
+        // TODO: update it dynamically based on a yaml, json or something file
         let websocket_url = "ws://127.0.0.1:8080/ws/";
 
-        let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
         let message = Message::new("GET", websocket_url).unwrap();
         let cancel = Cancellable::new();
+
+        let is_reconnecting = self.reconnecting();
+        let notifier = self.imp().notifier.get().unwrap().clone();
 
         info!("Starting websocket connection with {}", websocket_url);
         session.websocket_connect_async(
@@ -75,6 +91,9 @@ impl WSObject {
             move |result| match result {
                 Ok(connection) => {
                     sender.send(Some(connection)).unwrap();
+                    if is_reconnecting {
+                        notifier.send(true).unwrap()
+                    };
                 }
                 Err(error) => {
                     sender.send(None).unwrap();
@@ -82,12 +101,20 @@ impl WSObject {
                 }
             },
         );
-        receiver
     }
 
     fn set_ws(&self) {
-        let receiver = self.get_ws_receiver();
+        let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
+        let (notifier_send, notifier_receive) = MainContext::channel(Priority::DEFAULT);
 
+        self.imp().ws_sender.set(sender).unwrap();
+        self.imp().notifier.set(notifier_send).unwrap();
+
+        self.set_reconnecting(false);
+        self.connect_to_ws();
+
+        // If ws connection failed, try to reconnect every 10 seconds
+        // otherwise save the websocket connection and ping it
         receiver.attach(
             None,
             clone!(@weak self as ws_object => @default-return ControlFlow::Break, move |conn| {
@@ -95,67 +122,108 @@ impl WSObject {
                     ws_object.set_ws_conn(conn.unwrap());
                     info!("WebSocket connection success");
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
+                    ws_object.start_pinging();
                 } else {
-                    error!("WebSocket connection failed");
-                    ws_object.emit_by_name::<()>("ws-success", &[&false]);
+                    error!("WebSocket connection failed. Starting again");
+                    timeout_add_seconds_local_once(10, move || {
+                        ws_object.connect_to_ws();
+                    });
                 }
+                ControlFlow::Continue
+            }),
+        );
+
+        notifier_receive.attach(
+            None,
+            clone!(@weak self as ws => @default-return ControlFlow::Break, move |_| {
+                ws.emit_by_name::<()>("ws-reconnect", &[&true]);
+                info!("Emitted");
                 ControlFlow::Continue
             }),
         );
     }
 
+    /// Sends a message
     pub fn send_text_message(&self, message: &str) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Sending message to ws: {message}");
-            conn.send_text(&format!("/message {}", message));
-        }
+        info!("Sending message to ws: {message}");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/message {}", message));
     }
 
+    /// Calls the server to create a new user with the given data
     pub fn create_new_user(&self, user_data: String) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Connecting to WS to create a new user");
-            conn.send_text(&format!("/create-new-user {}", user_data));
-        }
+        info!("Connecting to WS to create a new user");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/create-new-user {}", user_data));
     }
 
-    pub fn update_chatting_with(&self, id: u64) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Sending request for updating chatting with id to {}", id);
-            conn.send_text(&format!("/update-chatting-with {}", id))
-        }
+    /// Called when a new user is selected from the user list
+    pub fn update_chatting_with(&self, id: &u64) {
+        info!("Sending request for updating chatting with id to {}", id);
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/update-chatting-with {}", id))
     }
 
-    pub fn get_user_data(&self, id: u64) {
-        if let Some(conn) = self.ws_conn() {
-            info!(
-                "Sending request for getting UserObject Data with id: {}",
-                id
-            );
-            conn.send_text(&format!("/get-user-data {}", id))
-        }
+    /// Calls the server to get profile data of a user
+    pub fn get_user_data(&self, id: &u64) {
+        info!(
+            "Sending request for getting UserObject Data with id: {}",
+            id
+        );
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/get-user-data {}", id))
     }
 
+    /// Calls the server to update necessary IDs
     pub fn update_ids(&self, id: u64, client_id: u64) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Sending info to update ids");
-            conn.send_text(&format!("/update-ids {} {}", id, client_id))
-        }
+        info!("Sending info to update ids");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/update-ids {} {}", id, client_id))
     }
 
+    /// Calls the server to update the user image link
     pub fn image_link_updated(&self, link: &str) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Sending updated image link: {link}");
-            conn.send_text(&format!("/image-updated {}", link))
-        }
+        info!("Sending updated image link: {link}");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/image-updated {}", link))
     }
 
+    /// Calls the server to update the user name
     pub fn name_updated(&self, name: &str) {
-        if let Some(conn) = self.ws_conn() {
-            info!("Sending updated name: {name}");
-            conn.send_text(&format!("/name-updated {}", name))
-        }
+        info!("Sending updated name: {name}");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/name-updated {}", name))
     }
 
+    /// Pings and follows if the connection was closed
+    pub fn start_pinging(&self) {
+        let conn = self.ws_conn().unwrap();
+        conn.set_keepalive_interval(5);
+
+        conn.connect_closed(clone!(@weak self as ws => move |_| {
+            info!("connection closed. Starting again");
+            ws.imp().ws_conn.replace(None);
+            ws.set_reconnecting(true);
+            ws.connect_to_ws();
+        }));
+    }
+
+    /// Connects to the WS to reconnect with previously server deleted user data
+    pub fn reconnect_user(&self, owner_id: u64, user_data: String) {
+        info!("Updating WS to reconnect old owner: {}", owner_id);
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/reconnect-user {} {user_data}", owner_id))
+    }
+
+    /// Saves the signal ID of the Websocket Message Signal
     pub fn set_signal_id(&self, id: SignalHandlerId) {
         self.imp().ws_signal_id.replace(Some(id));
     }

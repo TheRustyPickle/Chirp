@@ -101,6 +101,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::CreateNewUser,
                         }),
+                        "/reconnect-user" => self.addr.do_send(CommunicateUser {
+                            ws_id: self.id,
+                            user_data: v[1].to_string(),
+                            comm_type: CommunicationType::ReconnectUser,
+                        }),
                         "/update-chatting-with" => self.addr.do_send(ChattingWithUpdate {
                             chatting_from: self.id,
                             chatting_with: v[1].parse().unwrap(),
@@ -115,10 +120,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
                         }),
-                        "/message" => self.addr.do_send(ClientMessage {
-                            id: self.id,
-                            msg: v[1].to_string(),
-                        }),
+                        "/message" => {
+                            let client_message = ClientMessage::new(v[1]);
+                            self.addr.do_send(client_message)
+                        }
                         "/name-updated" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
                             user_data: v[1].to_string(),

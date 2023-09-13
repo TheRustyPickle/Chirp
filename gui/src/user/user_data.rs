@@ -5,11 +5,11 @@ mod imp {
     use gio::ListStore;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::{gdk, glib};
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
 
     use crate::ws::WSObject;
 
-    use super::UserData;
+    use super::{RequestType, UserData};
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::UserObject)]
@@ -25,6 +25,11 @@ mod imp {
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
+        pub request_queue: RefCell<Vec<RequestType>>,
+        #[property(get, set)]
+        pub request_processing: Cell<bool>,
+        #[property(get, set)]
+        pub owner_id: Cell<u64>,
     }
 
     #[object_subclass]
@@ -40,6 +45,7 @@ mod imp {
 use adw::prelude::*;
 use gdk::{gdk_pixbuf, Paintable, Texture};
 use gdk_pixbuf::InterpType;
+use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
     clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
@@ -48,7 +54,9 @@ use gtk::{gdk, glib, Image};
 use serde::{Deserialize, Serialize};
 use tracing::info;
 
+use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
+use crate::window::Window;
 use crate::ws::WSObject;
 
 glib::wrapper! {
@@ -59,11 +67,11 @@ impl UserObject {
     pub fn new(
         name: &str,
         image_link: Option<String>,
-        messages: ListStore,
         color_to_ignore: Option<&str>,
-        user_ws: WSObject,
         user_id: Option<u64>,
     ) -> Self {
+        let ws = WSObject::new();
+        let messages = ListStore::new::<MessageObject>();
         let random_color = get_random_color(color_to_ignore);
 
         let id = if let Some(id) = user_id { id } else { 0 };
@@ -77,7 +85,29 @@ impl UserObject {
             .build();
 
         obj.check_image_link();
-        obj.set_user_ws(user_ws);
+        obj.set_user_ws(ws);
+
+        let user_object = obj.clone();
+
+        // This signal gets emitted when the connection is once lost but reconnected again
+        obj.user_ws().connect_closure(
+            "ws-reconnect",
+            false,
+            closure_local!(move |_from: WSObject, _success: bool| {
+                let old_queue = user_object.imp().request_queue.borrow().clone();
+                // As the server lost it's previous data, the reconnection must be done
+                // first before any other pending request can be processed.
+                // So reconnect -> process previous pending requests
+                user_object.imp().request_queue.replace(Vec::new());
+                user_object
+                    .add_to_queue(RequestType::ReconnectUser)
+                    .add_to_queue(RequestType::UpdateIDs);
+
+                for old in old_queue {
+                    user_object.add_to_queue(old);
+                }
+            }),
+        );
         obj
     }
 
@@ -122,6 +152,67 @@ impl UserObject {
         );
     }
 
+    /// Adds stuff to queue and start the process to process them
+    pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
+        {
+            let mut queue = self.imp().request_queue.borrow_mut();
+            queue.push(request_type);
+        }
+
+        // The process must not start twice otherwise the same
+        // request can get processed twice, creating disaster
+        if !self.request_processing() {
+            self.process_queue();
+        };
+        self
+    }
+
+    /// Processes queued stuff if ws conn is available
+    fn process_queue(&self) {
+        self.set_request_processing(true);
+
+        let user_ws = self.user_ws();
+
+        let mut queue_list = self.imp().request_queue.borrow_mut();
+
+        let mut highest_index = 0;
+        for task in queue_list.iter() {
+            if user_ws.ws_conn().is_some() {
+                info!("starting processing {task:?}");
+                match task {
+                    RequestType::ReconnectUser => {
+                        let owner_id = self.owner_id();
+                        let user_data = self.convert_to_json();
+                        user_ws.reconnect_user(owner_id, user_data);
+                    }
+                    RequestType::UpdateIDs => user_ws.update_ids(self.user_id(), self.owner_id()),
+                    RequestType::CreateNewUser => {
+                        let user_data = self.convert_to_json();
+                        user_ws.create_new_user(user_data);
+                    }
+                    RequestType::SendMessage(msg) => {
+                        user_ws.send_text_message(&msg.convert_to_json())
+                    }
+                    RequestType::ImageUpdated(link) => user_ws.image_link_updated(link),
+                    RequestType::NameUpdated(name) => user_ws.name_updated(name),
+                    RequestType::GetUserData(id) => user_ws.get_user_data(id),
+                    RequestType::UpdateChattingWith(id) => user_ws.update_chatting_with(id),
+                }
+                highest_index += 1;
+            } else {
+                info!("Connection lost. Stopping processing request");
+                break;
+            }
+        }
+
+        // Remove the processed requests
+        for _x in 0..highest_index {
+            queue_list.remove(0);
+        }
+
+        self.set_request_processing(false);
+    }
+
     pub fn set_new_name(&self, name: String) {
         self.set_name(name);
     }
@@ -134,35 +225,33 @@ impl UserObject {
     pub fn set_random_image(&self) {
         let new_link = generate_random_avatar_link();
         info!("Generated random image link: {}", new_link);
-        self.user_ws().image_link_updated(&new_link);
+        self.add_to_queue(RequestType::ImageUpdated(new_link.to_owned()));
         self.set_new_image_link(new_link);
     }
 
-    pub fn handle_ws(&self, owner_id: u64) -> Receiver<String> {
-        let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
+    pub fn handle_ws(&self, window: Window) {
         let user_object = self.clone();
+
         let user_ws = self.user_ws();
         user_ws.connect_closure(
             "ws-success",
             false,
-            closure_local!(move |_from: WSObject, success: bool| {
-                if success {
-                    user_object.start_listening(sender.clone(), owner_id);
-                }
+            closure_local!(move |_from: WSObject, _success: bool| {
+                let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
+                user_object.start_listening(sender.clone());
+                window.handle_ws_message(&user_object, receiver);
             }),
         );
-
-        receiver
     }
 
-    fn start_listening(&self, sender: Sender<String>, owner_id: u64) {
+    fn start_listening(&self, sender: Sender<String>) {
         let user_ws = self.user_ws();
-
-        if self.user_id() == 0 {
-            let user_data = self.convert_to_json();
-            user_ws.create_new_user(user_data);
-        } else {
-            user_ws.update_ids(self.user_id(), owner_id)
+        if !user_ws.reconnecting() {
+            if self.user_id() == 0 {
+                self.add_to_queue(RequestType::CreateNewUser);
+            } else {
+                self.add_to_queue(RequestType::UpdateIDs);
+            }
         }
 
         let id = user_ws.ws_conn().unwrap().connect_message(
@@ -177,6 +266,7 @@ impl UserObject {
                         "/update-user-id" => {
                             let id: u64 = splitted_data[1].parse().unwrap();
                             user_object.set_user_id(id);
+                            sender.send(text).unwrap()
                         }
                         "/update-session-id" => {
                             let id: u64 = splitted_data[1].parse().unwrap();
@@ -223,4 +313,36 @@ pub struct FullUserData {
     pub id: u64,
     pub name: String,
     pub image_link: Option<String>,
+}
+
+#[derive(Debug, Clone)]
+pub enum RequestType {
+    CreateNewUser,
+    NameUpdated(String),
+    ImageUpdated(String),
+    ReconnectUser,
+    UpdateIDs,
+    SendMessage(SendMessageData),
+    UpdateChattingWith(u64),
+    GetUserData(u64),
+}
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SendMessageData {
+    pub from_user: u64,
+    pub to_user: u64,
+    pub msg: String,
+}
+
+impl SendMessageData {
+    pub fn new(from_user: u64, to_user: u64, msg: String) -> Self {
+        SendMessageData {
+            msg,
+            from_user,
+            to_user,
+        }
+    }
+    fn convert_to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
 }

@@ -27,7 +27,8 @@ fn generate_random_number(length: usize) -> String {
 
 pub fn generate_robohash_link() -> String {
     let random_num = generate_random_number(5);
-    format!("https://robohash.org/{random_num}.svg")
+    let set_num = rand::thread_rng().gen_range(1..5);
+    format!("https://robohash.org/{random_num}.svg?set=set{set_num}")
 }
 
 pub fn generate_dicebear_link() -> String {
@@ -36,18 +37,22 @@ pub fn generate_dicebear_link() -> String {
         "bottts",
         "lorelei",
         "adventurer",
-        "identicon",
         "open-peeps",
+        "bottts-neutral",
+        "notionists",
+        "rings",
+        "shapes",
     ];
 
     let random_index = rand::thread_rng().gen_range(0..choices.len());
     let selected_choice = choices[random_index];
 
     let random_num = generate_random_number(5);
-    format!("https://api.dicebear.com/6.x/{selected_choice}/svg?seed={random_num}")
+    format!("https://api.dicebear.com/7.x/{selected_choice}/svg?seed={random_num}")
 }
 
 // TODO: Perhaps we can add other types of image here
+// NOTE Identicon
 pub fn generate_random_avatar_link() -> String {
     let choices = ["dicebear", "robohash"];
 
