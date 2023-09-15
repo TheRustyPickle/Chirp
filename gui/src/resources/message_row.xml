@@ -2,68 +2,77 @@
 <interface>
   <template class="MessageRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
-    <!-- Receiver side image on the left most side-->
     <child>
-      <object class="AdwAvatar" id="receiver">
-        <property name="css-classes">avatar</property>
-        <property name="visible">false</property>
-        <property name="show-initials">true</property>
-        <property name="size">45</property>
-        <property name="valign">end</property>
-        <property name="margin-bottom">5</property>
-      </object>
-    </child>
-    <!-- For some reason the labels after this one does not go to the right most corner even with xlign 1.0
-    so this consumes all the space so those labels can reach the corner -->
-    <child>
-      <object class="GtkLabel" id="placeholder">
-        <property name="hexpand">true</property>
-        <property name="visible">false</property>
-      </object>
-    </child>
-    <child>
-      <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside gtkgrid without hexpand
-      with hexpand can't add proper borders with css-->
-      <object class="GtkGrid">
+      <object class="GtkRevealer" id="message_revealer">
+        <property name="transition-duration">400</property>
         <child>
-          <object class="GtkBox" id="message_content">
-            <property name="orientation">vertical</property>
+          <object class="GtkBox">
             <child>
-              <object class="GtkLabel" id="sent_by">
-                <property name="ellipsize">end</property>
-                <property name="lines">1</property>
-                <property name="max-width-chars">25</property>
-                <property name="selectable">true</property>
-                <property name="margin-start">6</property>
-                <property name="margin-end">6</property>
-                <property name="margin-top">2</property>
+              <!-- Receiver side image on the left most side-->
+              <object class="AdwAvatar" id="receiver">
+                <property name="css-classes">avatar</property>
+                <property name="visible">false</property>
+                <property name="show-initials">true</property>
+                <property name="size">45</property>
+                <property name="valign">end</property>
                 <property name="margin-bottom">5</property>
               </object>
             </child>
+            <!-- For some reason the labels after this one does not go to the right most corner even with xlign 1.0
+            so this consumes all the space so those labels can reach the corner -->
             <child>
-              <object class="GtkLabel" id="message">
-                <property name="selectable">true</property>
-                <property name="margin-start">6</property>
-                <property name="margin-end">6</property>
-                <property name="margin-top">2</property>
+              <object class="GtkLabel" id="placeholder">
+                <property name="hexpand">true</property>
+                <property name="visible">false</property>
+              </object>
+            </child>
+            <child>
+              <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside gtkgrid without hexpand
+              with hexpand can't add proper borders with css-->
+              <object class="GtkGrid">
+                <child>
+                  <object class="GtkBox" id="message_content">
+                    <property name="orientation">vertical</property>
+                    <child>
+                      <object class="GtkLabel" id="sent_by">
+                        <property name="ellipsize">end</property>
+                        <property name="lines">1</property>
+                        <property name="max-width-chars">25</property>
+                        <property name="selectable">true</property>
+                        <property name="margin-start">6</property>
+                        <property name="margin-end">6</property>
+                        <property name="margin-top">2</property>
+                        <property name="margin-bottom">5</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="message">
+                        <property name="selectable">true</property>
+                        <property name="margin-start">6</property>
+                        <property name="margin-end">6</property>
+                        <property name="margin-top">2</property>
+                        <property name="margin-bottom">5</property>
+                        <property name="wrap">true</property>
+                        <property name="wrap-mode">word-char</property>
+                      </object>
+                    </child>
+                  </object>
+                </child>
+              </object>
+            </child>
+            <child>
+              <!-- Sender side image on the right most side-->
+              <object class="AdwAvatar" id="sender">
+                <property name="css-classes">avatar</property>
+                <property name="visible">false</property>
+                <property name="show-initials">true</property>
+                <property name="size">45</property>
+                <property name="valign">end</property>
                 <property name="margin-bottom">5</property>
-                <property name="wrap">true</property>
-                <property name="wrap-mode">word-char</property>
               </object>
             </child>
           </object>
         </child>
-      </object>
-    </child>
-    <child>
-      <!-- Sender side image on the right most side-->
-      <object class="AdwAvatar" id="sender">
-        <property name="css-classes">avatar</property>
-        <property name="visible">false</property>
-        <property name="show-initials">true</property>
-        <property name="size">45</property>
-        <property name="valign">end</property>
-        <property name="margin-bottom">5</property>
       </object>
     </child>
   </template>

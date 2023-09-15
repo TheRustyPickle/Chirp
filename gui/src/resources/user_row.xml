@@ -3,23 +3,36 @@
   <template class="UserRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
     <child>
-      <object class="AdwAvatar" id="user_avatar">
-        <property name="has-tooltip">true</property>
-        <property name="visible">true</property>
-        <property name="show-initials">true</property>
-        <property name="size">45</property>
-        <property name="valign">end</property>
-        <property name="margin-bottom">5</property>
+      <!-- A revealer to show some animation-->
+      <object class="GtkRevealer" id="user_revealer">
+        <property name="transition-type">slide-down</property>
+        <property name="transition-duration">800</property>
         <child>
-          <object class="GtkPopover" id="user_popover">
-            <property name="has-arrow">true</property>
-            <property name="position">right</property>
-            <property name="autohide">false</property>
-            <property name="visible">false</property>
-            <property name="child">
-              <object class="GtkLabel" id="popover_label">
+          <object class="GtkBox">
+            <!-- The User avatar-->
+            <child>
+              <object class="AdwAvatar" id="user_avatar">
+                <property name="has-tooltip">true</property>
+                <property name="visible">true</property>
+                <property name="show-initials">true</property>
+                <property name="size">45</property>
+                <property name="valign">end</property>
+                <property name="margin-bottom">5</property>
+                <!-- The popover that is supposed to popup on hovering-->
+                <child>
+                  <object class="GtkPopover" id="user_popover">
+                    <property name="has-arrow">true</property>
+                    <property name="position">right</property>
+                    <property name="autohide">false</property>
+                    <property name="visible">false</property>
+                    <property name="child">
+                      <object class="GtkLabel" id="popover_label">
+                      </object>
+                    </property>
+                  </object>
+                </child>
               </object>
-            </property>
+            </child>
           </object>
         </child>
       </object>

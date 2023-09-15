@@ -2,7 +2,7 @@ mod imp {
     use adw::{subclass::prelude::*, Avatar};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Box, CompositeTemplate, Label};
+    use gtk::{glib, Box, CompositeTemplate, Label, Revealer};
     use std::cell::{OnceCell, RefCell};
 
     use crate::message::MessageObject;
@@ -10,6 +10,8 @@ mod imp {
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
     pub struct MessageRow {
+        #[template_child]
+        pub message_revealer: TemplateChild<Revealer>,
         #[template_child]
         pub message_content: TemplateChild<Box>,
         #[template_child]
@@ -50,8 +52,11 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use glib::{wrapper, Object};
-use gtk::{glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+use glib::{timeout_add_local_once, wrapper, Object};
+use gtk::{
+    glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, RevealerTransitionType, Widget,
+};
+use std::time::Duration;
 
 use crate::message::MessageObject;
 
@@ -64,6 +69,7 @@ wrapper! {
 impl MessageRow {
     pub fn new(object: MessageObject) -> Self {
         let row: MessageRow = Object::builder().build();
+        let revealer = row.imp().message_revealer.get();
 
         if object.is_send() {
             row.imp().sender.set_visible(true);
@@ -71,17 +77,24 @@ impl MessageRow {
             row.imp().message.set_xalign(1.0);
             row.imp().message_content.add_css_class("message-row-sent");
             row.imp().placeholder.set_visible(true);
+            revealer.set_transition_type(RevealerTransitionType::SlideLeft)
         } else {
             row.imp().receiver.set_visible(true);
             row.imp().sent_by.set_xalign(0.0);
             row.imp().message.set_xalign(0.0);
             row.imp()
                 .message_content
-                .add_css_class("message-row-received")
+                .add_css_class("message-row-received");
+            revealer.set_transition_type(RevealerTransitionType::SlideRight)
         }
 
         row.imp().message_data.set(object).unwrap();
         row.bind();
+
+        // The transition must start after it gets added to the ListBox thus a small timer
+        timeout_add_local_once(Duration::from_millis(50), move || {
+            revealer.set_reveal_child(true);
+        });
 
         row
     }
