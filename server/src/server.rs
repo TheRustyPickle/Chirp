@@ -292,7 +292,13 @@ impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        info!("Someone disconnected");
+        info!("WS Session {} disconnected", msg.id);
+        if let Some(session_data) = self.sessions.get(&msg.id) {
+            let belonged_to = session_data.0;
+            info!("Removing User Data and Session Data that belonged to {}", belonged_to);
+            self.user_data.remove(&belonged_to);
+            self.user_session.remove(&belonged_to);
+        }
         self.sessions.remove(&msg.id);
     }
 }
