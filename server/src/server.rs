@@ -240,8 +240,10 @@ impl ChatServer {
             if id != user_id {
                 for session in session_data {
                     if &session.user_id == user_id {
-                        let receiver = &self.sessions[&session.ws_id].2;
-                        receiver.do_send(Message(format!("/name-updated {new_name}")));
+                        if let Some(data) = self.sessions.get(&session.ws_id) {
+                            let receiver = &data.2;
+                            receiver.do_send(Message(format!("/name-updated {new_name}")));
+                        }
                     }
                 }
             }
@@ -259,8 +261,10 @@ impl ChatServer {
             if id != user_id {
                 for session in session_data {
                     if &session.user_id == user_id {
-                        let receiver = &self.sessions[&session.ws_id].2;
-                        receiver.do_send(Message(format!("/image-updated {new_link}")));
+                        if let Some(data) = self.sessions.get(&session.ws_id) {
+                            let receiver = &data.2;
+                            receiver.do_send(Message(format!("/image-updated {new_link}")));
+                        }
                     }
                 }
             }

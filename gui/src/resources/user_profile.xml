@@ -32,6 +32,7 @@
                     <!-- Top avatar-->
                     <child>
                       <object class="AdwAvatar" id="profile_avatar">
+                        <property name="css-classes">avatar</property>
                         <property name="show-initials">true</property>
                         <property name="size">150</property>
                       </object>
