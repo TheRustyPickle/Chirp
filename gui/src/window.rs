@@ -56,7 +56,6 @@ mod imp {
             obj.setup_callbacks();
             obj.setup_users();
             obj.setup_actions();
-            obj.setup_binding();
         }
     }
 
@@ -114,7 +113,7 @@ impl Window {
                 .unwrap();
                 info!("Selected a new User from list");
                 window.set_chatting_with(selected_chat);
-                window.setup_binding();
+                window.bind();
             }));
 
         self.imp()
@@ -141,7 +140,7 @@ impl Window {
         self.add_action(&button_action);
     }
 
-    fn setup_binding(&self) {
+    fn bind(&self) {
         let chatting_with = self.get_chatting_with();
         chatting_with
             .bind_property("name", self, "title")
