@@ -5,8 +5,7 @@ use actix_web_actors::ws;
 use tracing::info;
 
 use crate::server::{
-    ChatServer, ClientMessage, CommunicateUser, CommunicationType, Connect,
-    Disconnect, Message,
+    ChatServer, ClientMessage, CommunicateUser, CommunicationType, Connect, Disconnect, Message,
 };
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
