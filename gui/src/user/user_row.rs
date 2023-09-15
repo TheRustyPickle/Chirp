@@ -2,7 +2,7 @@ mod imp {
     use adw::{subclass::prelude::*, Avatar};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Box, CompositeTemplate, Label, Popover};
+    use gtk::{glib, Box, CompositeTemplate, Label, Popover, Revealer};
     use std::cell::{Cell, OnceCell, RefCell};
 
     use crate::user::UserObject;
@@ -10,6 +10,8 @@ mod imp {
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_row.xml")]
     pub struct UserRow {
+        #[template_child]
+        pub user_revealer: TemplateChild<Revealer>,
         #[template_child]
         pub user_avatar: TemplateChild<Avatar>,
         #[template_child]
@@ -45,8 +47,9 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use glib::{clone, wrapper, Object};
+use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{gdk::Rectangle, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+use std::time::Duration;
 
 use crate::user::UserObject;
 
@@ -95,6 +98,13 @@ impl UserRow {
 
         row.imp().user_data.set(object).unwrap();
         row.bind();
+
+        // The transition must start after it gets added to the ListBox thus a small timer
+        let revealer = row.imp().user_revealer.get();
+        timeout_add_local_once(Duration::from_millis(50), move || {
+            revealer.set_reveal_child(true);
+        });
+
         row
     }
 
