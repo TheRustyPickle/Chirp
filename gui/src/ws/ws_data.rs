@@ -159,14 +159,6 @@ impl WSObject {
             .send_text(&format!("/create-new-user {}", user_data));
     }
 
-    /// Called when a new user is selected from the user list
-    pub fn update_chatting_with(&self, id: &u64) {
-        info!("Sending request for updating chatting with id to {}", id);
-        self.ws_conn()
-            .unwrap()
-            .send_text(&format!("/update-chatting-with {}", id))
-    }
-
     /// Calls the server to get profile data of a user
     pub fn get_user_data(&self, id: &u64) {
         info!(

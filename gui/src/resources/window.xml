@@ -81,7 +81,7 @@
                         <property name="orientation">vertical</property>
                         <child>
                           <!-- The listbox that contains all the message data-->
-                          <object class="GtkScrolledWindow">
+                          <object class="GtkScrolledWindow" id="message_scroller">
                             <property name="vexpand">True</property>
                             <property name="hscrollbar-policy">never</property>
                             <property name="child">

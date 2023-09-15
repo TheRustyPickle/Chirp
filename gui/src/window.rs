@@ -4,7 +4,7 @@ mod imp {
     use gio::ListStore;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
-    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, Stack, TextView};
+    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, ScrolledWindow, Stack, TextView};
     use std::cell::{OnceCell, RefCell};
     use std::rc::Rc;
 
@@ -13,6 +13,8 @@ mod imp {
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
     pub struct Window {
+        #[template_child]
+        pub message_scroller: TemplateChild<ScrolledWindow>,
         #[template_child]
         pub message_box: TemplateChild<TextView>,
         #[template_child]
@@ -67,10 +69,12 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
+use std::time::Duration;
+
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget,
@@ -108,12 +112,9 @@ impl Window {
                 .unwrap()
                 .downcast::<UserObject>()
                 .unwrap();
-
                 info!("Selected a new User from list");
-                let selected_user_id = selected_chat.user_id();
-                //window.get_chatting_from().user_ws().update_chatting_with(selected_user_id);
-                window.get_chatting_from().add_to_queue(RequestType::UpdateChattingWith(selected_user_id));
                 window.set_chatting_with(selected_chat);
+                window.setup_binding();
             }));
 
         self.imp()
@@ -187,10 +188,10 @@ impl Window {
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
                 let row = window.get_message_row(message_data);
                 window.grab_focus();
+                window.scroll_to_bottom();
                 row.upcast()
             }),
         );
-
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -338,5 +339,19 @@ impl Window {
 
     fn grab_focus(&self) {
         self.imp().message_box.grab_focus();
+    }
+
+    /// Takes the highest value of the scrollbar and sets it
+    fn scroll_to_bottom(&self) {
+        timeout_add_local_once(
+            Duration::from_millis(100),
+            clone!(@weak self as window => move || {
+                let scroller_bar = window.imp().message_scroller.get();
+                let upper = scroller_bar.vadjustment().upper();
+                let vadjust = scroller_bar.vadjustment();
+                vadjust.set_value(upper);
+                scroller_bar.set_vadjustment(Some(&vadjust));
+            }),
+        );
     }
 }

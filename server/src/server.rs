@@ -36,13 +36,6 @@ impl ClientMessage {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct ChattingWithUpdate {
-    pub chatting_from: usize,
-    pub chatting_with: usize,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
 pub struct CommunicateUser {
     pub ws_id: usize,
     pub user_data: String,
@@ -103,8 +96,8 @@ impl WsData {
 
 #[derive(Debug)]
 pub struct ChatServer {
-    // {session id: {user id this session belongs to, chatting_with_user_id, recipient}}
-    sessions: HashMap<usize, (usize, Option<usize>, Recipient<Message>)>,
+    // {session id: {user id this session belongs to, recipient}}
+    sessions: HashMap<usize, (usize, Recipient<Message>)>,
     user_data: HashMap<usize, UserData>,
     user_session: HashMap<usize, Vec<WsData>>,
     rng: ThreadRng,
@@ -131,19 +124,19 @@ impl ChatServer {
                     let ws_id = i.ws_id;
                     if let Some(receiver_data) = self.sessions.get(&ws_id) {
                         receiver_data
-                            .2
+                            .1
                             .do_send(Message(format!("/message {}", message)))
                     }
                 }
             }
         } else {
-            info!("No active session id found with this user ID");
+            info!("No active session id found with the user ID {to_user}");
         }
     }
 
     /// Sends the WS Connection ID to the client
     fn send_session_id(&self, id: usize) {
-        if let Some((_, _, receiver_ws)) = self.sessions.get(&id) {
+        if let Some((_, receiver_ws)) = self.sessions.get(&id) {
             receiver_ws.do_send(Message(format!("/update-session-id {}", id)))
         };
     }
@@ -159,7 +152,7 @@ impl ChatServer {
         self.user_data.insert(user_id, user_data);
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
-            let (session_user_id, _, receiver_ws) = entry;
+            let (session_user_id, receiver_ws) = entry;
             *session_user_id = user_id;
             receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
         }
@@ -174,12 +167,12 @@ impl ChatServer {
 
     /// Allocates necessary data to communicate with a previously deleted user
     fn reconnect_user(&mut self, ws_id: usize, user_id: usize, other_data: String) {
-        info!("Reconnecting user");
+        info!("Reconnecting with user with id {} on ws {ws_id}", user_id);
         let user_data = UserData::new(other_data).update_id(user_id);
         self.user_data.insert(user_id, user_data);
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
-            let (session_user_id, _, _receiver_ws) = entry;
+            let (session_user_id, _receiver_ws) = entry;
             *session_user_id = user_id;
         }
 
@@ -196,27 +189,16 @@ impl ChatServer {
         info!("Sending user data of with id {}", id);
         if let Some(data) = self.user_data.get(&id) {
             let user_data = data.to_json();
-            if let Some((_, _, receiver_ws)) = self.sessions.get(&ws_id) {
+            if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
                 receiver_ws.do_send(Message(format!("/get-user-data {}", user_data)))
             };
         }
     }
 
-    /// Updates the current WS session ID's chatting with with a user id
-    fn update_chatting_with(&mut self, chatting_from: usize, chatting_with: usize) {
-        info!(
-            "Updating chatting with of {} with {}",
-            chatting_from, chatting_with
-        );
-        if let Some(chatting_data) = self.sessions.get_mut(&chatting_from) {
-            chatting_data.1 = Some(chatting_with);
-        };
-    }
-
     /// Used to keep track of active user ws connections
     fn update_ids(&mut self, ws_id: usize, user_id: usize, client_id: usize) {
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
-            let (session_user_id, _, _) = entry;
+            let (session_user_id, _) = entry;
             *session_user_id = user_id;
         }
 
@@ -232,6 +214,7 @@ impl ChatServer {
     /// Updates user name
     fn update_user_name(&mut self, ws_id: usize, new_name: String) {
         let user_id = &self.sessions[&ws_id].0;
+        info!("Updating name of user {} to {new_name}", user_id);
 
         let user_info = self.user_data.get_mut(user_id).unwrap();
         user_info.name = new_name.to_owned();
@@ -240,8 +223,10 @@ impl ChatServer {
             if id != user_id {
                 for session in session_data {
                     if &session.user_id == user_id {
-                        let receiver = &self.sessions[&session.ws_id].2;
-                        receiver.do_send(Message(format!("/name-updated {new_name}")));
+                        if let Some(data) = self.sessions.get(&session.ws_id) {
+                            let receiver = &data.1;
+                            receiver.do_send(Message(format!("/name-updated {new_name}")));
+                        }
                     }
                 }
             }
@@ -251,6 +236,7 @@ impl ChatServer {
     /// Updates image link of a user
     fn update_user_image_link(&mut self, ws_id: usize, new_link: String) {
         let user_id = &self.sessions[&ws_id].0;
+        info!("Updating image link of user {} to {new_link}", user_id);
 
         let user_info = self.user_data.get_mut(user_id).unwrap();
         user_info.image_link = Some(new_link.to_owned());
@@ -259,8 +245,10 @@ impl ChatServer {
             if id != user_id {
                 for session in session_data {
                     if &session.user_id == user_id {
-                        let receiver = &self.sessions[&session.ws_id].2;
-                        receiver.do_send(Message(format!("/image-updated {new_link}")));
+                        if let Some(data) = self.sessions.get(&session.ws_id) {
+                            let receiver = &data.1;
+                            receiver.do_send(Message(format!("/image-updated {new_link}")));
+                        }
                     }
                 }
             }
@@ -277,8 +265,7 @@ impl Handler<Connect> for ChatServer {
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
         let id = self.rng.gen::<usize>();
-
-        self.sessions.insert(id, (0, None, msg.addr));
+        self.sessions.insert(id, (0, msg.addr));
         self.send_session_id(id);
         id
     }
@@ -288,7 +275,16 @@ impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        info!("Someone disconnected");
+        info!("WS Session {} disconnected", msg.id);
+        if let Some(session_data) = self.sessions.get(&msg.id) {
+            let belonged_to = session_data.0;
+            info!(
+                "Removing User Data and Session Data that belonged to {}",
+                belonged_to
+            );
+            self.user_data.remove(&belonged_to);
+            self.user_session.remove(&belonged_to);
+        }
         self.sessions.remove(&msg.id);
     }
 }
@@ -298,14 +294,6 @@ impl Handler<ClientMessage> for ChatServer {
 
     fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
         self.send_message(&msg.msg, msg.from_user, msg.to_user);
-    }
-}
-
-impl Handler<ChattingWithUpdate> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ChattingWithUpdate, _: &mut Context<Self>) {
-        self.update_chatting_with(msg.chatting_from, msg.chatting_with);
     }
 }
 
