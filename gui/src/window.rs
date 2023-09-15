@@ -113,8 +113,6 @@ impl Window {
                 .downcast::<UserObject>()
                 .unwrap();
                 info!("Selected a new User from list");
-                let selected_user_id = selected_chat.user_id();
-                window.get_chatting_from().add_to_queue(RequestType::UpdateChattingWith(selected_user_id));
                 window.set_chatting_with(selected_chat);
                 window.setup_binding();
             }));

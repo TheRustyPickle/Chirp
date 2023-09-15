@@ -5,7 +5,7 @@ use actix_web_actors::ws;
 use tracing::info;
 
 use crate::server::{
-    ChatServer, ChattingWithUpdate, ClientMessage, CommunicateUser, CommunicationType, Connect,
+    ChatServer, ClientMessage, CommunicateUser, CommunicationType, Connect,
     Disconnect, Message,
 };
 
@@ -105,10 +105,6 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             ws_id: self.id,
                             user_data: v[1].to_string(),
                             comm_type: CommunicationType::ReconnectUser,
-                        }),
-                        "/update-chatting-with" => self.addr.do_send(ChattingWithUpdate {
-                            chatting_from: self.id,
-                            chatting_with: v[1].parse().unwrap(),
                         }),
                         "/get-user-data" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,

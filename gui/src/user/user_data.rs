@@ -196,7 +196,6 @@ impl UserObject {
                     RequestType::ImageUpdated(link) => user_ws.image_link_updated(link),
                     RequestType::NameUpdated(name) => user_ws.name_updated(name),
                     RequestType::GetUserData(id) => user_ws.get_user_data(id),
-                    RequestType::UpdateChattingWith(id) => user_ws.update_chatting_with(id),
                 }
                 highest_index += 1;
             } else {
@@ -323,7 +322,6 @@ pub enum RequestType {
     ReconnectUser,
     UpdateIDs,
     SendMessage(SendMessageData),
-    UpdateChattingWith(u64),
     GetUserData(u64),
 }
 
