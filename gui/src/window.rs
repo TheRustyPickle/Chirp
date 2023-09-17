@@ -68,12 +68,10 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use std::time::Duration;
-
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
     ShortcutManager, Widget, ListBoxRow,
@@ -128,6 +126,13 @@ impl Window {
             .connect_clicked(clone!(@weak self as window => move |_| {
                 UserProfile::new(window.get_chatting_from(), &window);
             }));
+
+        let scroller_bar = self.imp().message_scroller.get();
+        let vadjust = scroller_bar.vadjustment();
+        vadjust.connect_changed(clone!(@weak vadjust => move |adjust| {
+            let upper = adjust.upper();
+            vadjust.set_value(upper);
+        }));
     }
 
     fn setup_actions(&self) {
@@ -187,7 +192,6 @@ impl Window {
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
                 let row = window.get_message_row(message_data);
                 window.grab_focus();
-                window.scroll_to_bottom();
                 row.upcast()
             }),
         );
@@ -340,20 +344,5 @@ impl Window {
 
     fn grab_focus(&self) {
         self.imp().message_box.grab_focus();
-    }
-
-    /// Takes the highest value of the scrollbar and sets it
-    // TODO in bulk message the upper value seems to lower by itself.
-    fn scroll_to_bottom(&self) {
-        timeout_add_local_once(
-            Duration::from_millis(100),
-            clone!(@weak self as window => move || {
-                let scroller_bar = window.imp().message_scroller.get();
-                let upper = scroller_bar.vadjustment().upper();
-                let vadjust = scroller_bar.vadjustment();
-                vadjust.set_value(upper);
-                scroller_bar.set_vadjustment(Some(&vadjust));
-            }),
-        );
     }
 }
