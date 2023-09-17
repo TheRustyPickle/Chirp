@@ -76,7 +76,7 @@ use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
-    ShortcutManager, Widget,
+    ShortcutManager, Widget, ListBoxRow,
 };
 use tracing::info;
 
@@ -266,8 +266,10 @@ impl Window {
         sender.messages().append(&message);
     }
 
-    fn get_message_row(&self, data: &MessageObject) -> MessageRow {
-        MessageRow::new(data.clone())
+    fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
+        let message_row = MessageRow::new(data.clone());
+        let list_row = ListBoxRow::builder().child(&message_row).selectable(false).activatable(false).build();
+        list_row
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
@@ -341,6 +343,7 @@ impl Window {
     }
 
     /// Takes the highest value of the scrollbar and sets it
+    // TODO in bulk message the upper value seems to lower by itself.
     fn scroll_to_bottom(&self) {
         timeout_add_local_once(
             Duration::from_millis(100),
