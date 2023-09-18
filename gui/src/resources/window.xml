@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="MainWindow" parent="AdwApplicationWindow">
+    <style>
+      <class name="devel"/>
+    </style>
     <property name="title" translatable="yes">Chirp</property>
     <property name="default_width">550</property>
     <property name="default_height">700</property>
@@ -117,6 +120,9 @@
                             <child>
                               <!-- The button that is used for sending-->
                               <object class="GtkButton" id="send_button">
+                                <style>
+                                  <class name="circular"/>
+                                </style>
                                 <property name="icon-name">go-next-symbolic</property>
                                 <property name="valign">end</property>
                                 <!-- Emits this on button press and gets emitted on ctrl + enter

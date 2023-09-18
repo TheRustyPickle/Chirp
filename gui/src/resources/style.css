@@ -13,10 +13,8 @@
   border-color: @accent_color;
 }
 
-.entry-box>button {
+.entry-box > button {
   margin-left: 5px;
-  border-radius: 15px;
-
 }
 
 .entry-box > scrolledwindow > scrollbar {
