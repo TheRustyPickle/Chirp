@@ -87,10 +87,8 @@
                           <object class="GtkScrolledWindow" id="message_scroller">
                             <property name="vexpand">True</property>
                             <property name="hscrollbar-policy">never</property>
-                            <property name="css-classes">message-row</property>
                             <property name="child">
                               <object class="GtkListBox" id="message_list">
-                                <property name="css-classes">message-row</property>
                                 <property name="selection-mode">none</property>
                                 <property name="show-separators">false</property>
                               </object>
