@@ -125,6 +125,7 @@
                                 </style>
                                 <property name="icon-name">go-next-symbolic</property>
                                 <property name="valign">end</property>
+                                <property name="css-classes">suggested-action</property>
                                 <!-- Emits this on button press and gets emitted on ctrl + enter
                                 press-->
                                 <property name="action-name">win.send-message</property>

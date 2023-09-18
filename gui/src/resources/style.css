@@ -1,6 +1,5 @@
 .entry-box > scrolledwindow > textview {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
   border-radius: 15px;
   padding-left: 5px;
   transition:
@@ -33,21 +32,20 @@
 .entry-box {
   padding: 0 9px;
   border-radius: 15px;
-  background: white;
   margin-bottom: 5px;
+  margin-top: 5px;
 }
 
 .prompt-entry {
-  border: 2px solid #ccc;
+  border: 2px solid;
   border-radius: 15px;
   padding-left: 5px;
 }
 
 .blue-entry {
-  border: 2px solid #ccc;
+  border: 2px solid @accent_color;
   border-radius: 15px;
   padding-left: 5px;
-  border-color: @accent_color;
 }
 
 .user-selected {
@@ -77,16 +75,16 @@
 }
 
 .message-row-sent {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
+  border: 0px solid;
   border-radius: 15px;
   margin-left: 180px;
   margin-top: 10px;
 }
 
 .message-row-received {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
+  border: 0px solid;
   border-radius: 15px;
   margin-right: 180px;
   margin-top: 10px;
@@ -94,18 +92,6 @@
 
 .avatar {
   padding: 3px;
-}
-
-.notification-box {
-  background-color: #F5F5F5;
-  border: 0px solid #ccc;
-  border-radius: 15px;
-  padding: 5px;
-  margin: 4px;
-}
-
-.notification-box > label {
-  font-weight: bold;
 }
 
 .sender-blue-1 {
@@ -159,5 +145,5 @@
 }
 
 .activatable:hover {
-  background-color: white;
+  background-color: inherit;
 }
