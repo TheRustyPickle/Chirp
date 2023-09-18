@@ -3,14 +3,18 @@
   border: 0px solid #ccc;
   border-radius: 15px;
   padding-left: 5px;
-  transition: background-color 0.3s ease-in-out,
-    color 0.3s ease-in-out,
-    border-color 0.3s ease-in-out;
+  transition:
+    border 0.4s ease-in-out,
+    border-color 0.4s ease-in-out;
 }
 
 .entry-box > scrolledwindow > textview:focus {
-  border: 2px solid #ccc;
-  border-color: @accent_color;
+  border: 2px solid @accent_color;
+}
+
+.entry-box > scrolledwindow > textview:hover {
+  border: 2px solid @accent_color;
+  border-color: ;
 }
 
 .entry-box > button {
@@ -46,8 +50,30 @@
   border-color: @accent_color;
 }
 
-window {
-  background: white;
+.user-selected {
+  border: 2px solid @accent_color;
+  border-radius: 50%;
+  padding: 3px;
+  transition: border-radius 0.4s ease-in-out;
+}
+
+.user-selected:hover {
+  border: 2px solid @accent_color;
+  border-radius: 30%;
+  padding: 3px;
+}
+
+.user-inactive {
+  border: 2px solid @light_4;
+  border-radius: 50%;
+  padding: 3px;
+  transition: border-radius 0.4s ease-in-out;
+}
+
+.user-inactive:hover {
+  border: 2px solid @light_4;
+  border-radius: 30%;
+  padding: 3px;
 }
 
 .message-row-sent {
@@ -130,4 +156,8 @@ window {
 .sender-brown-1 {
   color: @brown_2;
   font-weight: bold;
+}
+
+.activatable:hover {
+  background-color: white;
 }

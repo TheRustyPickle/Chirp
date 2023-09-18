@@ -114,7 +114,6 @@ impl UserPrompt {
 
         entry.set_placeholder_text(Some("Name"));
         self.set_body("Enter your new name");
-
         self.connect_response(
             None,
             clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
@@ -125,9 +124,12 @@ impl UserPrompt {
                 info!("Updating name to: {}", entry_data);
 
                 let over_lay = window.imp().toast_overlay.get();
-                let toast = Toast::builder().title(&format!("Updating name to: {}", entry_data)).timeout(1).build();
+                let toast = Toast::builder()
+                    .title(&format!("Updating name to: {}", entry_data))
+                    .timeout(1)
+                    .build();
                 over_lay.add_toast(toast);
-                
+
                 user_data.set_new_name(entry_data.to_string());
                 user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
                 dialog.destroy();
@@ -154,7 +156,10 @@ impl UserPrompt {
                 info!("Updating image link to: {}", entry_data);
 
                 let over_lay = window.imp().toast_overlay.get();
-                let toast = Toast::builder().title("Starting updating image...").timeout(1).build();
+                let toast = Toast::builder()
+                    .title("Starting updating image...")
+                    .timeout(1)
+                    .build();
                 over_lay.add_toast(toast);
 
                 user_data.set_new_image_link(entry_data.to_string());

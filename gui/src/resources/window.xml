@@ -2,7 +2,7 @@
 <interface>
   <template class="MainWindow" parent="AdwApplicationWindow">
     <style>
-      <class name="devel"/>
+      <class name="devel" />
     </style>
     <property name="title" translatable="yes">Chirp</property>
     <property name="default_width">550</property>
@@ -43,7 +43,7 @@
                       <object class="GtkButton" id="my_profile">
                         <property name="icon-name">preferences-desktop-personal</property>
                         <property name="hexpand">false</property>
-                        <property name="tooltip-text" translatable="yes">Your Profile</property>
+                        <property name="tooltip-text" translatable="yes">View Profile</property>
                       </object>
                     </child>
                     <!-- The new chat button -->
@@ -121,7 +121,7 @@
                               <!-- The button that is used for sending-->
                               <object class="GtkButton" id="send_button">
                                 <style>
-                                  <class name="circular"/>
+                                  <class name="circular" />
                                 </style>
                                 <property name="icon-name">go-next-symbolic</property>
                                 <property name="valign">end</property>

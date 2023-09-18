@@ -173,7 +173,10 @@ impl UserProfile {
             window.clipboard().set(&text);
 
             let toast_overlay = window.imp().toast_overlay.get();
-            let toast = Toast::builder().title(&format!("User ID {text} has been copied to clipboard")).timeout(1).build();
+            let toast = Toast::builder()
+                .title(&format!("User ID {text} has been copied to clipboard"))
+                .timeout(1)
+                .build();
             toast_overlay.add_toast(toast);
         }));
 
@@ -184,7 +187,10 @@ impl UserProfile {
             window.clipboard().set(&text);
 
             let toast_overlay = window.imp().toast_overlay.get();
-            let toast = Toast::builder().title("Image Link has been copied to clipboard").timeout(1).build();
+            let toast = Toast::builder()
+                .title("Image Link has been copied to clipboard")
+                .timeout(1)
+                .build();
             toast_overlay.add_toast(toast);
         }));
 
@@ -195,7 +201,10 @@ impl UserProfile {
             user_data.set_random_image();
 
             let toast_overlay = window.imp().toast_overlay.get();
-            let toast = Toast::builder().title("Generating new image...").timeout(1).build();
+            let toast = Toast::builder()
+                .title("Generating new image...")
+                .timeout(1)
+                .build();
             toast_overlay.add_toast(toast);
         }));
     }
