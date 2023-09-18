@@ -174,7 +174,7 @@ impl UserProfile {
 
             let toast_overlay = window.imp().toast_overlay.get();
             let toast = Toast::builder()
-                .title(&format!("User ID {text} has been copied to clipboard"))
+                .title(&format!("User ID has been copied to clipboard"))
                 .timeout(1)
                 .build();
             toast_overlay.add_toast(toast);
@@ -202,7 +202,7 @@ impl UserProfile {
 
             let toast_overlay = window.imp().toast_overlay.get();
             let toast = Toast::builder()
-                .title("Generating new image...")
+                .title("Generating a new random image...")
                 .timeout(1)
                 .build();
             toast_overlay.add_toast(toast);

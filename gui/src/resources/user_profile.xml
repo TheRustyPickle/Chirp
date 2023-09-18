@@ -2,7 +2,7 @@
 <interface>
   <template class="UserProfile" parent="AdwWindow">
     <property name="default_width">400</property>
-    <property name="default_height">450</property>
+    <property name="default_height">430</property>
     <property name="title" translatable="yes">Profile</property>
     <property name="content">
       <object class="GtkBox">
