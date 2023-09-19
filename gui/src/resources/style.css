@@ -1,24 +1,27 @@
 .entry-box > scrolledwindow > textview {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
   border-radius: 15px;
   padding-left: 5px;
-  transition: background-color 0.3s ease-in-out,
-    color 0.3s ease-in-out,
-    border-color 0.3s ease-in-out;
+  transition:
+    border 0.4s ease-in-out,
+    border-color 0.4s ease-in-out;
 }
 
 .entry-box > scrolledwindow > textview:focus {
-  border: 2px solid #ccc;
-  border-color: @accent_color;
+  border: 2px solid @accent_color;
 }
 
-.entry-box>button {
+.entry-box > scrolledwindow > textview:hover {
+  border: 2px solid @accent_color;
+}
+
+.entry-box > button {
   margin-left: 5px;
-  border-radius: 15px;
-
 }
 
+
+/* These two must not be touched
+magic style that keeps the textview from getting too large */
 .entry-box > scrolledwindow > scrollbar {
   box-shadow: none;
   background: none;
@@ -29,40 +32,75 @@
 }
 
 .entry-box {
-  padding: 0 9px;
-  border-radius: 15px;
-  background: white;
-  margin-bottom: 5px;
+  background: @view_bg_color;
+  padding: 5px;
 }
 
 .prompt-entry {
-  border: 2px solid #ccc;
+  border: 2px solid;
   border-radius: 15px;
   padding-left: 5px;
 }
 
 .blue-entry {
-  border: 2px solid #ccc;
+  border: 2px solid @accent_color;
   border-radius: 15px;
   padding-left: 5px;
-  border-color: @accent_color;
 }
 
-window {
-  background: white;
+.user-selected {
+  border: 2px solid @accent_color;
+  border-radius: 50%;
+  padding: 3px;
+  transition: border-radius 0.4s ease-in-out;
+}
+
+.user-selected:hover {
+  border: 2px solid @accent_color;
+  border-radius: 30%;
+  padding: 3px;
+}
+
+.user-inactive {
+  border: 2px solid @light_4;
+  border-radius: 50%;
+  padding: 3px;
+  transition: border-radius 0.4s ease-in-out;
+}
+
+.user-inactive:hover {
+  border: 2px solid @light_4;
+  border-radius: 30%;
+  padding: 3px;
 }
 
 .message-row-sent {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-left: 180px;
+  margin-top: 10px;
+}
+
+.message-row-sent:hover {
+  background-color: @accent_bg_color;
+  border: 0px solid;
   border-radius: 15px;
   margin-left: 180px;
   margin-top: 10px;
 }
 
 .message-row-received {
-  background: #F5F5F5;
-  border: 0px solid #ccc;
+  background: @headerbar_shade_color;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-right: 180px;
+  margin-top: 10px;
+}
+
+.message-row-received:hover {
+  background-color: @accent_bg_color;
+  border: 0px solid;
   border-radius: 15px;
   margin-right: 180px;
   margin-top: 10px;
@@ -70,19 +108,6 @@ window {
 
 .avatar {
   padding: 3px;
-  overflow: hidden;
-}
-
-.notification-box {
-  background-color: #F5F5F5;
-  border: 0px solid #ccc;
-  border-radius: 15px;
-  padding: 5px;
-  margin: 4px;
-}
-
-.notification-box > label {
-  font-weight: bold;
 }
 
 .sender-blue-1 {
@@ -133,4 +158,8 @@ window {
 .sender-brown-1 {
   color: @brown_2;
   font-weight: bold;
+}
+
+.activatable:hover {
+  background-color: inherit;
 }

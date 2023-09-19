@@ -5,7 +5,7 @@ mod imp {
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
     use gtk::{gio, glib, Button, CompositeTemplate, ListBox, ScrolledWindow, Stack, TextView};
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
 
     use crate::user::UserObject;
@@ -32,6 +32,7 @@ mod imp {
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
+        pub last_selected_user: Cell<i32>,
     }
 
     #[object_subclass]
@@ -68,15 +69,13 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use std::time::Duration;
-
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
-    gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, Native, Root,
-    ShortcutManager, Widget,
+    gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
+    Native, Root, ShortcutManager, Widget,
 };
 use tracing::info;
 
@@ -104,14 +103,24 @@ impl Window {
         imp.stack.set_visible_child_name("main");
 
         imp.user_list
-            .connect_row_activated(clone!(@weak self as window => move |_, row| {
+            .connect_row_activated(clone!(@weak self as window => move |listbox, row| {
+                let last_index = window.imp().last_selected_user.get();
                 let index = row.index();
+
+                if last_index != index {
+                    window.remove_avatar_css(last_index, listbox);
+                    window.add_avatar_css(index, listbox);
+                }
+
                 let selected_chat = window.get_users_liststore()
                 .item(index as u32)
                 .unwrap()
                 .downcast::<UserObject>()
                 .unwrap();
+
                 info!("Selected a new User from list");
+
+                window.imp().last_selected_user.set(index);
                 window.set_chatting_with(selected_chat);
                 window.bind();
             }));
@@ -128,6 +137,13 @@ impl Window {
             .connect_clicked(clone!(@weak self as window => move |_| {
                 UserProfile::new(window.get_chatting_from(), &window);
             }));
+
+        let scroller_bar = self.imp().message_scroller.get();
+        let vadjust = scroller_bar.vadjustment();
+        vadjust.connect_changed(clone!(@weak vadjust => move |adjust| {
+            let upper = adjust.upper();
+            vadjust.set_value(upper);
+        }));
     }
 
     fn setup_actions(&self) {
@@ -152,6 +168,7 @@ impl Window {
     fn setup_users(&self) {
         let users = ListStore::new::<UserObject>();
         self.imp().users.set(users).expect("Could not set users");
+        self.imp().last_selected_user.set(0);
 
         let data: UserObject = self.create_owner("Me");
 
@@ -161,8 +178,15 @@ impl Window {
         info!("Setting own profile");
         self.imp().own_profile.replace(Some(data));
         let user_row = UserRow::new(user_clone_1);
-        self.get_user_list().append(&user_row);
+        user_row.imp().user_avatar.add_css_class("user-selected");
 
+        let user_list_row = ListBoxRow::builder()
+            .child(&user_row)
+            .activatable(true)
+            .selectable(false)
+            .build();
+
+        self.get_user_list().append(&user_list_row);
         self.set_chatting_with(user_clone_2);
 
         if let Some(row) = self.get_user_list().row_at_index(0) {
@@ -187,7 +211,6 @@ impl Window {
                 let message_data = obj.downcast_ref().expect("No MessageObject here");
                 let row = window.get_message_row(message_data);
                 window.grab_focus();
-                window.scroll_to_bottom();
                 row.upcast()
             }),
         );
@@ -266,8 +289,14 @@ impl Window {
         sender.messages().append(&message);
     }
 
-    fn get_message_row(&self, data: &MessageObject) -> MessageRow {
-        MessageRow::new(data.clone())
+    fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
+        let message_row = MessageRow::new(data.clone());
+        let list_row = ListBoxRow::builder()
+            .child(&message_row)
+            .selectable(false)
+            .activatable(false)
+            .build();
+        list_row
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
@@ -287,7 +316,13 @@ impl Window {
                     let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
-                    window.get_user_list().append(&user_row);
+                    user_row.imp().user_avatar.add_css_class("user-inactive");
+                    let user_list_row = ListBoxRow::builder()
+                        .child(&user_row)
+                        .activatable(true)
+                        .selectable(false)
+                        .build();
+                    window.get_user_list().append(&user_list_row);
                 }
                 "/message" => window.receive_message(response_data[1], user_object),
                 "/update-user-id" => {
@@ -340,17 +375,19 @@ impl Window {
         self.imp().message_box.grab_focus();
     }
 
-    /// Takes the highest value of the scrollbar and sets it
-    fn scroll_to_bottom(&self) {
-        timeout_add_local_once(
-            Duration::from_millis(100),
-            clone!(@weak self as window => move || {
-                let scroller_bar = window.imp().message_scroller.get();
-                let upper = scroller_bar.vadjustment().upper();
-                let vadjust = scroller_bar.vadjustment();
-                vadjust.set_value(upper);
-                scroller_bar.set_vadjustment(Some(&vadjust));
-            }),
-        );
+    fn remove_avatar_css(&self, index: i32, listbox: &ListBox) {
+        let b = listbox.row_at_index(index).unwrap();
+        let c: UserRow = b.child().unwrap().downcast().unwrap();
+
+        c.imp().user_avatar.remove_css_class("user-selected");
+        c.imp().user_avatar.add_css_class("user-inactive");
+    }
+
+    fn add_avatar_css(&self, index: i32, listbox: &ListBox) {
+        let b = listbox.row_at_index(index).unwrap();
+        let c: UserRow = b.child().unwrap().downcast().unwrap();
+
+        c.imp().user_avatar.add_css_class("user-selected");
+        c.imp().user_avatar.remove_css_class("user-inactive");
     }
 }

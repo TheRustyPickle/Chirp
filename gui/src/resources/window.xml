@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
   <template class="MainWindow" parent="AdwApplicationWindow">
+    <style>
+      <class name="devel" />
+    </style>
     <property name="title" translatable="yes">Chirp</property>
     <property name="default_width">550</property>
     <property name="default_height">700</property>
@@ -40,7 +43,7 @@
                       <object class="GtkButton" id="my_profile">
                         <property name="icon-name">preferences-desktop-personal</property>
                         <property name="hexpand">false</property>
-                        <property name="tooltip-text" translatable="yes">Your Profile</property>
+                        <property name="tooltip-text" translatable="yes">View Profile</property>
                       </object>
                     </child>
                     <!-- The new chat button -->
@@ -87,6 +90,7 @@
                             <property name="child">
                               <object class="GtkListBox" id="message_list">
                                 <property name="selection-mode">none</property>
+                                <property name="show-separators">false</property>
                               </object>
                             </property>
                           </object>
@@ -114,8 +118,12 @@
                             <child>
                               <!-- The button that is used for sending-->
                               <object class="GtkButton" id="send_button">
+                                <style>
+                                  <class name="circular" />
+                                </style>
                                 <property name="icon-name">go-next-symbolic</property>
                                 <property name="valign">end</property>
+                                <property name="css-classes">suggested-action</property>
                                 <!-- Emits this on button press and gets emitted on ctrl + enter
                                 press-->
                                 <property name="action-name">win.send-message</property>

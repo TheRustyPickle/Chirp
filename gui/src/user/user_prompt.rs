@@ -36,7 +36,7 @@ mod imp {
 }
 
 use adw::subclass::prelude::*;
-use adw::{prelude::*, MessageDialog, ResponseAppearance};
+use adw::{prelude::*, MessageDialog, ResponseAppearance, Toast};
 use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Orientable, Root, ShortcutManager,
@@ -114,7 +114,6 @@ impl UserPrompt {
 
         entry.set_placeholder_text(Some("Name"));
         self.set_body("Enter your new name");
-
         self.connect_response(
             None,
             clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
@@ -123,7 +122,14 @@ impl UserPrompt {
                 }
                 let entry_data = entry.text();
                 info!("Updating name to: {}", entry_data);
-                window.start_revealer(&format!("Updating name to: {}", entry_data));
+
+                let over_lay = window.imp().toast_overlay.get();
+                let toast = Toast::builder()
+                    .title(&format!("Updating name to: {}", entry_data))
+                    .timeout(1)
+                    .build();
+                over_lay.add_toast(toast);
+
                 user_data.set_new_name(entry_data.to_string());
                 user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
                 dialog.destroy();
@@ -148,9 +154,16 @@ impl UserPrompt {
                 }
                 let entry_data = entry.text();
                 info!("Updating image link to: {}", entry_data);
-                window.start_revealer("Starting updating image...");
+
+                let over_lay = window.imp().toast_overlay.get();
+                let toast = Toast::builder()
+                    .title("Starting updating image...")
+                    .timeout(1)
+                    .build();
+                over_lay.add_toast(toast);
+
                 user_data.set_new_image_link(entry_data.to_string());
-                user_data.user_ws().image_link_updated(&entry_data);
+                user_data.add_to_queue(RequestType::ImageUpdated(entry_data.to_string()));
                 dialog.destroy();
             }),
         );

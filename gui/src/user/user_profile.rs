@@ -1,8 +1,8 @@
 mod imp {
-    use adw::{subclass::prelude::*, ActionRow, Avatar, Window};
+    use adw::{subclass::prelude::*, ActionRow, Avatar, ToastOverlay, Window};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Button, CompositeTemplate, Image, Label, Revealer};
+    use gtk::{glib, Button, CompositeTemplate, Image};
     use std::cell::{OnceCell, RefCell};
 
     use crate::user::UserObject;
@@ -10,6 +10,8 @@ mod imp {
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_profile.xml")]
     pub struct UserProfile {
+        #[template_child]
+        pub toast_overlay: TemplateChild<ToastOverlay>,
         #[template_child]
         pub profile_avatar: TemplateChild<Avatar>,
         #[template_child]
@@ -30,10 +32,6 @@ mod imp {
         pub image_link_reload: TemplateChild<Button>,
         #[template_child]
         pub image_link_edit: TemplateChild<Button>,
-        #[template_child]
-        pub copy_revealer: TemplateChild<Revealer>,
-        #[template_child]
-        pub copy_info: TemplateChild<Label>,
         pub user_data: OnceCell<UserObject>,
         pub bindings: RefCell<Vec<Binding>>,
     }
@@ -64,9 +62,9 @@ mod imp {
     impl MessageDialogImpl for UserProfile {}
 }
 
-use adw::prelude::*;
 use adw::subclass::prelude::*;
-use glib::{clone, timeout_add_seconds_local_once, wrapper, Object};
+use adw::{prelude::*, Toast};
+use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
@@ -173,7 +171,13 @@ impl UserProfile {
             info!("Copying User ID {text} to clipboard.");
 
             window.clipboard().set(&text);
-            window.start_revealer(&format!("User ID {text} has been copied"));
+
+            let toast_overlay = window.imp().toast_overlay.get();
+            let toast = Toast::builder()
+                .title(&format!("User ID has been copied to clipboard"))
+                .timeout(1)
+                .build();
+            toast_overlay.add_toast(toast);
         }));
 
         image_link_copy.connect_clicked(clone!(@weak self as window => move |_| {
@@ -181,27 +185,27 @@ impl UserProfile {
             info!("Copying Image Link {text} to clipboard.");
 
             window.clipboard().set(&text);
-            window.start_revealer("Image Link has been copied");
+
+            let toast_overlay = window.imp().toast_overlay.get();
+            let toast = Toast::builder()
+                .title("Image Link has been copied to clipboard")
+                .timeout(1)
+                .build();
+            toast_overlay.add_toast(toast);
         }));
 
         image_link_reload.connect_clicked(clone!(@weak self as window => move |_| {
             info!("Updating Image Link with a new random link");
-            window.start_revealer("Starting updating image...");
 
             let user_data = window.imp().user_data.get().unwrap();
             user_data.set_random_image();
+
+            let toast_overlay = window.imp().toast_overlay.get();
+            let toast = Toast::builder()
+                .title("Generating a new random image...")
+                .timeout(1)
+                .build();
+            toast_overlay.add_toast(toast);
         }));
-    }
-
-    pub fn start_revealer(&self, label_text: &str) {
-        self.imp().copy_info.get().set_label(label_text);
-
-        let revealer = self.imp().copy_revealer.get();
-        revealer.set_visible(true);
-        revealer.set_reveal_child(true);
-
-        timeout_add_seconds_local_once(1, move || {
-            revealer.set_reveal_child(false);
-        });
     }
 }
