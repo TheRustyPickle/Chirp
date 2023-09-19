@@ -80,13 +80,18 @@ wrapper! {
 }
 
 impl UserProfile {
-    pub fn new(user_data: UserObject, window: &window::Window) -> Self {
+    pub fn new(user_data: UserObject, window: &window::Window, is_owner: bool) -> Self {
         let obj: UserProfile = Object::builder().build();
         obj.imp().user_data.set(user_data).unwrap();
         obj.set_transient_for(Some(window));
         obj.set_modal(true);
         obj.set_visible(true);
         obj.bind();
+
+        if !is_owner {
+            obj.hide_editing_buttons();
+        }
+
         obj.connect_button_signals();
         obj
     }
@@ -143,6 +148,19 @@ impl UserProfile {
         bindings.push(id_subtitle_binding);
         bindings.push(id_warning_binding);
         bindings.push(image_link_subtitle_binding);
+    }
+
+    fn hide_editing_buttons(&self) {
+        self.imp().name_edit.set_visible(false);
+        self.imp().image_link_edit.set_visible(false);
+        self.imp().image_link_reload.set_visible(false);
+
+        let user_data = self.imp().user_data.get().unwrap();
+        user_data
+            .bind_property("name", self, "title")
+            .transform_to(|_, name: String| Some(format!("Profile - {}", name)))
+            .sync_create()
+            .build();
     }
 
     fn connect_button_signals(&self) {

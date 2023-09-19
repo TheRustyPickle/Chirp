@@ -2,7 +2,7 @@ mod imp {
     use adw::{subclass::prelude::*, Avatar};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Box, CompositeTemplate, Label, Revealer};
+    use gtk::{glib, Box, Button, CompositeTemplate, Label, Revealer};
     use std::cell::{OnceCell, RefCell};
 
     use crate::message::MessageObject;
@@ -24,6 +24,10 @@ mod imp {
         pub sender: TemplateChild<Avatar>,
         #[template_child]
         pub receiver: TemplateChild<Avatar>,
+        #[template_child]
+        pub sender_avatar_button: TemplateChild<Button>,
+        #[template_child]
+        pub receiver_avatar_button: TemplateChild<Button>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
     }
@@ -52,13 +56,17 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use glib::{timeout_add_local_once, wrapper, Object};
+use gdk::Cursor;
+use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
-    glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, RevealerTransitionType, Widget,
+    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable,
+    RevealerTransitionType, Widget,
 };
 use std::time::Duration;
 
 use crate::message::MessageObject;
+use crate::user::UserProfile;
+use crate::window::Window;
 
 wrapper! {
     pub struct MessageRow(ObjectSubclass<imp::MessageRow>)
@@ -67,19 +75,25 @@ wrapper! {
 }
 
 impl MessageRow {
-    pub fn new(object: MessageObject) -> Self {
+    pub fn new(object: MessageObject, window: &Window) -> Self {
         let row: MessageRow = Object::builder().build();
         let revealer = row.imp().message_revealer.get();
 
+        let new_cursor = Cursor::builder().name("pointer").build();
+
         if object.is_send() {
-            row.imp().sender.set_visible(true);
+            let sender = row.imp().sender.get();
+            sender.set_cursor(Some(&new_cursor));
+            sender.set_visible(true);
             row.imp().sent_by.set_xalign(1.0);
             row.imp().message.set_xalign(1.0);
             row.imp().message_content.add_css_class("message-row-sent");
             row.imp().placeholder.set_visible(true);
             revealer.set_transition_type(RevealerTransitionType::SlideLeft)
         } else {
-            row.imp().receiver.set_visible(true);
+            let receiver = row.imp().receiver.get();
+            receiver.set_cursor(Some(&new_cursor));
+            receiver.set_visible(true);
             row.imp().sent_by.set_xalign(0.0);
             row.imp().message.set_xalign(0.0);
             row.imp()
@@ -90,6 +104,7 @@ impl MessageRow {
 
         row.imp().message_data.set(object).unwrap();
         row.bind();
+        row.connect_button_signals(window);
 
         // The transition must start after it gets added to the ListBox thus a small timer
         timeout_add_local_once(Duration::from_millis(50), move || {
@@ -99,7 +114,7 @@ impl MessageRow {
         row
     }
 
-    pub fn bind(&self) {
+    fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
 
         let sent_by = self.imp().sent_by.get();
@@ -143,5 +158,21 @@ impl MessageRow {
             .build();
 
         bindings.push(message_binding);
+    }
+
+    fn connect_button_signals(&self, window: &Window) {
+        let sender_button = self.imp().sender_avatar_button.get();
+        let receiver_button = self.imp().receiver_avatar_button.get();
+
+        let sent_from = self.imp().message_data.get().unwrap().sent_from();
+        let sent_to = self.imp().message_data.get().unwrap().sent_to();
+
+        sender_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
+            UserProfile::new(sent_from, &window, true);
+        }));
+
+        receiver_button.connect_clicked(clone!(@weak window, @weak sent_to => move |_| {
+            UserProfile::new(sent_to, &window, false);
+        }));
     }
 }

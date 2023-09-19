@@ -135,7 +135,7 @@ impl Window {
         self.imp()
             .my_profile
             .connect_clicked(clone!(@weak self as window => move |_| {
-                UserProfile::new(window.get_chatting_from(), &window);
+                UserProfile::new(window.get_chatting_from(), &window, true);
             }));
 
         let scroller_bar = self.imp().message_scroller.get();
@@ -192,6 +192,7 @@ impl Window {
         if let Some(row) = self.get_user_list().row_at_index(0) {
             self.get_user_list().select_row(Some(&row));
         }
+        self.bind();
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -290,7 +291,7 @@ impl Window {
     }
 
     fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
-        let message_row = MessageRow::new(data.clone());
+        let message_row = MessageRow::new(data.clone(), self);
         let list_row = ListBoxRow::builder()
             .child(&message_row)
             .selectable(false)

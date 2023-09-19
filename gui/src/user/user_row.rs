@@ -47,8 +47,12 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
+use gdk::{Cursor, Rectangle};
 use glib::{clone, timeout_add_local_once, wrapper, Object};
-use gtk::{gdk::Rectangle, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, Widget};
+use gtk::{
+    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, EventControllerMotion, Orientable,
+    Widget,
+};
 use std::time::Duration;
 
 use crate::user::UserObject;
@@ -65,8 +69,11 @@ impl UserRow {
         let row: UserRow = Object::builder().build();
         row.imp().popover_visible.set(false);
 
-        let motion = gtk::EventControllerMotion::new();
+        let motion = EventControllerMotion::new();
         row.imp().user_avatar.get().add_controller(motion.clone());
+
+        let new_cursor = Cursor::builder().name("pointer").build();
+        row.imp().user_avatar.set_cursor(Some(&new_cursor));
 
         // NOTE couldn't use clone! here as gtk was giving me children left error on exit. couldn't find a solution
         let row_clone = row.clone();
