@@ -180,7 +180,7 @@ impl WSObject {
 
     /// Calls the server to update the user image link
     pub fn image_link_updated(&self, link: &str) {
-        info!("Sending updated image link: {link}");
+        info!("Sending updated image link to the WS: {link}");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/image-updated {}", link))
@@ -188,7 +188,7 @@ impl WSObject {
 
     /// Calls the server to update the user name
     pub fn name_updated(&self, name: &str) {
-        info!("Sending updated name: {name}");
+        info!("Sending updated name to the WS: {name}");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/name-updated {}", name))
