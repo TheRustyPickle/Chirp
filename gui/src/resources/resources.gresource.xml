@@ -6,6 +6,8 @@
         <file compressed="true" preprocess="xml-stripblanks">user_row.xml</file>
         <file compressed="true" preprocess="xml-stripblanks">user_prompt.xml</file>
         <file compressed="true" preprocess="xml-stripblanks">user_profile.xml</file>
+        
         <file compressed="true">style.css</file>
+        <file compressed="true">style-dark.css</file>
     </gresource>
 </gresources>

@@ -8,14 +8,21 @@
         <child>
           <object class="GtkBox">
             <child>
-              <!-- Receiver side image on the left most side-->
-              <object class="AdwAvatar" id="receiver">
-                <property name="css-classes">avatar</property>
-                <property name="visible">false</property>
-                <property name="show-initials">true</property>
-                <property name="size">45</property>
+              <!-- Receiver side image on the left most side
+              button for the ability to click on it-->
+              <object class="GtkButton" id="receiver_avatar_button">
                 <property name="valign">end</property>
-                <property name="margin-bottom">5</property>
+                <property name="css-classes">avatar-button</property>
+                <child>
+                  <object class="AdwAvatar" id="receiver">
+                    <property name="css-classes">avatar</property>
+                    <property name="visible">false</property>
+                    <property name="show-initials">true</property>
+                    <property name="size">45</property>
+                    <property name="valign">end</property>
+                    <property name="margin-bottom">5</property>
+                  </object>
+                </child>
               </object>
             </child>
             <!-- For some reason the labels after this one does not go to the right most corner even with xlign 1.0
@@ -60,14 +67,21 @@
               </object>
             </child>
             <child>
-              <!-- Sender side image on the right most side-->
-              <object class="AdwAvatar" id="sender">
-                <property name="css-classes">avatar</property>
-                <property name="visible">false</property>
-                <property name="show-initials">true</property>
-                <property name="size">45</property>
+              <!-- Sender side image on the right most side
+              button for the ability to click on it-->
+              <object class="GtkButton" id="sender_avatar_button">
+                <property name="css-classes">avatar-button</property>
                 <property name="valign">end</property>
-                <property name="margin-bottom">5</property>
+                <child>
+                  <object class="AdwAvatar" id="sender">
+                    <property name="css-classes">avatar</property>
+                    <property name="visible">false</property>
+                    <property name="show-initials">true</property>
+                    <property name="size">45</property>
+                    <property name="valign">end</property>
+                    <property name="margin-bottom">5</property>
+                  </object>
+                </child>
               </object>
             </child>
           </object>

@@ -90,7 +90,6 @@
                             <property name="child">
                               <object class="GtkListBox" id="message_list">
                                 <property name="selection-mode">none</property>
-                                <property name="show-separators">false</property>
                               </object>
                             </property>
                           </object>
@@ -124,7 +123,7 @@
                                 <property name="icon-name">go-next-symbolic</property>
                                 <property name="valign">end</property>
                                 <property name="css-classes">suggested-action</property>
-                                <!-- Emits this on button press and gets emitted on ctrl + enter
+                                <!-- Emits this on button press and the same also gets emitted on ctrl + enter
                                 press-->
                                 <property name="action-name">win.send-message</property>
                               </object>

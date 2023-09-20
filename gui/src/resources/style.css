@@ -1,5 +1,5 @@
-.entry-box > scrolledwindow > textview {
-  background: @headerbar_shade_color;
+.entry-box>scrolledwindow>textview {
+  background: #F5F5F5;
   border-radius: 15px;
   padding-left: 5px;
   transition:
@@ -7,32 +7,32 @@
     border-color 0.4s ease-in-out;
 }
 
-.entry-box > scrolledwindow > textview:focus {
+.entry-box>scrolledwindow>textview:focus {
   border: 2px solid @accent_color;
 }
 
-.entry-box > scrolledwindow > textview:hover {
+.entry-box>scrolledwindow>textview:hover {
   border: 2px solid @accent_color;
 }
 
-.entry-box > button {
+.entry-box>button {
   margin-left: 5px;
 }
 
-
 /* These two must not be touched
-magic style that keeps the textview from getting too large */
-.entry-box > scrolledwindow > scrollbar {
+magic style that keeps the textview from getting too large 
+taken from paper-plane*/
+.entry-box>scrolledwindow>scrollbar {
   box-shadow: none;
   background: none;
 }
 
-.entry-box > scrolledwindow > scrollbar slider {
+.entry-box>scrolledwindow>scrollbar slider {
   min-height: 0;
 }
 
 .entry-box {
-  background: @view_bg_color;
+  background: @light_1;
   padding: 5px;
 }
 
@@ -75,39 +75,46 @@ magic style that keeps the textview from getting too large */
 }
 
 .message-row-sent {
-  background: @headerbar_shade_color;
+  background: #f0f0f0;
   border: 0px solid;
   border-radius: 15px;
-  margin-left: 180px;
+  margin-left: 120px;
   margin-top: 10px;
 }
 
 .message-row-sent:hover {
-  background-color: @accent_bg_color;
+  background-color: @light_3;
   border: 0px solid;
   border-radius: 15px;
-  margin-left: 180px;
+  margin-left: 120px;
   margin-top: 10px;
 }
 
 .message-row-received {
-  background: @headerbar_shade_color;
+  background: #f0f0f0;
   border: 0px solid;
   border-radius: 15px;
-  margin-right: 180px;
+  margin-right: 120px;
   margin-top: 10px;
 }
 
 .message-row-received:hover {
-  background-color: @accent_bg_color;
+  background-color: @light_3;
   border: 0px solid;
   border-radius: 15px;
-  margin-right: 180px;
+  margin-right: 120px;
   margin-top: 10px;
 }
 
 .avatar {
   padding: 3px;
+}
+
+.avatar-button {
+  background: inherit;
+  border: 0px solid;
+  border-radius: 50%;
+  padding: 0px;
 }
 
 .sender-blue-1 {
@@ -160,6 +167,7 @@ magic style that keeps the textview from getting too large */
   font-weight: bold;
 }
 
+/*listbox adds this style to widgets. Added here to prevent the frames from popping up*/
 .activatable:hover {
   background-color: inherit;
 }

@@ -1,0 +1,45 @@
+.entry-box>scrolledwindow>textview {
+  background: #2E2E2E;
+  border-radius: 15px;
+  padding-left: 5px;
+  transition:
+    border 0.4s ease-in-out,
+    border-color 0.4s ease-in-out;
+}
+
+.entry-box {
+  background: #1E1E1E;
+  padding: 5px;
+}
+
+.message-row-sent {
+  background: #333333;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-left: 120px;
+  margin-top: 10px;
+}
+
+.message-row-sent:hover {
+  background-color: #262626;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-left: 120px;
+  margin-top: 10px;
+}
+
+.message-row-received {
+  background: #333333;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-right: 120px;
+  margin-top: 10px;
+}
+
+.message-row-received:hover {
+  background-color: #262626;
+  border: 0px solid;
+  border-radius: 15px;
+  margin-right: 120px;
+  margin-top: 10px;
+}

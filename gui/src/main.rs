@@ -8,7 +8,7 @@ use adw::Application;
 use gdk::Display;
 use gio::resources_register_include;
 use glib::ExitCode;
-use gtk::{gdk, gio, glib, prelude::*, CssProvider};
+use gtk::{gdk, gio, glib, prelude::*, CssProvider, STYLE_PROVIDER_PRIORITY_THEME};
 use tracing::info;
 use window::Window;
 
@@ -41,6 +41,6 @@ fn load_css() {
     gtk::style_context_add_provider_for_display(
         &Display::default().expect("Could not connect to a display."),
         &provider,
-        gtk::STYLE_PROVIDER_PRIORITY_APPLICATION,
+        STYLE_PROVIDER_PRIORITY_THEME,
     );
 }

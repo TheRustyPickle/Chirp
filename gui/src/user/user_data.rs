@@ -114,11 +114,9 @@ impl UserObject {
     // TODO: Pass a result instead of Bytes directly
     fn check_image_link(&self) {
         if let Some(image_link) = self.image_link() {
-            info!("Starting a new channel to update image");
             let (sender, receiver) = MainContext::channel(Priority::default());
             self.set_user_image(receiver);
             spawn_blocking(move || {
-                info!("Image link: {:?}", image_link);
                 let avatar = get_avatar(image_link);
                 sender.send(avatar).unwrap();
             });
