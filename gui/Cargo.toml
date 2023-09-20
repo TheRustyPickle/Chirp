@@ -6,15 +6,15 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-adw = { version = "0.5.2", package = "libadwaita", features = ["gtk_v4_10", "v1_3"] }
-gio = "0.18.1"
+adw = { version = "0.5.2", package = "libadwaita", features = ["v1_4"] }
+gio = "0.18.2"
 gtk = { version = "0.7.2", package = "gtk4", features = ["v4_12"] }
 rand = "0.8.5"
 soup3 = "0.5.0"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
-serde = { version = "1.0.140", features = ["derive"]}
-serde_json = "1.0.105"
+serde = { version = "1.0.188", features = ["derive"]}
+serde_json = "1.0.107"
 
 [build-dependencies]
 glib-build-tools = "0.18.0"
