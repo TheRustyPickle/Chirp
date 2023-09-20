@@ -1,5 +1,5 @@
 .entry-box>scrolledwindow>textview {
-  background: @headerbar_shade_color;
+  background: #F5F5F5;
   border-radius: 15px;
   padding-left: 5px;
   transition:
@@ -20,7 +20,8 @@
 }
 
 /* These two must not be touched
-magic style that keeps the textview from getting too large */
+magic style that keeps the textview from getting too large 
+taken from paper-plane*/
 .entry-box>scrolledwindow>scrollbar {
   box-shadow: none;
   background: none;
@@ -31,7 +32,7 @@ magic style that keeps the textview from getting too large */
 }
 
 .entry-box {
-  background: @view_bg_color;
+  background: @light_1;
   padding: 5px;
 }
 
@@ -74,7 +75,7 @@ magic style that keeps the textview from getting too large */
 }
 
 .message-row-sent {
-  background: @headerbar_shade_color;
+  background: #f0f0f0;
   border: 0px solid;
   border-radius: 15px;
   margin-left: 120px;
@@ -82,7 +83,7 @@ magic style that keeps the textview from getting too large */
 }
 
 .message-row-sent:hover {
-  background-color: @accent_bg_color;
+  background-color: @light_3;
   border: 0px solid;
   border-radius: 15px;
   margin-left: 120px;
@@ -90,7 +91,7 @@ magic style that keeps the textview from getting too large */
 }
 
 .message-row-received {
-  background: @headerbar_shade_color;
+  background: #f0f0f0;
   border: 0px solid;
   border-radius: 15px;
   margin-right: 120px;
@@ -98,7 +99,7 @@ magic style that keeps the textview from getting too large */
 }
 
 .message-row-received:hover {
-  background-color: @accent_bg_color;
+  background-color: @light_3;
   border: 0px solid;
   border-radius: 15px;
   margin-right: 120px;
@@ -166,6 +167,7 @@ magic style that keeps the textview from getting too large */
   font-weight: bold;
 }
 
+/*listbox adds this style to widgets. Added here to prevent the frames from popping up*/
 .activatable:hover {
   background-color: inherit;
 }

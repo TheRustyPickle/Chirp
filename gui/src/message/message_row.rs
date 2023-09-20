@@ -59,8 +59,8 @@ use adw::subclass::prelude::*;
 use gdk::Cursor;
 use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
-    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable,
-    RevealerTransitionType, Widget,
+    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, RevealerTransitionType,
+    Widget,
 };
 use std::time::Duration;
 
