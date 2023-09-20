@@ -138,12 +138,28 @@ impl Window {
                 UserProfile::new(window.get_chatting_from(), &window, true);
             }));
 
+        self.imp()
+            .send_button
+            .connect_clicked(clone!(@weak self as window => move |_| {
+                window.send_message();
+                window.grab_focus();
+            }));
+
         let scroller_bar = self.imp().message_scroller.get();
         let vadjust = scroller_bar.vadjustment();
         vadjust.connect_changed(clone!(@weak vadjust => move |adjust| {
             let upper = adjust.upper();
             vadjust.set_value(upper);
         }));
+
+        self.imp().message_box.get().buffer().connect_changed(
+            clone!(@weak self as window => move |buffer| {
+                let char_count = buffer.char_count();
+                let should_be_enabled = char_count != 0;
+                window.imp().send_button.set_sensitive(should_be_enabled);
+
+            }),
+        );
     }
 
     fn setup_actions(&self) {

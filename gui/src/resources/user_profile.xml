@@ -5,123 +5,131 @@
     <property name="default_height">430</property>
     <property name="title" translatable="yes">Profile</property>
     <property name="content">
-      <object class="GtkBox">
-        <property name="orientation">vertical</property>
-        <property name="vexpand">True</property>
-        <child>
-          <object class="AdwHeaderBar">
-            <style>
-              <class name="flat" />
-            </style>
-          </object>
+      <object class="AdwToolbarView">
+        <child type="top">
+          <object class="AdwHeaderBar"></object>
         </child>
-        <child>
-          <object class="AdwToastOverlay" id="toast_overlay">
+        <property name="content">
+          <object class="GtkBox">
+            <property name="orientation">vertical</property>
             <child>
-              <object class="GtkScrolledWindow">
-                <property name="vexpand">True</property>
-                <property name="hscrollbar-policy">never</property>
-                <property name="child">
-                  <object class="AdwClamp">
+              <object class="AdwToastOverlay" id="toast_overlay">
+                <child>
+                  <object class="GtkScrolledWindow">
+                    <property name="hscrollbar-policy">never</property>
+                    <property name="vexpand">True</property>
                     <property name="child">
-                      <object class="GtkBox">
-                        <property name="orientation">vertical</property>
-                        <property name="margin-top">20</property>
-                        <property name="margin-bottom">20</property>
-                        <property name="margin-start">20</property>
-                        <property name="margin-end">20</property>
-                        <property name="spacing">20</property>
-                        <!-- Top avatar-->
-                        <child>
-                          <object class="AdwAvatar" id="profile_avatar">
-                            <property name="css-classes">avatar</property>
-                            <property name="show-initials">true</property>
-                            <property name="size">150</property>
+                      <object class="AdwClamp">
+                        <property name="child">
+                          <object class="GtkBox">
+                            <property name="orientation">vertical</property>
+                            <property name="margin-top">20</property>
+                            <property name="margin-bottom">20</property>
+                            <property name="margin-start">20</property>
+                            <property name="margin-end">20</property>
+                            <property name="spacing">20</property>
+                            <!-- Top avatar-->
+                            <child>
+                              <object class="AdwAvatar" id="profile_avatar">
+                                <property name="css-classes">avatar</property>
+                                <property name="show-initials">true</property>
+                                <property name="size">150</property>
+                              </object>
+                            </child>
+                            <child>
+                              <object class="GtkListBox">
+                                <property name="selection-mode">none</property>
+                                <style>
+                                  <class name="boxed-list" />
+                                </style>
+                                <child>
+                                  <!-- The name row-->
+                                  <object class="AdwActionRow" id="name_row">
+                                    <property name="title">Name</property>
+                                    <style>
+                                      <class name="property" />
+                                    </style>
+                                    <child>
+                                      <object class="GtkButton" id="name_edit">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">document-edit-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Update name</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <!-- The ID row-->
+                                  <object class="AdwActionRow" id="id_row">
+                                    <property name="title">User ID</property>
+                                    <style>
+                                      <class name="property" />
+                                    </style>
+                                    <child>
+                                      <object class="GtkImage" id="id_warning">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">dialog-warning</property>
+                                        <property name="visible">false</property>
+                                        <property name="tooltip-text">Failed to get User ID</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="id_copy">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">edit-copy-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Copy User ID</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <!-- The image link row-->
+                                  <object class="AdwActionRow" id="image_link_row">
+                                    <property name="title">Image Link</property>
+                                    <property name="subtitle-lines">1</property>
+                                    <style>
+                                      <class name="property" />
+                                    </style>
+                                    <child>
+                                      <object class="GtkButton" id="image_link_copy">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">edit-copy-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Copy image link</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="image_link_reload">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">view-refresh-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Generate a new random image</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="image_link_edit">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">document-edit-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Update image link</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                              </object>
+                            </child>
                           </object>
-                        </child>
-                        <child>
-                          <object class="GtkListBox">
-                            <property name="selection-mode">none</property>
-                            <style>
-                              <class name="boxed-list" />
-                            </style>
-                            <child>
-                              <!-- The name row-->
-                              <object class="AdwActionRow" id="name_row">
-                                <property name="title">Name</property>
-                                <child>
-                                  <object class="GtkButton" id="name_edit">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">document-edit-symbolic</property>
-                                    <property name="has-frame">false</property>
-                                    <property name="tooltip-text">Update name</property>
-                                  </object>
-                                </child>
-                              </object>
-                            </child>
-                            <child>
-                              <!-- The ID row-->
-                              <object class="AdwActionRow" id="id_row">
-                                <property name="title">User ID</property>
-                                <child>
-                                  <object class="GtkImage" id="id_warning">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">dialog-warning</property>
-                                    <property name="visible">false</property>
-                                    <property name="tooltip-text">Failed to get User ID</property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="id_copy">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">edit-copy-symbolic</property>
-                                    <property name="has-frame">false</property>
-                                    <property name="tooltip-text">Copy User ID</property>
-                                  </object>
-                                </child>
-                              </object>
-                            </child>
-                            <child>
-                              <!-- The image link row-->
-                              <object class="AdwActionRow" id="image_link_row">
-                                <property name="title">Image Link</property>
-                                <property name="subtitle-lines">1</property>
-                                <child>
-                                  <object class="GtkButton" id="image_link_copy">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">edit-copy-symbolic</property>
-                                    <property name="has-frame">false</property>
-                                    <property name="tooltip-text">Copy image link</property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="image_link_reload">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">view-refresh-symbolic</property>
-                                    <property name="has-frame">false</property>
-                                    <property name="tooltip-text">Generate a new random image</property>
-                                  </object>
-                                </child>
-                                <child>
-                                  <object class="GtkButton" id="image_link_edit">
-                                    <property name="can-focus">false</property>
-                                    <property name="icon-name">document-edit-symbolic</property>
-                                    <property name="has-frame">false</property>
-                                    <property name="tooltip-text">Update image link</property>
-                                  </object>
-                                </child>
-                              </object>
-                            </child>
-                          </object>
-                        </child>
+                        </property>
                       </object>
                     </property>
                   </object>
-                </property>
+                </child>
               </object>
             </child>
           </object>
-        </child>
+        </property>
       </object>
     </property>
   </template>

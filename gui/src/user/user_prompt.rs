@@ -56,16 +56,16 @@ wrapper! {
 impl UserPrompt {
     pub fn new(accept_name: &str) -> Self {
         let obj: UserPrompt = Object::builder().build();
-        let id_entry = obj.imp().prompt_entry.get();
+        let prompt_entry = obj.imp().prompt_entry.get();
 
         obj.add_responses(&[("cancel", "Cancel"), ("accept", accept_name)]);
         obj.set_response_enabled("accept", false);
         obj.set_response_appearance("accept", ResponseAppearance::Suggested);
 
-        id_entry.add_css_class("blue-entry");
-        id_entry.set_activates_default(true);
+        prompt_entry.add_css_class("blue-entry");
+        prompt_entry.set_activates_default(true);
 
-        id_entry.connect_changed(clone!(@weak obj as prompt => move |entry| {
+        prompt_entry.connect_changed(clone!(@weak obj as prompt => move |entry| {
             let text = entry.text();
             let empty = text.is_empty();
 
