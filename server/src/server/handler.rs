@@ -4,14 +4,14 @@ use rand::Rng;
 use std::collections::HashMap;
 use tracing::info;
 
-use crate::server::{Message, UserData, WsData};
+use crate::server::{Message, UserData, WSData};
 
 #[derive(Debug)]
 pub struct ChatServer {
     // {session id: {user id this session belongs to, recipient}}
     pub sessions: HashMap<usize, (usize, Recipient<Message>)>,
     user_data: HashMap<usize, UserData>,
-    user_session: HashMap<usize, Vec<WsData>>,
+    user_session: HashMap<usize, Vec<WSData>>,
     pub rng: ThreadRng,
 }
 
@@ -29,13 +29,34 @@ impl ChatServer {
     pub fn send_message(&self, message: &str, from_user: usize, to_user: usize) {
         info!("Sending message from {} to {}", from_user, to_user);
         if let Some(receiver_ws_data) = self.user_session.get(&to_user) {
+            let mut conn_found = false;
             for i in receiver_ws_data {
                 if i.user_id == from_user {
+                    conn_found = true;
                     let ws_id = i.ws_id;
                     if let Some(receiver_data) = self.sessions.get(&ws_id) {
                         receiver_data
                             .1
                             .do_send(Message(format!("/message {}", message)))
+                    }
+                }
+            }
+
+            if !conn_found {
+                info!("Client session exists but the user was not added. Sending request to add the user");
+                for i in receiver_ws_data {
+                    if i.user_id == to_user {
+                        let ws_id = i.ws_id;
+                        if let Some(receiver_data) = self.sessions.get(&ws_id) {
+                            let user_data = self.user_data[&from_user]
+                                .clone()
+                                .add_message(message)
+                                .to_json();
+
+                            receiver_data
+                                .1
+                                .do_send(Message(format!("/new-user-message {}", user_data)))
+                        }
                     }
                 }
             }
@@ -67,7 +88,7 @@ impl ChatServer {
             receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
         }
 
-        let ws_data = WsData::new(user_id, ws_id);
+        let ws_data = WSData::new(user_id, ws_id);
 
         self.user_session
             .entry(user_id)
@@ -86,7 +107,7 @@ impl ChatServer {
             *session_user_id = user_id;
         }
 
-        let ws_data = WsData::new(user_id, ws_id);
+        let ws_data = WSData::new(user_id, ws_id);
 
         self.user_session
             .entry(user_id)
@@ -112,7 +133,7 @@ impl ChatServer {
             *session_user_id = user_id;
         }
 
-        let ws_data = WsData::new(user_id, ws_id);
+        let ws_data = WSData::new(user_id, ws_id);
 
         let session_data = self.user_session.get_mut(&client_id).unwrap();
 

@@ -52,17 +52,21 @@ pub enum CommunicationType {
     ReconnectUser,
 }
 
+/// Triggered on new WS connection to the server
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct Join {
     pub id: usize,
 }
 
+/// Used for sending or relevant data to create an UserObject
+/// An optional message field to pass messages along with the user data
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct UserData {
     id: usize,
     pub name: String,
     pub image_link: Option<String>,
+    pub message: Option<String>,
 }
 
 impl UserData {
@@ -74,24 +78,34 @@ impl UserData {
         serde_json::to_string(self).unwrap()
     }
 
+    pub fn add_message(self, message: &str) -> Self {
+        UserData {
+            id: self.id,
+            name: self.name,
+            image_link: self.image_link,
+            message: Some(message.to_string()),
+        }
+    }
+
     pub fn update_id(self, id: usize) -> Self {
         UserData {
             id,
             name: self.name,
             image_link: self.image_link,
+            message: None,
         }
     }
 }
 
 #[derive(Debug, PartialEq)]
-pub struct WsData {
+pub struct WSData {
     pub user_id: usize,
     pub ws_id: usize,
 }
 
-impl WsData {
+impl WSData {
     pub fn new(user_id: usize, ws_id: usize) -> Self {
-        WsData { user_id, ws_id }
+        WSData { user_id, ws_id }
     }
 }
 
