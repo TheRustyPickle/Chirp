@@ -20,7 +20,9 @@ mod imp {
         pub ws_sender: OnceCell<Sender<Option<WebsocketConnection>>>,
         pub notifier: OnceCell<Sender<bool>>,
         #[property(get, set)]
-        pub reconnecting: Cell<bool>,
+        pub is_reconnecting: Cell<bool>,
+        #[property(get, set)]
+        pub reconnecting_timer: Cell<u32>,
     }
 
     #[object_subclass]
@@ -64,6 +66,7 @@ wrapper! {
 impl WSObject {
     pub fn new() -> Self {
         let obj: WSObject = Object::builder().build();
+        obj.set_reconnecting_timer(10);
         obj.set_ws();
         obj
     }
@@ -78,7 +81,7 @@ impl WSObject {
         let message = Message::new("GET", websocket_url).unwrap();
         let cancel = Cancellable::new();
 
-        let is_reconnecting = self.reconnecting();
+        let is_reconnecting = self.is_reconnecting();
         let notifier = self.imp().notifier.get().unwrap().clone();
 
         info!("Starting websocket connection with {}", websocket_url);
@@ -110,10 +113,10 @@ impl WSObject {
         self.imp().ws_sender.set(sender).unwrap();
         self.imp().notifier.set(notifier_send).unwrap();
 
-        self.set_reconnecting(false);
+        self.set_is_reconnecting(false);
         self.connect_to_ws();
 
-        // If ws connection failed, try to reconnect every 10 seconds
+        // If ws connection failed, try to reconnect
         // otherwise save the websocket connection and ping it
         receiver.attach(
             None,
@@ -124,8 +127,13 @@ impl WSObject {
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
                     ws_object.start_pinging();
                 } else {
-                    error!("WebSocket connection failed. Starting again");
-                    timeout_add_seconds_local_once(10, move || {
+                    let timer = ws_object.reconnecting_timer();
+                    error!("WebSocket connection failed. Starting reconnecting again in {} seconds", timer);
+
+                    if timer < 600 {
+                        ws_object.set_reconnecting_timer((timer as f32 * 1.5) as u32);
+                    }
+                    timeout_add_seconds_local_once(timer, move || {
                         ws_object.connect_to_ws();
                     });
                 }
@@ -137,7 +145,6 @@ impl WSObject {
             None,
             clone!(@weak self as ws => @default-return ControlFlow::Break, move |_| {
                 ws.emit_by_name::<()>("ws-reconnect", &[&true]);
-                info!("Emitted");
                 ControlFlow::Continue
             }),
         );
@@ -202,7 +209,7 @@ impl WSObject {
         conn.connect_closed(clone!(@weak self as ws => move |_| {
             info!("connection closed. Starting again");
             ws.imp().ws_conn.replace(None);
-            ws.set_reconnecting(true);
+            ws.set_is_reconnecting(true);
             ws.connect_to_ws();
         }));
     }

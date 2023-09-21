@@ -243,7 +243,7 @@ impl UserObject {
 
     fn start_listening(&self, sender: Sender<String>) {
         let user_ws = self.user_ws();
-        if !user_ws.reconnecting() {
+        if !user_ws.is_reconnecting() {
             if self.user_id() == 0 {
                 self.add_to_queue(RequestType::CreateNewUser);
             } else {
