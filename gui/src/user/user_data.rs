@@ -274,7 +274,7 @@ impl UserObject {
                             user_object.check_image_link();
                         },
                         "/name-updated" => user_object.set_name(splitted_data[1]),
-                        "/message" | "/get-user-data"=> sender.send(text).unwrap(),
+                        "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}
                     }
                 }
@@ -289,6 +289,7 @@ impl UserObject {
             id: self.user_id(),
             name: self.name(),
             image_link: self.image_link(),
+            message: None,
         };
 
         serde_json::to_string(&user_data).unwrap()
@@ -305,13 +306,17 @@ pub struct UserData {
     pub image_link: Option<String>,
 }
 
+/// Used for sending or relevant data to create an UserObject
+/// An optional message field to pass messages along with the user data
 #[derive(Debug, Serialize, Deserialize)]
 pub struct FullUserData {
     pub id: u64,
     pub name: String,
     pub image_link: Option<String>,
+    pub message: Option<String>,
 }
 
+/// Types of request that are processed by the GUI to WS currently
 #[derive(Debug, Clone)]
 pub enum RequestType {
     CreateNewUser,

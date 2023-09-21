@@ -329,7 +329,7 @@ impl Window {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
             match response_data[0] {
-                "/get-user-data" => {
+                "/get-user-data" | "/new-user-message" => {
                     let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
@@ -367,6 +367,10 @@ impl Window {
             Some(&self.get_owner_name_color()),
             Some(user_data.id),
         );
+
+        if user_data.message.is_some() {
+            self.receive_message(&user_data.message.unwrap(), new_user_data.clone())
+        }
 
         // Every single user in the UserList of the client will have the owner User ID for reference
         let chatting_from = self.get_chatting_from();
