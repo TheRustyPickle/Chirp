@@ -76,9 +76,12 @@ impl WSObject {
         let sender = self.imp().ws_sender.get().unwrap().clone();
 
         // TODO: update it dynamically based on a yaml, json or something file
-        let websocket_url = "ws://127.0.0.1:8080/ws/";
+        let websocket_url = "wss://localhost:8080/ws/";
 
         let message = Message::new("GET", websocket_url).unwrap();
+
+        message.connect_accept_certificate(move |_, _, _| true);
+
         let cancel = Cancellable::new();
 
         let is_reconnecting = self.is_reconnecting();
