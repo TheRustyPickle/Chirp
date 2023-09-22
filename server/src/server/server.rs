@@ -52,13 +52,6 @@ pub enum CommunicationType {
     ReconnectUser,
 }
 
-/// Triggered on new WS connection to the server
-#[derive(Message)]
-#[rtype(result = "()")]
-pub struct Join {
-    pub id: usize,
-}
-
 /// Used for sending or relevant data to create an UserObject
 /// An optional message field to pass messages along with the user data
 #[derive(Debug, Serialize, Deserialize, Clone)]
