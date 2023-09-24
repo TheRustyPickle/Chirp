@@ -348,6 +348,7 @@ impl Window {
                         let id = response_data[1].parse::<u64>().unwrap();
                         chatting_from.set_owner_id(id);
                     }
+                    chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
                 _ => {}
             }
@@ -358,14 +359,14 @@ impl Window {
     fn create_user(&self, user_data: FullUserData) -> UserObject {
         info!(
             "Creating new user with name: {}, id: {}",
-            user_data.name, user_data.id
+            user_data.user_name, user_data.user_id
         );
 
         let new_user_data = UserObject::new(
-            &user_data.name,
+            &user_data.user_name,
             user_data.image_link,
             Some(&self.get_owner_name_color()),
-            Some(user_data.id),
+            Some(user_data.user_id),
         );
 
         if user_data.message.is_some() {

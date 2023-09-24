@@ -25,6 +25,7 @@ mod imp {
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
+        // TODO mutex + gio::spawn_blocking to prevent borrow_mut colliding?
         pub request_queue: RefCell<Vec<RequestType>>,
         #[property(get, set)]
         pub request_processing: Cell<bool>,
@@ -90,6 +91,8 @@ impl UserObject {
         let user_object = obj.clone();
 
         // This signal gets emitted when the connection is once lost but reconnected again
+        // TODO use a separate signal to handle the reconnection
+        // then do another signal to resume queueing
         obj.user_ws().connect_closure(
             "ws-reconnect",
             false,
@@ -99,10 +102,9 @@ impl UserObject {
                 // first before any other pending request can be processed.
                 // So reconnect -> process previous pending requests
                 user_object.imp().request_queue.replace(Vec::new());
-                user_object
-                    .add_to_queue(RequestType::ReconnectUser)
-                    .add_to_queue(RequestType::UpdateIDs);
+                user_object.add_to_queue(RequestType::ReconnectUser);
 
+                // TODO add a function to add using vector
                 for old in old_queue {
                     user_object.add_to_queue(old);
                 }
@@ -171,7 +173,7 @@ impl UserObject {
 
         let user_ws = self.user_ws();
 
-        let mut queue_list = self.imp().request_queue.borrow_mut();
+        let queue_list = self.imp().request_queue.borrow().clone();
 
         let mut highest_index = 0;
         for task in queue_list.iter() {
@@ -179,13 +181,15 @@ impl UserObject {
                 info!("starting processing {task:?}");
                 match task {
                     RequestType::ReconnectUser => {
-                        let owner_id = self.owner_id();
-                        let user_data = self.convert_to_json();
-                        user_ws.reconnect_user(owner_id, user_data);
+                        let id_data = UserIDs::new_json(self);
+                        user_ws.reconnect_user(id_data);
                     }
-                    RequestType::UpdateIDs => user_ws.update_ids(self.user_id(), self.owner_id()),
+                    RequestType::UpdateIDs => {
+                        let id_data = UserIDs::new_json(self);
+                        user_ws.update_ids(id_data)
+                    }
                     RequestType::CreateNewUser => {
-                        let user_data = self.convert_to_json();
+                        let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
                     RequestType::SendMessage(msg) => {
@@ -203,10 +207,14 @@ impl UserObject {
         }
 
         // Remove the processed requests
-        for _x in 0..highest_index {
-            queue_list.remove(0);
+        {
+            let mut queue_list = self.imp().request_queue.borrow_mut();
+            for _x in 0..highest_index {
+                queue_list.remove(0);
+            }
         }
 
+        // TODO do not stop processing if the connection failed
         self.set_request_processing(false);
     }
 
@@ -263,11 +271,7 @@ impl UserObject {
                         "/update-user-id" => {
                             let id: u64 = splitted_data[1].parse().unwrap();
                             user_object.set_user_id(id);
-                            sender.send(text).unwrap()
-                        }
-                        "/update-session-id" => {
-                            let id: u64 = splitted_data[1].parse().unwrap();
-                            user_object.user_ws().set_ws_id(id);
+                            sender.send(text).unwrap();
                         }
                         "/image-updated" => {
                             user_object.set_image_link(splitted_data[1]);
@@ -283,17 +287,6 @@ impl UserObject {
 
         self.user_ws().set_signal_id(id);
     }
-
-    fn convert_to_json(&self) -> String {
-        let user_data = FullUserData {
-            id: self.user_id(),
-            name: self.name(),
-            image_link: self.image_link(),
-            message: None,
-        };
-
-        serde_json::to_string(&user_data).unwrap()
-    }
 }
 
 #[derive(Default, Clone)]
@@ -308,12 +301,41 @@ pub struct UserData {
 
 /// Used for sending or relevant data to create an UserObject
 /// An optional message field to pass messages along with the user data
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct FullUserData {
-    pub id: u64,
-    pub name: String,
+    pub user_id: u64,
+    pub user_name: String,
     pub image_link: Option<String>,
+    #[serde(skip_serializing)]
     pub message: Option<String>,
+}
+
+impl FullUserData {
+    fn new_json(user_object: &UserObject) -> String {
+        let user_data = FullUserData {
+            user_id: user_object.user_id(),
+            user_name: user_object.name(),
+            image_link: user_object.image_link(),
+            message: None,
+        };
+        serde_json::to_string(&user_data).unwrap()
+    }
+}
+
+#[derive(Serialize)]
+pub struct UserIDs {
+    pub user_id: u64,
+    pub owner_id: u64,
+}
+
+impl UserIDs {
+    fn new_json(user_object: &UserObject) -> String {
+        let id_data = UserIDs {
+            user_id: user_object.user_id(),
+            owner_id: user_object.owner_id(),
+        };
+        serde_json::to_string(&id_data).unwrap()
+    }
 }
 
 /// Types of request that are processed by the GUI to WS currently

@@ -14,8 +14,6 @@ mod imp {
     pub struct WSObject {
         #[property(get, set)]
         pub ws_conn: RefCell<Option<WebsocketConnection>>,
-        #[property(get, set)]
-        pub ws_id: Cell<u64>,
         pub ws_signal_id: RefCell<Option<SignalHandlerId>>,
         pub ws_sender: OnceCell<Sender<Option<WebsocketConnection>>>,
         pub notifier: OnceCell<Sender<bool>>,
@@ -129,11 +127,12 @@ impl WSObject {
                     info!("WebSocket connection success");
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
                     ws_object.start_pinging();
+                    ws_object.set_reconnecting_timer(10);
                 } else {
                     let timer = ws_object.reconnecting_timer();
                     error!("WebSocket connection failed. Starting reconnecting again in {} seconds", timer);
 
-                    if timer < 600 {
+                    if timer < 300 {
                         ws_object.set_reconnecting_timer((timer as f32 * 1.5) as u32);
                     }
                     timeout_add_seconds_local_once(timer, move || {
@@ -181,11 +180,11 @@ impl WSObject {
     }
 
     /// Calls the server to update necessary IDs
-    pub fn update_ids(&self, id: u64, client_id: u64) {
+    pub fn update_ids(&self, data: String) {
         info!("Sending info to update ids");
         self.ws_conn()
             .unwrap()
-            .send_text(&format!("/update-ids {} {}", id, client_id))
+            .send_text(&format!("/update-ids {}", data))
     }
 
     /// Calls the server to update the user image link
@@ -218,11 +217,11 @@ impl WSObject {
     }
 
     /// Connects to the WS to reconnect with previously server deleted user data
-    pub fn reconnect_user(&self, owner_id: u64, user_data: String) {
-        info!("Updating WS to reconnect old owner: {}", owner_id);
+    pub fn reconnect_user(&self, id_data: String) {
+        info!("Updating WS to reconnect old owner: {}", id_data);
         self.ws_conn()
             .unwrap()
-            .send_text(&format!("/reconnect-user {} {user_data}", owner_id))
+            .send_text(&format!("/reconnect-user {}", id_data))
     }
 
     /// Saves the signal ID of the Websocket Message Signal
