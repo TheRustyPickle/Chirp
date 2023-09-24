@@ -1,15 +1,18 @@
+mod db;
+mod server;
+mod session;
+
 use actix::*;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
 use actix_web_actors::ws;
+use dotenvy::dotenv;
 use rustls::{Certificate, PrivateKey, ServerConfig};
 use rustls_pemfile::{certs, pkcs8_private_keys};
+use server::ChatServer;
 use std::fs::File;
 use std::io::BufReader;
 use std::time::Instant;
 use tracing::error;
-
-mod server;
-mod session;
 
 async fn chat_route(
     req: HttpRequest,
@@ -58,7 +61,9 @@ fn load_rustls_config() -> ServerConfig {
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
     tracing_subscriber::fmt::init();
-    let server = server::ChatServer::new().start();
+    dotenv().ok();
+
+    let server = ChatServer::new().start();
     let config = load_rustls_config();
 
     HttpServer::new(move || {

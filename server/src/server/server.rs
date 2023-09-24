@@ -43,65 +43,6 @@ pub struct CommunicateUser {
     pub comm_type: CommunicationType,
 }
 
-pub enum CommunicationType {
-    SendUserData,
-    CreateNewUser,
-    UpdateUserIDs,
-    UpdateName,
-    UpdateImageLink,
-    ReconnectUser,
-}
-
-/// Used for sending or relevant data to create an UserObject
-/// An optional message field to pass messages along with the user data
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct UserData {
-    id: usize,
-    pub name: String,
-    pub image_link: Option<String>,
-    pub message: Option<String>,
-}
-
-impl UserData {
-    pub fn new(data: String) -> Self {
-        serde_json::from_str(&data).unwrap()
-    }
-
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
-
-    pub fn add_message(self, message: &str) -> Self {
-        UserData {
-            id: self.id,
-            name: self.name,
-            image_link: self.image_link,
-            message: Some(message.to_string()),
-        }
-    }
-
-    pub fn update_id(self, id: usize) -> Self {
-        UserData {
-            id,
-            name: self.name,
-            image_link: self.image_link,
-            message: None,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq)]
-pub struct WSData {
-    pub user_id: usize,
-    pub ws_id: usize,
-}
-
-impl WSData {
-    pub fn new(user_id: usize, ws_id: usize) -> Self {
-        WSData { user_id, ws_id }
-    }
-}
-
 impl Actor for ChatServer {
     type Context = Context<Self>;
 }
@@ -110,9 +51,13 @@ impl Handler<Connect> for ChatServer {
     type Result = usize;
 
     fn handle(&mut self, msg: Connect, _: &mut Context<Self>) -> Self::Result {
-        let id = self.rng.gen::<usize>();
-        self.sessions.insert(id, (0, msg.addr));
-        self.send_session_id(id);
+        let mut id = self.rng.gen::<u32>() as usize;
+
+        while self.sessions.contains_key(&id) {
+            id = self.rng.gen::<u32>() as usize;
+        }
+        let id_data = IDInfo::new();
+        self.sessions.insert(id, (id_data, msg.addr));
         id
     }
 }
@@ -121,9 +66,18 @@ impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        info!("WS Session {} disconnected", msg.id);
-        // TODO remove user details from user_data and sessions
-        // Needs to save each sessions owner/client id perhaps?
+        let id_data = &self.sessions.get(&msg.id).unwrap().0;
+        info!(
+            "WS Session {} disconnected. Removing session data related to user {}",
+            msg.id, id_data.user_id
+        );
+
+        if let Some(sessions) = self.user_session.get_mut(&id_data.owner_id) {
+            sessions.retain(|i| i.ws_id != msg.id);
+            if self.user_session[&id_data.owner_id].is_empty() {
+                self.user_session.remove(&id_data.owner_id);
+            }
+        }
         self.sessions.remove(&msg.id);
     }
 }
@@ -146,21 +100,55 @@ impl Handler<CommunicateUser> for ChatServer {
             }
             CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.user_data),
             CommunicationType::UpdateUserIDs => {
-                let data: Vec<&str> = msg.user_data.split(' ').collect();
-                self.update_ids(
-                    msg.ws_id,
-                    data[0].parse().unwrap(),
-                    data[1].parse().unwrap(),
-                );
+                let id_data = IDInfo::new_from_json(msg.user_data);
+                self.update_ids(msg.ws_id, id_data);
             }
-            CommunicationType::UpdateName => self.update_user_name(msg.ws_id, msg.user_data),
-            CommunicationType::UpdateImageLink => {
-                self.update_user_image_link(msg.ws_id, msg.user_data)
-            }
+            CommunicationType::UpdateName => self.user_name_update(msg.ws_id, &msg.user_data),
+            CommunicationType::UpdateImageLink => self.image_link_update(msg.ws_id, &msg.user_data),
             CommunicationType::ReconnectUser => {
-                let data: Vec<&str> = msg.user_data.splitn(2, ' ').collect();
-                self.reconnect_user(msg.ws_id, data[0].parse().unwrap(), data[1].to_string());
+                let id_data = IDInfo::new_from_json(msg.user_data);
+                self.reconnect_user(msg.ws_id, id_data);
             }
         }
+    }
+}
+
+pub enum CommunicationType {
+    SendUserData,
+    CreateNewUser,
+    UpdateUserIDs,
+    UpdateName,
+    UpdateImageLink,
+    ReconnectUser,
+}
+
+#[derive(PartialEq)]
+pub struct WSData {
+    pub user_id: usize,
+    pub ws_id: usize,
+}
+
+impl WSData {
+    pub fn new(user_id: usize, ws_id: usize) -> Self {
+        WSData { user_id, ws_id }
+    }
+}
+
+#[derive(Deserialize)]
+pub struct IDInfo {
+    pub owner_id: usize,
+    pub user_id: usize,
+}
+
+impl IDInfo {
+    pub fn new() -> Self {
+        IDInfo {
+            owner_id: 0,
+            user_id: 0,
+        }
+    }
+
+    pub fn new_from_json(data: String) -> Self {
+        serde_json::from_str(&data).unwrap()
     }
 }

@@ -1,7 +1,6 @@
-use std::time::{Duration, Instant};
-
 use actix::prelude::*;
 use actix_web_actors::ws;
+use std::time::{Duration, Instant};
 use tracing::info;
 
 use crate::server::{
