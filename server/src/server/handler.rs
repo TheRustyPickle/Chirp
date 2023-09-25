@@ -36,6 +36,7 @@ impl ChatServer {
         }
     }
 
+    /// Send a message to another WS session
     pub fn send_message(&mut self, message: &str, from_user: usize, to_user: usize) {
         info!("Sending message from {} to {}", from_user, to_user);
         if let Some(receiver_ws_data) = self.user_session.get(&to_user) {
@@ -49,6 +50,7 @@ impl ChatServer {
                             .1
                             .do_send(Message(format!("/message {}", message)))
                     }
+                    break;
                 }
             }
 
@@ -66,6 +68,7 @@ impl ChatServer {
                                 .1
                                 .do_send(Message(format!("/new-user-message {}", user_data)))
                         }
+                        break;
                     }
                 }
             }
@@ -74,7 +77,7 @@ impl ChatServer {
         }
     }
 
-    /// Creates and saves a new user
+    /// Creates, saves and broadcasts the new user to the relevant session
     pub fn create_new_user(&mut self, ws_id: usize, other_data: String) {
         let mut user_id = self.rng.gen_range(1..=2_147_483_647) as usize;
 
@@ -94,6 +97,7 @@ impl ChatServer {
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (id_info, receiver_ws) = entry;
             id_info.user_id = user_id;
+            id_info.owner_id = user_id;
             receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
         }
 
@@ -105,11 +109,11 @@ impl ChatServer {
             .push(ws_data);
     }
 
-    /// Allocates necessary data to communicate with a previously deleted user
+    /// Reconnect with an existing user and save necessary session information
     // TODO further verification here to ensure it's the correct user
     pub fn reconnect_user(&mut self, ws_id: usize, id_data: IDInfo) {
         let user_id = id_data.user_id;
-
+        let owner_id = id_data.owner_id;
         info!("Reconnecting with user with id {} on ws {ws_id}", user_id);
 
         if get_user_with_id(&mut self.conn, user_id).is_some() {
@@ -121,7 +125,7 @@ impl ChatServer {
             let ws_data = WSData::new(user_id, ws_id);
 
             self.user_session
-                .entry(user_id)
+                .entry(owner_id)
                 .or_insert(Vec::new())
                 .push(ws_data);
         } else {
@@ -129,7 +133,7 @@ impl ChatServer {
         }
     }
 
-    /// Sends user profile data to the client
+    /// Sends a user profile data to a client
     pub fn send_user_data(&mut self, ws_id: usize, id: usize) {
         info!("Sending user data of with id {}", id);
         if let Some(user_data) = get_user_with_id(&mut self.conn, id) {
@@ -159,7 +163,7 @@ impl ChatServer {
         }
     }
 
-    /// Updates user name
+    /// Updates user name of a user
     pub fn user_name_update(&mut self, ws_id: usize, new_name: &str) {
         let user_id = self.sessions[&ws_id].0.user_id;
         info!("Updating name of user {} to {new_name}", user_id);

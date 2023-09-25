@@ -49,7 +49,8 @@ use gdk_pixbuf::InterpType;
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
-    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
+    clone, closure_local, timeout_add_seconds_local_once, Bytes, ControlFlow, MainContext, Object,
+    Priority, Receiver, Sender,
 };
 use gtk::{gdk, glib, Image};
 use serde::{Deserialize, Serialize};
@@ -105,9 +106,15 @@ impl UserObject {
                 user_object.add_to_queue(RequestType::ReconnectUser);
 
                 // TODO add a function to add using vector
-                for old in old_queue {
-                    user_object.add_to_queue(old);
-                }
+                // 2 second wait time so the reconnection can happen before older requests can be processed
+                timeout_add_seconds_local_once(
+                    2,
+                    clone!(@weak user_object => move || {
+                        for old in old_queue {
+                            user_object.add_to_queue(old);
+                        }
+                    }),
+                );
             }),
         );
         obj
@@ -324,15 +331,15 @@ impl FullUserData {
 
 #[derive(Serialize)]
 pub struct UserIDs {
-    pub user_id: u64,
     pub owner_id: u64,
+    pub user_id: u64,
 }
 
 impl UserIDs {
     fn new_json(user_object: &UserObject) -> String {
         let id_data = UserIDs {
-            user_id: user_object.user_id(),
             owner_id: user_object.owner_id(),
+            user_id: user_object.user_id(),
         };
         serde_json::to_string(&id_data).unwrap()
     }
