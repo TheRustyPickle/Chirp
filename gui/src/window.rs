@@ -2,8 +2,8 @@ mod imp {
     use adw::subclass::prelude::*;
     use adw::ApplicationWindow;
     use gio::ListStore;
-    use glib::object_subclass;
     use glib::subclass::InitializingObject;
+    use glib::{object_subclass, Binding};
     use gtk::{gio, glib, Button, CompositeTemplate, ListBox, ScrolledWindow, Stack, TextView};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
@@ -33,6 +33,7 @@ mod imp {
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
         pub last_selected_user: Cell<i32>,
+        pub bindings: RefCell<Vec<Binding>>,
     }
 
     #[object_subclass]
@@ -122,6 +123,7 @@ impl Window {
 
                 window.imp().last_selected_user.set(index);
                 window.set_chatting_with(selected_chat);
+                window.remove_last_binding();
                 window.bind();
             }));
 
@@ -173,12 +175,19 @@ impl Window {
     }
 
     fn bind(&self) {
+        let mut bindings = self.imp().bindings.borrow_mut();
         let chatting_with = self.get_chatting_with();
-        chatting_with
+        let title_binding = chatting_with
             .bind_property("name", self, "title")
             .transform_to(|_, name: String| Some(format!("Chirp - {}", name)))
             .sync_create()
             .build();
+        bindings.push(title_binding);
+    }
+
+    fn remove_last_binding(&self) {
+        let last_binding = self.imp().bindings.borrow_mut().pop().unwrap();
+        last_binding.unbind();
     }
 
     fn setup_users(&self) {
