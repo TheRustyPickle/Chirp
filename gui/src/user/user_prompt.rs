@@ -44,8 +44,9 @@ use gtk::{
 };
 use tracing::info;
 
-use crate::user::{RequestType, UserObject, UserProfile};
+use crate::user::{UserObject, UserProfile};
 use crate::window;
+use crate::ws::RequestType;
 
 wrapper! {
     pub struct UserPrompt(ObjectSubclass<imp::UserPrompt>)

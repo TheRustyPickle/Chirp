@@ -96,36 +96,35 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                     match v[0] {
                         "/create-new-user" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::CreateNewUser,
                         }),
                         "/reconnect-user" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::ReconnectUser,
                         }),
                         "/get-user-data" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::SendUserData,
                         }),
                         "/update-ids" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
                         }),
-                        "/message" => {
-                            let client_message = ClientMessage::new(v[1]);
-                            self.addr.do_send(client_message)
-                        }
+                        "/message" => self.addr.do_send(ClientMessage {
+                            message: v[1].to_string(),
+                        }),
                         "/name-updated" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateName,
                         }),
                         "/image-updated" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,
-                            user_data: v[1].to_string(),
+                            data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateImageLink,
                         }),
 

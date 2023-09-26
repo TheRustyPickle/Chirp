@@ -1,6 +1,7 @@
 mod db;
 mod server;
 mod session;
+mod utils;
 
 use actix::*;
 use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer};
