@@ -7,9 +7,9 @@ mod imp {
     use gtk::{gdk, glib};
     use std::cell::{Cell, OnceCell, RefCell};
 
+    use super::UserData;
+    use crate::ws::RequestType;
     use crate::ws::WSObject;
-
-    use super::{RequestType, UserData};
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::UserObject)]
@@ -31,6 +31,8 @@ mod imp {
         pub request_processing: Cell<bool>,
         #[property(get, set)]
         pub owner_id: Cell<u64>,
+        #[property(get, set)]
+        pub user_token: OnceCell<String>,
     }
 
     #[object_subclass]
@@ -53,13 +55,14 @@ use glib::{
     Priority, Receiver, Sender,
 };
 use gtk::{gdk, glib, Image};
-use serde::{Deserialize, Serialize};
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
-use crate::ws::WSObject;
+use crate::ws::{
+    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject,
+};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -185,7 +188,7 @@ impl UserObject {
         let mut highest_index = 0;
         for task in queue_list.iter() {
             if user_ws.ws_conn().is_some() {
-                info!("starting processing {task:?}");
+                debug!("starting processing {task:?}");
                 match task {
                     RequestType::ReconnectUser => {
                         let id_data = UserIDs::new_json(self);
@@ -199,12 +202,21 @@ impl UserObject {
                         let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage(msg) => {
-                        user_ws.send_text_message(&msg.convert_to_json())
+                    // Already using MessageData -> String
+                    RequestType::SendMessage(msg) => user_ws.send_text_message(&msg),
+
+                    RequestType::ImageUpdated(link) => {
+                        let image_data = ImageUpdate::new_json(link.to_string(), self.user_token());
+                        user_ws.image_link_updated(&image_data);
                     }
-                    RequestType::ImageUpdated(link) => user_ws.image_link_updated(link),
-                    RequestType::NameUpdated(name) => user_ws.name_updated(name),
-                    RequestType::GetUserData(id) => user_ws.get_user_data(id),
+                    RequestType::NameUpdated(name) => {
+                        let name_data = NameUpdate::new_json(name.to_string(), self.user_token());
+                        user_ws.name_updated(&name_data)
+                    }
+                    RequestType::GetUserData(id) => {
+                        let user_data = GetUserData::new_json(id.to_owned(), self.user_token());
+                        user_ws.get_user_data(&user_data)
+                    }
                 }
                 highest_index += 1;
             } else {
@@ -270,14 +282,16 @@ impl UserObject {
             clone!(@weak self as user_object => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
                 let text = String::from_utf8(byte_slice).unwrap();
-                info!("{} Received from WS: {text}", user_object.name());
+                debug!("{} Received from WS: {text}", user_object.name());
 
                 if text.starts_with('/') {
+                    //info!("Current UserToken for {} is {}. Owner ID {}", user_object.user_id(), user_object.user_token(), user_object.owner_id());
                     let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
                     match splitted_data[0] {
                         "/update-user-id" => {
-                            let id: u64 = splitted_data[1].parse().unwrap();
-                            user_object.set_user_id(id);
+                            let id_data = UserIDs::from_json(splitted_data[1]);
+                            user_object.set_user_id(id_data.user_id);
+                            user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
                         }
                         "/image-updated" => {
@@ -304,75 +318,4 @@ pub struct UserData {
     pub big_image: Option<Paintable>,
     pub small_image: Option<Paintable>,
     pub image_link: Option<String>,
-}
-
-/// Used for sending or relevant data to create an UserObject
-/// An optional message field to pass messages along with the user data
-#[derive(Serialize, Deserialize)]
-pub struct FullUserData {
-    pub user_id: u64,
-    pub user_name: String,
-    pub image_link: Option<String>,
-    #[serde(skip_serializing)]
-    pub message: Option<String>,
-}
-
-impl FullUserData {
-    fn new_json(user_object: &UserObject) -> String {
-        let user_data = FullUserData {
-            user_id: user_object.user_id(),
-            user_name: user_object.name(),
-            image_link: user_object.image_link(),
-            message: None,
-        };
-        serde_json::to_string(&user_data).unwrap()
-    }
-}
-
-#[derive(Serialize)]
-pub struct UserIDs {
-    pub owner_id: u64,
-    pub user_id: u64,
-}
-
-impl UserIDs {
-    fn new_json(user_object: &UserObject) -> String {
-        let id_data = UserIDs {
-            owner_id: user_object.owner_id(),
-            user_id: user_object.user_id(),
-        };
-        serde_json::to_string(&id_data).unwrap()
-    }
-}
-
-/// Types of request that are processed by the GUI to WS currently
-#[derive(Debug, Clone)]
-pub enum RequestType {
-    CreateNewUser,
-    NameUpdated(String),
-    ImageUpdated(String),
-    ReconnectUser,
-    UpdateIDs,
-    SendMessage(SendMessageData),
-    GetUserData(u64),
-}
-
-#[derive(Debug, Serialize, Clone)]
-pub struct SendMessageData {
-    pub from_user: u64,
-    pub to_user: u64,
-    pub msg: String,
-}
-
-impl SendMessageData {
-    pub fn new(from_user: u64, to_user: u64, msg: String) -> Self {
-        SendMessageData {
-            msg,
-            from_user,
-            to_user,
-        }
-    }
-    fn convert_to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
 }

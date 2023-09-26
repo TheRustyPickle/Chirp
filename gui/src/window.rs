@@ -81,10 +81,9 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{
-    FullUserData, RequestType, SendMessageData, UserObject, UserProfile, UserPrompt, UserRow,
-};
+use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
+use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -284,12 +283,12 @@ impl Window {
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
-        self.get_chatting_from()
-            .add_to_queue(RequestType::SendMessage(SendMessageData::new(
-                sender.user_id(),
-                receiver.user_id(),
-                content.to_string(),
-            )));
+        sender.add_to_queue(RequestType::SendMessage(MessageData::new_json(
+            sender.user_id(),
+            receiver.user_id(),
+            content.to_string(),
+            sender.user_token(),
+        )));
 
         buffer.set_text("");
         let message = MessageObject::new(content, true, sender, receiver);
@@ -354,8 +353,8 @@ impl Window {
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
                     if user_object == chatting_from {
-                        let id = response_data[1].parse::<u64>().unwrap();
-                        chatting_from.set_owner_id(id);
+                        let id_data = UserIDs::from_json(response_data[1]);
+                        chatting_from.set_owner_id(id_data.user_id);
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
@@ -386,6 +385,11 @@ impl Window {
         let chatting_from = self.get_chatting_from();
         chatting_from
             .bind_property("user-id", &new_user_data, "owner-id")
+            .sync_create()
+            .build();
+
+        chatting_from
+            .bind_property("user-token", &new_user_data, "user-token")
             .sync_create()
             .build();
 
