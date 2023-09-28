@@ -4,7 +4,9 @@ mod imp {
     use gio::ListStore;
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, ScrolledWindow, Stack, TextView};
+    use gtk::{
+        gio, glib, Button, CompositeTemplate, Label, ListBox, ScrolledWindow, Stack, TextView,
+    };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
 
@@ -29,6 +31,8 @@ mod imp {
         pub my_profile: TemplateChild<Button>,
         #[template_child]
         pub new_chat: TemplateChild<Button>,
+        #[template_child]
+        pub placeholder: TemplateChild<Label>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -99,7 +103,6 @@ impl Window {
 
     fn setup_callbacks(&self) {
         let imp = self.imp();
-        imp.message_box.grab_focus();
         imp.stack.set_visible_child_name("main");
 
         imp.user_list
@@ -158,6 +161,11 @@ impl Window {
                 let char_count = buffer.char_count();
                 let should_be_enabled = char_count != 0;
                 window.imp().send_button.set_sensitive(should_be_enabled);
+                if should_be_enabled {
+                    window.imp().placeholder.set_visible(false);
+                } else {
+                    window.imp().placeholder.set_visible(true);
+                }
 
             }),
         );
@@ -171,6 +179,22 @@ impl Window {
         }));
 
         self.add_action(&button_action);
+    }
+
+    fn disable_buttons(&self) {
+        let chatting_from = self.get_chatting_from();
+        if chatting_from.imp().user_token.get().is_none() {
+            self.imp().new_chat.set_sensitive(false);
+            self.imp().message_box.set_sensitive(false);
+        } else {
+            self.grab_focus()
+        }
+    }
+
+    fn enable_buttons(&self) {
+        self.imp().new_chat.set_sensitive(true);
+        self.imp().message_box.set_sensitive(true);
+        self.grab_focus()
     }
 
     fn bind(&self) {
@@ -217,6 +241,7 @@ impl Window {
             self.get_user_list().select_row(Some(&row));
         }
         self.bind();
+        self.disable_buttons();
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -284,7 +309,6 @@ impl Window {
         let receiver = self.get_chatting_with();
 
         sender.add_to_queue(RequestType::SendMessage(MessageData::new_json(
-            sender.user_id(),
             receiver.user_id(),
             content.to_string(),
             sender.user_token(),
@@ -303,11 +327,6 @@ impl Window {
             content
         );
         let receiver = self.get_chatting_with();
-
-        if sender == self.get_chatting_from() {
-            info!("Both sender and receiver are the same. Stopping sending");
-            return;
-        }
 
         let message = MessageObject::new(content.to_string(), false, sender.clone(), receiver);
 
@@ -338,7 +357,7 @@ impl Window {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
             match response_data[0] {
                 "/get-user-data" | "/new-user-message" => {
-                    let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
+                    let user_data = FullUserData::from_json(response_data[1]);
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
                     user_row.imp().user_avatar.add_css_class("user-inactive");
@@ -355,6 +374,7 @@ impl Window {
                     if user_object == chatting_from {
                         let id_data = UserIDs::from_json(response_data[1]);
                         chatting_from.set_owner_id(id_data.user_id);
+                        window.enable_buttons();
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
