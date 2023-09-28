@@ -4,4 +4,4 @@ mod server;
 
 pub use handler::ChatServer;
 pub use models::*;
-pub use server::{ClientMessage, CommunicateUser, Connect, Disconnect, Message};
+pub use server::{CommunicateUser, Connect, Disconnect, Message};

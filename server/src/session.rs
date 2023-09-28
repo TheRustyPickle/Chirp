@@ -3,9 +3,7 @@ use actix_web_actors::ws;
 use std::time::{Duration, Instant};
 use tracing::info;
 
-use crate::server::{
-    ChatServer, ClientMessage, CommunicateUser, CommunicationType, Connect, Disconnect, Message,
-};
+use crate::server::{ChatServer, CommunicateUser, CommunicationType, Connect, Disconnect, Message};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
@@ -114,8 +112,10 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
                         }),
-                        "/message" => self.addr.do_send(ClientMessage {
-                            message: v[1].to_string(),
+                        "/message" => self.addr.do_send(CommunicateUser {
+                            ws_id: self.id,
+                            data: v[1].to_string(),
+                            comm_type: CommunicationType::SendMessage,
                         }),
                         "/name-updated" => self.addr.do_send(CommunicateUser {
                             ws_id: self.id,

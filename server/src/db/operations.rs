@@ -26,6 +26,21 @@ pub fn get_user_with_id(conn: &mut PgConnection, id: usize) -> Option<User> {
     }
 }
 
+pub fn get_user_with_token(conn: &mut PgConnection, token: String) -> Option<User> {
+    use crate::db::schema::users::dsl::*;
+
+    let result = users
+        .filter(user_token.eq(token))
+        .limit(1)
+        .select(User::as_select())
+        .first(conn);
+
+    match result {
+        Ok(user) => Some(user),
+        Err(_) => None,
+    }
+}
+
 pub fn update_user_name(conn: &mut PgConnection, id: usize, new_name: &str) {
     use crate::db::schema::users::dsl::*;
 

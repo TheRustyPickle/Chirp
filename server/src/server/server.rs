@@ -24,12 +24,6 @@ pub struct Disconnect {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct ClientMessage {
-    pub message: String,
-}
-
-#[derive(Message)]
-#[rtype(result = "()")]
 pub struct CommunicateUser {
     pub ws_id: usize,
     pub data: String,
@@ -75,20 +69,15 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-impl Handler<ClientMessage> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        let message_data = MessageData::new_from_json(&msg.message);
-        self.send_message(message_data);
-    }
-}
-
 impl Handler<CommunicateUser> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: CommunicateUser, _: &mut Context<Self>) {
         match msg.comm_type {
+            CommunicationType::SendMessage => {
+                let message_data = MessageData::new_from_json(&msg.data);
+                self.send_message(message_data);
+            }
             CommunicationType::SendUserData => {
                 let user_data = SendUserData::new_from_json(&msg.data);
                 self.send_user_data(msg.ws_id, user_data)
@@ -100,11 +89,11 @@ impl Handler<CommunicateUser> for ChatServer {
             }
             CommunicationType::UpdateName => {
                 let update_data = NameUpdate::new_from_json(&msg.data);
-                self.user_name_update(msg.ws_id, update_data)
+                self.user_name_update(update_data)
             }
             CommunicationType::UpdateImageLink => {
                 let update_data = ImageUpdate::new_from_json(&msg.data);
-                self.image_link_update(msg.ws_id, update_data)
+                self.image_link_update(update_data)
             }
             CommunicationType::ReconnectUser => {
                 let id_data = IDInfo::new_from_json(msg.data);

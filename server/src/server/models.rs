@@ -1,11 +1,20 @@
 use serde::{Deserialize, Serialize};
 
+/// The types of requests that the WS can process currently
 pub enum CommunicationType {
+    // Send a message to another user
+    SendMessage,
+    // Sends user data of a specific user to another user
     SendUserData,
+    // Create a new user
     CreateNewUser,
+    // Update some data to keep track of sessions
     UpdateUserIDs,
+    // Broadcast name updates to relevant sessions
     UpdateName,
+    // Broadcast image updates to relevant sessions
     UpdateImageLink,
+    // Reconnect with an existing user
     ReconnectUser,
 }
 
@@ -23,6 +32,7 @@ impl WSData {
 
 #[derive(Deserialize, Serialize, Clone)]
 pub struct IDInfo {
+    #[serde(skip_deserializing)]
     pub owner_id: usize,
     pub user_id: usize,
     pub user_token: String,
@@ -44,11 +54,14 @@ impl IDInfo {
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).unwrap()
     }
+
+    pub fn update_owner_id(&mut self, id: usize) {
+        self.owner_id = id;
+    }
 }
 
 #[derive(Deserialize)]
 pub struct MessageData {
-    pub from_user: usize,
     pub to_user: usize,
     pub message: String,
     pub user_token: String,
