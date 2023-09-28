@@ -1,39 +1,40 @@
-.entry-box>scrolledwindow>textview {
+/* Textview style taken from 
+https://github.com/paper-plane-developers/paper-plane */
+
+.message-entry {
+  background: @light_1;
+}
+
+.entry {
   background: #F5F5F5;
   border-radius: 15px;
-  padding-left: 5px;
-  transition:
-    border 0.4s ease-in-out,
-    border-color 0.4s ease-in-out;
+  
 }
 
-.entry-box>scrolledwindow>textview:focus {
-  border: 2px solid @accent_color;
+.message-entry>overlay>label {
+  margin: 0 9px;
 }
 
-.entry-box>scrolledwindow>textview:hover {
-  border: 2px solid @accent_color;
+.message-entry>overlay>entry>button {
+  background: inherit;
+  margin-bottom: 5px;
+  border: 0px solid;
+  border-radius: 50%;
+  padding: 0px;
 }
 
-.entry-box>button {
-  margin-left: 5px;
-}
-
-/* These two must not be touched
-magic style that keeps the textview from getting too large 
-taken from paper-plane*/
-.entry-box>scrolledwindow>scrollbar {
+.message-entry>overlay>entry>scrolledwindow>scrollbar {
   box-shadow: none;
   background: none;
 }
 
-.entry-box>scrolledwindow>scrollbar slider {
+.message-entry>overlay>entry>scrolledwindow>scrollbar slider {
   min-height: 0;
 }
 
-.entry-box {
-  background: @light_1;
-  padding: 5px;
+.message-entry>overlay>entry>scrolledwindow>textview {
+  background: none;
+  color: inherit;
 }
 
 .prompt-entry {

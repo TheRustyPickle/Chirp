@@ -88,22 +88,52 @@
                         </child>
                         <child>
                           <object class="GtkBox">
-                            <property name="css-classes">entry-box</property>
+                            <property name="css-classes">message-entry</property>
+                            <style>
+                              <class name="toolbar" />
+                            </style>
                             <child>
-                              <!-- textview is the box where messages are typed-->
-                              <object class="GtkScrolledWindow">
-                                <property name="propagate-natural-height">true</property>
-                                <property name="hscrollbar-policy">never</property>
-                                <property name="max-content-height">100</property>
-                                <property name="child">
-                                  <object class="GtkTextView" id="message_box">
-                                    <property name="hexpand">True</property>
-                                    <property name="wrap-mode">word-char</property>
-                                    <property name="valign">center</property>
-                                    <property name="top-margin">6</property>
-                                    <property name="bottom-margin">6</property>
+                              <object class="GtkOverlay">
+                                <child type="overlay">
+                                  <object class="GtkLabel" id="placeholder">
+                                    <property name="label">Enter your message...</property>
+                                    <property name="can-target">false</property>
+                                    <property name="xalign">0.0</property>
+                                    <style>
+                                      <class name="dim-label" />
+                                    </style>
                                   </object>
-                                </property>
+                                </child>
+                                <child>
+                                  <object class="GtkBox">
+                                    <property name="css-classes">entry</property>
+                                    <property name="css-name">entry</property>
+                                    <child>
+                                      <object class="GtkScrolledWindow">
+                                        <property name="propagate-natural-height">true</property>
+                                        <property name="hscrollbar-policy">never</property>
+                                        <property name="max-content-height">150</property>
+                                        <property name="hexpand">True</property>
+                                        <property name="child">
+                                          <object class="GtkTextView" id="message_box">
+                                            <property name="wrap-mode">word-char</property>
+                                            <property name="valign">center</property>
+                                            <property name="top-margin">3</property>
+                                            <property name="bottom-margin">3</property>
+                                            <property name="margin-top">3</property>
+                                            <property name="margin-bottom">3</property>
+                                          </object>
+                                        </property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton">
+                                        <property name="icon-name">emoji-people-symbolic</property>
+                                        <property name="valign">end</property>
+                                      </object>
+                                    </child>
+                                  </object>                                  
+                                </child>
                               </object>
                             </child>
                             <child>

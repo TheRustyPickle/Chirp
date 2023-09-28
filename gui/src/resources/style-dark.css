@@ -1,10 +1,15 @@
-.entry-box>scrolledwindow>textview {
+.message-entry > overlay > entry > scrolledwindow > textview {
+  background: none;
+  color: inherit;
+}
+
+.entry {
   background: #2E2E2E;
   border-radius: 15px;
-  padding-left: 5px;
-  transition:
-    border 0.4s ease-in-out,
-    border-color 0.4s ease-in-out;
+}
+
+.message-entry {
+  background: #1E1E1E;
 }
 
 .entry-box {
