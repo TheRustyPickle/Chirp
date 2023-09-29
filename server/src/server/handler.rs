@@ -8,9 +8,11 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_user, get_user_with_id, update_user_image_link, update_user_name, User,
+    create_new_user, get_user_with_id, get_user_with_token, update_user_image_link,
+    update_user_name, User,
 };
-use crate::server::{IDInfo, Message, WSData};
+use crate::server::{IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, WSData};
+use crate::utils::generate_user_token;
 
 pub struct ChatServer {
     pub sessions: HashMap<usize, (IDInfo, Recipient<Message>)>,
@@ -37,12 +39,29 @@ impl ChatServer {
     }
 
     /// Send a message to another WS session
-    pub fn send_message(&mut self, message: &str, from_user: usize, to_user: usize) {
-        info!("Sending message from {} to {}", from_user, to_user);
-        if let Some(receiver_ws_data) = self.user_session.get(&to_user) {
-            let mut conn_found = false;
+    pub fn send_message(&mut self, message_data: MessageData) {
+        let from_user_id;
+
+        if let Some(from_user) = get_user_with_token(&mut self.conn, message_data.user_token) {
+            from_user_id = from_user.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let message = message_data.message;
+        let to_user_id = message_data.to_user;
+        let mut conn_found = false;
+
+        if from_user_id == to_user_id {
+            info!("From and to users are the same. Stopping sending.");
+            return;
+        }
+
+        info!("Sending message from {} to {}", from_user_id, to_user_id);
+        if let Some(receiver_ws_data) = self.user_session.get(&to_user_id) {
             for i in receiver_ws_data {
-                if i.user_id == from_user {
+                if i.user_id == from_user_id {
                     conn_found = true;
                     let ws_id = i.ws_id;
                     if let Some(receiver_data) = self.sessions.get(&ws_id) {
@@ -57,11 +76,12 @@ impl ChatServer {
             if !conn_found {
                 info!("Client session exists but the user was not added. Sending request to add the user");
                 for i in receiver_ws_data {
-                    if i.user_id == to_user {
+                    if i.user_id == to_user_id {
                         let ws_id = i.ws_id;
                         if let Some(receiver_data) = self.sessions.get(&ws_id) {
-                            let user_data = get_user_with_id(&mut self.conn, from_user)
+                            let user_data = get_user_with_id(&mut self.conn, from_user_id)
                                 .unwrap()
+                                .update_token(String::new())
                                 .to_json_with_message(message.to_string());
 
                             receiver_data
@@ -73,13 +93,14 @@ impl ChatServer {
                 }
             }
         } else {
-            info!("No active session id found with the user ID {to_user}");
+            info!("No active session id found with the User ID {to_user_id}");
         }
     }
 
     /// Creates, saves and broadcasts the new user to the relevant session
     pub fn create_new_user(&mut self, ws_id: usize, other_data: String) {
         let mut user_id = self.rng.gen_range(1..=2_147_483_647) as usize;
+        let user_token = generate_user_token();
 
         while get_user_with_id(&mut self.conn, user_id).is_some() {
             info!("Generated user ID already exist. Creating a new ID");
@@ -87,18 +108,26 @@ impl ChatServer {
         }
 
         info!(
-            "Creating new user on ws_id {} with user id {user_id}",
+            "Creating new user on WS ID {} with User ID {user_id}.",
             ws_id
         );
 
-        let user_data = User::new(other_data).update_id(user_id);
+        let user_data = User::new(other_data)
+            .update_id(user_id)
+            .update_token(user_token.to_owned());
+
         create_new_user(&mut self.conn, user_data);
+
+        let id_data = IDInfo {
+            user_id: user_id,
+            owner_id: user_id,
+            user_token: user_token,
+        };
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (id_info, receiver_ws) = entry;
-            id_info.user_id = user_id;
-            id_info.owner_id = user_id;
-            receiver_ws.do_send(Message(format!("/update-user-id {}", user_id)))
+            *id_info = id_data.clone();
+            receiver_ws.do_send(Message(format!("/update-user-id {}", id_data.to_json())))
         }
 
         let ws_data = WSData::new(user_id, ws_id);
@@ -110,11 +139,20 @@ impl ChatServer {
     }
 
     /// Reconnect with an existing user and save necessary session information
-    // TODO further verification here to ensure it's the correct user
-    pub fn reconnect_user(&mut self, ws_id: usize, id_data: IDInfo) {
+    pub fn reconnect_user(&mut self, ws_id: usize, mut id_data: IDInfo) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token.clone()) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
         let user_id = id_data.user_id;
-        let owner_id = id_data.owner_id;
-        info!("Reconnecting with user with id {} on ws {ws_id}", user_id);
+        id_data.update_owner_id(owner_id);
+
+        info!("Reconnecting with User ID {} on WS ID {ws_id}.", user_id);
 
         if get_user_with_id(&mut self.conn, user_id).is_some() {
             if let Some(entry) = self.sessions.get_mut(&ws_id) {
@@ -134,10 +172,17 @@ impl ChatServer {
     }
 
     /// Sends a user profile data to a client
-    pub fn send_user_data(&mut self, ws_id: usize, id: usize) {
+    pub fn send_user_data(&mut self, ws_id: usize, user_data: SendUserData) {
+        if let None = get_user_with_token(&mut self.conn, user_data.user_token) {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let id = user_data.user_id;
+
         info!("Sending user data of with id {}", id);
         if let Some(user_data) = get_user_with_id(&mut self.conn, id) {
-            let user_data = user_data.to_json();
+            let user_data = user_data.update_token(String::new()).to_json();
             if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
                 receiver_ws.do_send(Message(format!("/get-user-data {}", user_data)))
             };
@@ -145,9 +190,18 @@ impl ChatServer {
     }
 
     /// Used to keep track of active user ws connections
-    pub fn update_ids(&mut self, ws_id: usize, id_data: IDInfo) {
+    pub fn update_ids(&mut self, ws_id: usize, mut id_data: IDInfo) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token.clone()) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
         let user_id = id_data.user_id;
-        let owner_id = id_data.owner_id;
+        id_data.update_owner_id(owner_id);
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (id_info, _) = entry;
@@ -164,8 +218,18 @@ impl ChatServer {
     }
 
     /// Updates user name of a user
-    pub fn user_name_update(&mut self, ws_id: usize, new_name: &str) {
-        let user_id = self.sessions[&ws_id].0.user_id;
+    pub fn user_name_update(&mut self, update_data: NameUpdate) {
+        let user_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, update_data.user_token) {
+            user_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let new_name = update_data.new_name;
+
         info!("Updating name of user {} to {new_name}", user_id);
 
         update_user_name(&mut self.conn, user_id, &new_name);
@@ -186,11 +250,21 @@ impl ChatServer {
     }
 
     /// Updates image link of a user
-    pub fn image_link_update(&mut self, ws_id: usize, new_link: &str) {
-        let user_id = self.sessions[&ws_id].0.user_id;
+    pub fn image_link_update(&mut self, update_data: ImageUpdate) {
+        let user_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, update_data.user_token) {
+            user_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let new_link = update_data.image_link;
+
         info!("Updating image link of user {} to {new_link}", user_id);
 
-        update_user_image_link(&mut self.conn, user_id, new_link);
+        update_user_image_link(&mut self.conn, user_id, &new_link);
 
         // broadcast the image update update to every active session that has added this user id
         for (id, session_data) in self.user_session.iter() {

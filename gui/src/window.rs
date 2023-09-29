@@ -4,7 +4,10 @@ mod imp {
     use gio::ListStore;
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{gio, glib, Button, CompositeTemplate, ListBox, ScrolledWindow, Stack, TextView};
+    use gtk::{
+        gio, glib, Button, CompositeTemplate, Label, ListBox, Revealer, ScrolledWindow, Stack,
+        TextView,
+    };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
 
@@ -16,7 +19,7 @@ mod imp {
         #[template_child]
         pub message_scroller: TemplateChild<ScrolledWindow>,
         #[template_child]
-        pub message_box: TemplateChild<TextView>,
+        pub message_entry: TemplateChild<TextView>,
         #[template_child]
         pub message_list: TemplateChild<ListBox>,
         #[template_child]
@@ -29,6 +32,10 @@ mod imp {
         pub my_profile: TemplateChild<Button>,
         #[template_child]
         pub new_chat: TemplateChild<Button>,
+        #[template_child]
+        pub placeholder: TemplateChild<Label>,
+        #[template_child]
+        pub entry_revealer: TemplateChild<Revealer>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -81,10 +88,9 @@ use gtk::{
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
-use crate::user::{
-    FullUserData, RequestType, SendMessageData, UserObject, UserProfile, UserPrompt, UserRow,
-};
+use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
+use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -100,7 +106,6 @@ impl Window {
 
     fn setup_callbacks(&self) {
         let imp = self.imp();
-        imp.message_box.grab_focus();
         imp.stack.set_visible_child_name("main");
 
         imp.user_list
@@ -154,11 +159,16 @@ impl Window {
             vadjust.set_value(upper);
         }));
 
-        self.imp().message_box.get().buffer().connect_changed(
+        self.imp().message_entry.get().buffer().connect_changed(
             clone!(@weak self as window => move |buffer| {
                 let char_count = buffer.char_count();
                 let should_be_enabled = char_count != 0;
                 window.imp().send_button.set_sensitive(should_be_enabled);
+                if should_be_enabled {
+                    window.imp().placeholder.set_visible(false);
+                } else {
+                    window.imp().placeholder.set_visible(true);
+                }
 
             }),
         );
@@ -172,6 +182,20 @@ impl Window {
         }));
 
         self.add_action(&button_action);
+    }
+
+    fn remove_textview(&self) {
+        let chatting_from = self.get_chatting_from();
+        if chatting_from.imp().user_token.get().is_none() {
+            self.imp().entry_revealer.set_reveal_child(false);
+        } else {
+            self.grab_focus()
+        }
+    }
+
+    fn show_textview(&self) {
+        self.imp().entry_revealer.set_reveal_child(true);
+        self.grab_focus()
     }
 
     fn bind(&self) {
@@ -218,6 +242,7 @@ impl Window {
             self.get_user_list().select_row(Some(&row));
         }
         self.bind();
+        self.remove_textview();
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -268,7 +293,7 @@ impl Window {
     }
 
     fn send_message(&self) {
-        let buffer = self.imp().message_box.buffer();
+        let buffer = self.imp().message_entry.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .trim()
@@ -284,12 +309,11 @@ impl Window {
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
-        self.get_chatting_from()
-            .add_to_queue(RequestType::SendMessage(SendMessageData::new(
-                sender.user_id(),
-                receiver.user_id(),
-                content.to_string(),
-            )));
+        sender.add_to_queue(RequestType::SendMessage(MessageData::new_json(
+            receiver.user_id(),
+            content.to_string(),
+            sender.user_token(),
+        )));
 
         buffer.set_text("");
         let message = MessageObject::new(content, true, sender, receiver);
@@ -304,11 +328,6 @@ impl Window {
             content
         );
         let receiver = self.get_chatting_with();
-
-        if sender == self.get_chatting_from() {
-            info!("Both sender and receiver are the same. Stopping sending");
-            return;
-        }
 
         let message = MessageObject::new(content.to_string(), false, sender.clone(), receiver);
 
@@ -339,7 +358,7 @@ impl Window {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
             match response_data[0] {
                 "/get-user-data" | "/new-user-message" => {
-                    let user_data: FullUserData = serde_json::from_str(response_data[1]).unwrap();
+                    let user_data = FullUserData::from_json(response_data[1]);
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
                     user_row.imp().user_avatar.add_css_class("user-inactive");
@@ -354,8 +373,9 @@ impl Window {
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
                     if user_object == chatting_from {
-                        let id = response_data[1].parse::<u64>().unwrap();
-                        chatting_from.set_owner_id(id);
+                        let id_data = UserIDs::from_json(response_data[1]);
+                        chatting_from.set_owner_id(id_data.user_id);
+                        window.show_textview();
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
@@ -389,6 +409,11 @@ impl Window {
             .sync_create()
             .build();
 
+        chatting_from
+            .bind_property("user-token", &new_user_data, "user-token")
+            .sync_create()
+            .build();
+
         new_user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&new_user_data);
         new_user_data
@@ -403,7 +428,7 @@ impl Window {
     }
 
     fn grab_focus(&self) {
-        self.imp().message_box.grab_focus();
+        self.imp().message_entry.grab_focus();
     }
 
     fn remove_avatar_css(&self, index: i32, listbox: &ListBox) {

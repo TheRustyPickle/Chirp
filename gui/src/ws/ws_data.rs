@@ -154,7 +154,7 @@ impl WSObject {
 
     /// Sends a message
     pub fn send_text_message(&self, message: &str) {
-        info!("Sending message to ws: {message}");
+        info!("Sending request to WS to process message");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/message {}", message));
@@ -162,26 +162,26 @@ impl WSObject {
 
     /// Calls the server to create a new user with the given data
     pub fn create_new_user(&self, user_data: String) {
-        info!("Connecting to WS to create a new user");
+        info!("Sending request to WS to create a new user");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/create-new-user {}", user_data));
     }
 
     /// Calls the server to get profile data of a user
-    pub fn get_user_data(&self, id: &u64) {
+    pub fn get_user_data(&self, data: &str) {
         info!(
-            "Sending request for getting UserObject Data with id: {}",
-            id
+            "Sending request for getting UserObject Data with data {}",
+            data
         );
         self.ws_conn()
             .unwrap()
-            .send_text(&format!("/get-user-data {}", id))
+            .send_text(&format!("/get-user-data {}", data))
     }
 
     /// Calls the server to update necessary IDs
     pub fn update_ids(&self, data: String) {
-        info!("Sending info to update ids");
+        info!("Sending request to WS to update ids");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/update-ids {}", data))
@@ -189,7 +189,7 @@ impl WSObject {
 
     /// Calls the server to update the user image link
     pub fn image_link_updated(&self, link: &str) {
-        info!("Sending updated image link to the WS: {link}");
+        info!("Sending request to WS to update image link");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/image-updated {}", link))
@@ -197,7 +197,7 @@ impl WSObject {
 
     /// Calls the server to update the user name
     pub fn name_updated(&self, name: &str) {
-        info!("Sending updated name to the WS: {name}");
+        info!("Sending request to WS update name");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/name-updated {}", name))
@@ -218,7 +218,7 @@ impl WSObject {
 
     /// Connects to the WS to reconnect with previously server deleted user data
     pub fn reconnect_user(&self, id_data: String) {
-        info!("Updating WS to reconnect old owner: {}", id_data);
+        info!("Sending request to WS to reconnect");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/reconnect-user {}", id_data))

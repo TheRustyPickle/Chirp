@@ -6,5 +6,7 @@ diesel::table! {
         #[max_length = 250]
         user_name -> Varchar,
         image_link -> Nullable<Text>,
+        #[max_length = 70]
+        user_token -> Varchar,
     }
 }

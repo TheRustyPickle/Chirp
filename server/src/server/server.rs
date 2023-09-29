@@ -1,9 +1,10 @@
 use actix::prelude::*;
 use rand::Rng;
-use serde::{Deserialize, Serialize};
 use tracing::info;
 
-use crate::server::ChatServer;
+use crate::server::{
+    ChatServer, CommunicationType, IDInfo, ImageUpdate, MessageData, NameUpdate, SendUserData,
+};
 
 #[derive(Message)]
 #[rtype(result = "()")]
@@ -21,25 +22,11 @@ pub struct Disconnect {
     pub id: usize,
 }
 
-#[derive(Message, Deserialize, Serialize)]
-#[rtype(result = "()")]
-pub struct ClientMessage {
-    pub from_user: usize,
-    pub to_user: usize,
-    pub msg: String,
-}
-
-impl ClientMessage {
-    pub fn new(data: &str) -> Self {
-        serde_json::from_str(data).unwrap()
-    }
-}
-
 #[derive(Message)]
 #[rtype(result = "()")]
 pub struct CommunicateUser {
     pub ws_id: usize,
-    pub user_data: String,
+    pub data: String,
     pub comm_type: CommunicationType,
 }
 
@@ -82,73 +69,36 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-impl Handler<ClientMessage> for ChatServer {
-    type Result = ();
-
-    fn handle(&mut self, msg: ClientMessage, _: &mut Context<Self>) {
-        self.send_message(&msg.msg, msg.from_user, msg.to_user);
-    }
-}
-
 impl Handler<CommunicateUser> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: CommunicateUser, _: &mut Context<Self>) {
         match msg.comm_type {
-            CommunicationType::SendUserData => {
-                self.send_user_data(msg.ws_id, msg.user_data.parse().unwrap())
+            CommunicationType::SendMessage => {
+                let message_data = MessageData::new_from_json(&msg.data);
+                self.send_message(message_data);
             }
-            CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.user_data),
+            CommunicationType::SendUserData => {
+                let user_data = SendUserData::new_from_json(&msg.data);
+                self.send_user_data(msg.ws_id, user_data)
+            }
+            CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.data),
             CommunicationType::UpdateUserIDs => {
-                let id_data = IDInfo::new_from_json(msg.user_data);
+                let id_data = IDInfo::new_from_json(msg.data);
                 self.update_ids(msg.ws_id, id_data);
             }
-            CommunicationType::UpdateName => self.user_name_update(msg.ws_id, &msg.user_data),
-            CommunicationType::UpdateImageLink => self.image_link_update(msg.ws_id, &msg.user_data),
+            CommunicationType::UpdateName => {
+                let update_data = NameUpdate::new_from_json(&msg.data);
+                self.user_name_update(update_data)
+            }
+            CommunicationType::UpdateImageLink => {
+                let update_data = ImageUpdate::new_from_json(&msg.data);
+                self.image_link_update(update_data)
+            }
             CommunicationType::ReconnectUser => {
-                let id_data = IDInfo::new_from_json(msg.user_data);
+                let id_data = IDInfo::new_from_json(msg.data);
                 self.reconnect_user(msg.ws_id, id_data);
             }
         }
-    }
-}
-
-pub enum CommunicationType {
-    SendUserData,
-    CreateNewUser,
-    UpdateUserIDs,
-    UpdateName,
-    UpdateImageLink,
-    ReconnectUser,
-}
-
-#[derive(PartialEq)]
-pub struct WSData {
-    pub user_id: usize,
-    pub ws_id: usize,
-}
-
-impl WSData {
-    pub fn new(user_id: usize, ws_id: usize) -> Self {
-        WSData { user_id, ws_id }
-    }
-}
-
-#[derive(Deserialize)]
-pub struct IDInfo {
-    pub owner_id: usize,
-    pub user_id: usize,
-}
-
-impl IDInfo {
-    pub fn new() -> Self {
-        IDInfo {
-            owner_id: 0,
-            user_id: 0,
-        }
-    }
-
-    pub fn new_from_json(data: String) -> Self {
-        serde_json::from_str(&data).unwrap()
     }
 }

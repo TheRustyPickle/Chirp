@@ -1,7 +1,7 @@
 mod handler;
+mod models;
 mod server;
 
 pub use handler::ChatServer;
-pub use server::{
-    ClientMessage, CommunicateUser, CommunicationType, Connect, Disconnect, IDInfo, Message, WSData,
-};
+pub use models::*;
+pub use server::{CommunicateUser, Connect, Disconnect, Message};

@@ -12,6 +12,7 @@ pub struct User {
     pub user_id: i32,
     pub user_name: String,
     pub image_link: Option<String>,
+    pub user_token: String,
 }
 
 impl User {
@@ -24,6 +25,16 @@ impl User {
             user_id: id as i32,
             user_name: self.user_name,
             image_link: self.image_link,
+            user_token: self.user_token,
+        }
+    }
+
+    pub fn update_token(self, token: String) -> Self {
+        User {
+            user_id: self.user_id,
+            user_name: self.user_name,
+            image_link: self.image_link,
+            user_token: token,
         }
     }
 
