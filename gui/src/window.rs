@@ -5,7 +5,8 @@ mod imp {
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{
-        gio, glib, Button, CompositeTemplate, Label, ListBox, ScrolledWindow, Stack, TextView,
+        gio, glib, Button, CompositeTemplate, Label, ListBox, Revealer, ScrolledWindow, Stack,
+        TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
@@ -33,6 +34,8 @@ mod imp {
         pub new_chat: TemplateChild<Button>,
         #[template_child]
         pub placeholder: TemplateChild<Label>,
+        #[template_child]
+        pub entry_revealer: TemplateChild<Revealer>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -181,19 +184,17 @@ impl Window {
         self.add_action(&button_action);
     }
 
-    fn disable_buttons(&self) {
+    fn remove_textview(&self) {
         let chatting_from = self.get_chatting_from();
         if chatting_from.imp().user_token.get().is_none() {
-            self.imp().new_chat.set_sensitive(false);
-            self.imp().message_box.set_sensitive(false);
+            self.imp().entry_revealer.set_reveal_child(false);
         } else {
             self.grab_focus()
         }
     }
 
-    fn enable_buttons(&self) {
-        self.imp().new_chat.set_sensitive(true);
-        self.imp().message_box.set_sensitive(true);
+    fn show_textview(&self) {
+        self.imp().entry_revealer.set_reveal_child(true);
         self.grab_focus()
     }
 
@@ -241,7 +242,7 @@ impl Window {
             self.get_user_list().select_row(Some(&row));
         }
         self.bind();
-        self.disable_buttons();
+        self.remove_textview();
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -374,7 +375,7 @@ impl Window {
                     if user_object == chatting_from {
                         let id_data = UserIDs::from_json(response_data[1]);
                         chatting_from.set_owner_id(id_data.user_id);
-                        window.enable_buttons();
+                        window.show_textview();
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
