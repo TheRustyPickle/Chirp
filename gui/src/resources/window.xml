@@ -35,8 +35,13 @@
                     <!-- The own profile button -->
                     <child type="start">
                       <object class="GtkButton" id="my_profile">
-                        <property name="icon-name">preferences-desktop-personal</property>
-                        <property name="tooltip-text" translatable="yes">View Profile</property>
+                        <child>
+                          <object class="AdwButtonContent">
+                            <property name="icon-name">preferences-desktop-personal</property>
+                            <property name="tooltip-text" translatable="yes">View Profile</property>
+                            <property name="label">Profile</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                     <!-- The new chat button -->
@@ -111,7 +116,6 @@
                                     <child>
                                       <object class="GtkBox">
                                         <property name="css-classes">entry</property>
-                                        <property name="css-name">entry</property>
                                         <child>
                                           <!-- textview is the box where messages are typed-->
                                           <object class="GtkScrolledWindow">
@@ -120,13 +124,14 @@
                                             <property name="max-content-height">150</property>
                                             <property name="hexpand">True</property>
                                             <property name="child">
-                                              <object class="GtkTextView" id="message_box">
+                                              <object class="GtkTextView" id="message_entry">
                                                 <property name="wrap-mode">word-char</property>
                                                 <property name="valign">center</property>
                                                 <property name="top-margin">3</property>
                                                 <property name="bottom-margin">3</property>
                                                 <property name="margin-top">3</property>
                                                 <property name="margin-bottom">3</property>
+                                                <property name="left-margin">8</property>
                                               </object>
                                             </property>
                                           </object>

@@ -19,7 +19,7 @@ mod imp {
         #[template_child]
         pub message_scroller: TemplateChild<ScrolledWindow>,
         #[template_child]
-        pub message_box: TemplateChild<TextView>,
+        pub message_entry: TemplateChild<TextView>,
         #[template_child]
         pub message_list: TemplateChild<ListBox>,
         #[template_child]
@@ -159,7 +159,7 @@ impl Window {
             vadjust.set_value(upper);
         }));
 
-        self.imp().message_box.get().buffer().connect_changed(
+        self.imp().message_entry.get().buffer().connect_changed(
             clone!(@weak self as window => move |buffer| {
                 let char_count = buffer.char_count();
                 let should_be_enabled = char_count != 0;
@@ -293,7 +293,7 @@ impl Window {
     }
 
     fn send_message(&self) {
-        let buffer = self.imp().message_box.buffer();
+        let buffer = self.imp().message_entry.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
             .trim()
@@ -428,7 +428,7 @@ impl Window {
     }
 
     fn grab_focus(&self) {
-        self.imp().message_box.grab_focus();
+        self.imp().message_entry.grab_focus();
     }
 
     fn remove_avatar_css(&self, index: i32, listbox: &ListBox) {
