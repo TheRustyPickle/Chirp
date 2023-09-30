@@ -6,6 +6,7 @@ mod imp {
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::{gdk, glib};
     use std::cell::{Cell, OnceCell, RefCell};
+    use std::sync::Mutex;
 
     use super::UserData;
     use crate::ws::RequestType;
@@ -25,8 +26,7 @@ mod imp {
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
-        // TODO mutex + gio::spawn_blocking to prevent borrow_mut colliding?
-        pub request_queue: RefCell<Vec<RequestType>>,
+        pub request_queue: Mutex<RefCell<Vec<RequestType>>>,
         #[property(get, set)]
         pub request_processing: Cell<bool>,
         #[property(get, set)]
@@ -51,8 +51,7 @@ use gdk_pixbuf::InterpType;
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
-    clone, closure_local, timeout_add_seconds_local_once, Bytes, ControlFlow, MainContext, Object,
-    Priority, Receiver, Sender,
+    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
 };
 use gtk::{gdk, glib, Image};
 use tracing::{debug, info};
@@ -61,7 +60,8 @@ use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject,
+    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, SendMessageData, UserIDs,
+    WSObject,
 };
 
 glib::wrapper! {
@@ -95,29 +95,12 @@ impl UserObject {
         let user_object = obj.clone();
 
         // This signal gets emitted when the connection is once lost but reconnected again
-        // TODO use a separate signal to handle the reconnection
-        // then do another signal to resume queueing
         obj.user_ws().connect_closure(
             "ws-reconnect",
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
-                let old_queue = user_object.imp().request_queue.borrow().clone();
-                // As the server lost it's previous data, the reconnection must be done
-                // first before any other pending request can be processed.
-                // So reconnect -> process previous pending requests
-                user_object.imp().request_queue.replace(Vec::new());
-                user_object.add_to_queue(RequestType::ReconnectUser);
-
-                // TODO add a function to add using vector
-                // 2 second wait time so the reconnection can happen before older requests can be processed
-                timeout_add_seconds_local_once(
-                    2,
-                    clone!(@weak user_object => move || {
-                        for old in old_queue {
-                            user_object.add_to_queue(old);
-                        }
-                    }),
-                );
+                // Until reconnection success is received, all queue process is stopped
+                user_object.add_queue_to_first(RequestType::ReconnectUser);
             }),
         );
         obj
@@ -165,28 +148,41 @@ impl UserObject {
     /// Adds stuff to queue and start the process to process them
     pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
         {
-            let mut queue = self.imp().request_queue.borrow_mut();
+            let locked_queue = self.imp().request_queue.lock().unwrap();
+            let mut queue = locked_queue.borrow_mut();
             queue.push(request_type);
         }
 
         // The process must not start twice otherwise the same
         // request can get processed twice, creating disaster
         if !self.request_processing() {
-            self.process_queue();
+            self.process_queue(None);
         };
         self
     }
 
+    pub fn add_queue_to_first(&self, request_type: RequestType) {
+        {
+            let locked_queue = self.imp().request_queue.lock().unwrap();
+            let mut queue = locked_queue.borrow_mut();
+            queue.insert(0, request_type);
+        }
+
+        self.process_queue(Some(1));
+    }
+
     /// Processes queued stuff if ws conn is available
-    fn process_queue(&self) {
+    fn process_queue(&self, process_limit: Option<u8>) {
         self.set_request_processing(true);
 
         let user_ws = self.user_ws();
 
-        let queue_list = self.imp().request_queue.borrow().clone();
+        let queue_list = { self.imp().request_queue.lock().unwrap().borrow().clone() };
 
         let mut highest_index = 0;
-        for task in queue_list.iter() {
+        let mut connection_lost = false;
+
+        for task in queue_list {
             if user_ws.ws_conn().is_some() {
                 debug!("starting processing {task:?}");
                 match task {
@@ -202,9 +198,14 @@ impl UserObject {
                         let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
-                    // Already using MessageData -> String
-                    RequestType::SendMessage(msg) => user_ws.send_text_message(&msg),
-
+                    RequestType::SendMessage((send_to, message)) => {
+                        let data = SendMessageData::new_json(
+                            send_to.user_id(),
+                            message,
+                            self.user_token(),
+                        );
+                        user_ws.send_text_message(&data)
+                    }
                     RequestType::ImageUpdated(link) => {
                         let image_data = ImageUpdate::new_json(link.to_string(), self.user_token());
                         user_ws.image_link_updated(&image_data);
@@ -219,22 +220,35 @@ impl UserObject {
                     }
                 }
                 highest_index += 1;
+
+                if let Some(limit) = process_limit {
+                    if limit == highest_index {
+                        break;
+                    }
+                }
             } else {
                 info!("Connection lost. Stopping processing request");
+                connection_lost = true;
                 break;
             }
         }
 
         // Remove the processed requests
         {
-            let mut queue_list = self.imp().request_queue.borrow_mut();
+            let locked_queue = self.imp().request_queue.lock().unwrap();
+            let mut queue_list = locked_queue.borrow_mut();
             for _x in 0..highest_index {
                 queue_list.remove(0);
             }
         }
 
-        // TODO do not stop processing if the connection failed
-        self.set_request_processing(false);
+        // In case connection lost, this will prevent further queue processing
+        // If there is a process limit it means certain request must be processed
+        // right away. Such requests means after the processing is done, it will
+        // call process function again which will turn it into false
+        if !connection_lost && process_limit.is_none() {
+            self.set_request_processing(false);
+        }
     }
 
     pub fn set_new_name(&self, name: String) {
@@ -272,7 +286,7 @@ impl UserObject {
         let user_ws = self.user_ws();
         if !user_ws.is_reconnecting() {
             if self.user_id() == 0 {
-                self.add_to_queue(RequestType::CreateNewUser);
+                self.add_queue_to_first(RequestType::CreateNewUser);
             } else {
                 self.add_to_queue(RequestType::UpdateIDs);
             }
@@ -285,14 +299,21 @@ impl UserObject {
                 debug!("{} Received from WS: {text}", user_object.name());
 
                 if text.starts_with('/') {
-                    //info!("Current UserToken for {} is {}. Owner ID {}", user_object.user_id(), user_object.user_token(), user_object.owner_id());
                     let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
                     match splitted_data[0] {
-                        "/update-user-id" => {
+                        "/reconnect-success" => user_object.process_queue(None),
+                        "/update-user-id" => { 
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
+
+                            // This part earlier 
+                            // self.add_queue_to_first(RequestType::CreateNewUser);
+                            // ensured that the queue will stop processing requests
+                            // As we got the ID details now, this will ensure all queues are processed
+                            // And further processing is not blocked.
+                            user_object.process_queue(None);
                         }
                         "/image-updated" => {
                             user_object.set_image_link(splitted_data[1]);

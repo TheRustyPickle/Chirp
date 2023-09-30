@@ -17,7 +17,7 @@ pub enum RequestType {
     // Send my IDs to the WS
     UpdateIDs,
     // Send a message to another user
-    SendMessage(String),
+    SendMessage((UserObject, String)),
     // Ask the WS for a specific user info
     GetUserData(u64),
 }
@@ -79,15 +79,15 @@ impl UserIDs {
 }
 
 #[derive(Debug, Serialize, Clone)]
-pub struct MessageData {
+pub struct SendMessageData {
     pub to_user: u64,
     pub message: String,
     pub user_token: String,
 }
 
-impl MessageData {
+impl SendMessageData {
     pub fn new_json(to_user: u64, message: String, user_token: String) -> String {
-        let data = MessageData {
+        let data = SendMessageData {
             message,
             to_user,
             user_token,
