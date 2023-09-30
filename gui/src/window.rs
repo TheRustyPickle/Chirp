@@ -226,6 +226,7 @@ impl Window {
             .child(&user_row)
             .activatable(true)
             .selectable(false)
+            .can_focus(false)
             .build();
 
         self.get_user_list().append(&user_list_row);
@@ -331,6 +332,7 @@ impl Window {
             .child(&message_row)
             .selectable(false)
             .activatable(false)
+            .can_focus(false)
             .build()
     }
 
@@ -356,6 +358,7 @@ impl Window {
                         .child(&user_row)
                         .activatable(true)
                         .selectable(false)
+                        .can_focus(false)
                         .build();
                     window.get_user_list().append(&user_list_row);
                 }
