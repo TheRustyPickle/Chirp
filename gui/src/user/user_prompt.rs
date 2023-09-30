@@ -126,7 +126,7 @@ impl UserPrompt {
 
                 let over_lay = window.imp().toast_overlay.get();
                 let toast = Toast::builder()
-                    .title(&format!("Updating name to: {}", entry_data))
+                    .title(format!("Updating name to: {}", entry_data))
                     .timeout(1)
                     .build();
                 over_lay.add_toast(toast);

@@ -170,10 +170,7 @@ impl WSObject {
 
     /// Calls the server to get profile data of a user
     pub fn get_user_data(&self, data: &str) {
-        info!(
-            "Sending request for getting UserObject Data with data {}",
-            data
-        );
+        info!("Sending request for getting UserObject Data with data");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/get-user-data {}", data))
