@@ -69,7 +69,7 @@ pub struct MessageData {
 
 impl MessageData {
     pub fn new_from_json(data: &str) -> Self {
-        serde_json::from_str(&data).unwrap()
+        serde_json::from_str(data).unwrap()
     }
 }
 
@@ -81,7 +81,7 @@ pub struct SendUserData {
 
 impl SendUserData {
     pub fn new_from_json(data: &str) -> Self {
-        serde_json::from_str(&data).unwrap()
+        serde_json::from_str(data).unwrap()
     }
 }
 
@@ -93,7 +93,7 @@ pub struct NameUpdate {
 
 impl NameUpdate {
     pub fn new_from_json(data: &str) -> Self {
-        serde_json::from_str(&data).unwrap()
+        serde_json::from_str(data).unwrap()
     }
 }
 
@@ -105,6 +105,6 @@ pub struct ImageUpdate {
 
 impl ImageUpdate {
     pub fn new_from_json(data: &str) -> Self {
-        serde_json::from_str(&data).unwrap()
+        serde_json::from_str(data).unwrap()
     }
 }

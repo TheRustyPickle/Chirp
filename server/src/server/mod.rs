@@ -1,7 +1,7 @@
 mod handler;
 mod models;
-mod server;
+mod websocket;
 
 pub use handler::ChatServer;
 pub use models::*;
-pub use server::{CommunicateUser, Connect, Disconnect, Message};
+pub use websocket::{CommunicateUser, Connect, Disconnect, Message};

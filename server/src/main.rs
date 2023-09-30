@@ -52,7 +52,7 @@ fn load_rustls_config() -> ServerConfig {
         .collect();
 
     if keys.is_empty() {
-        error!("Could not locate PKC8 private keys.");
+        error!("Could not locate PKCS8 private keys.");
         std::process::exit(1);
     }
 

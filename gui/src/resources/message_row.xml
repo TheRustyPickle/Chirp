@@ -13,6 +13,7 @@
               <object class="GtkButton" id="receiver_avatar_button">
                 <property name="valign">end</property>
                 <property name="css-classes">avatar-button</property>
+                <property name="can-focus">false</property>
                 <child>
                   <object class="AdwAvatar" id="receiver">
                     <property name="css-classes">avatar</property>
@@ -72,6 +73,7 @@
               <object class="GtkButton" id="sender_avatar_button">
                 <property name="css-classes">avatar-button</property>
                 <property name="valign">end</property>
+                <property name="can-focus">false</property>
                 <child>
                   <object class="AdwAvatar" id="sender">
                     <property name="css-classes">avatar</property>

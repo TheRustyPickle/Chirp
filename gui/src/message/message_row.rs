@@ -85,6 +85,7 @@ impl MessageRow {
             let sender = row.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
             sender.set_visible(true);
+            row.imp().receiver_avatar_button.set_visible(false);
             row.imp().sent_by.set_xalign(1.0);
             row.imp().message.set_xalign(1.0);
             row.imp().message_content.add_css_class("message-row-sent");
@@ -94,6 +95,7 @@ impl MessageRow {
             let receiver = row.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
             receiver.set_visible(true);
+            row.imp().sender_avatar_button.set_visible(false);
             row.imp().sent_by.set_xalign(0.0);
             row.imp().message.set_xalign(0.0);
             row.imp()

@@ -192,7 +192,7 @@ impl UserProfile {
 
             let toast_overlay = window.imp().toast_overlay.get();
             let toast = Toast::builder()
-                .title(&format!("User ID has been copied to clipboard"))
+                .title("User ID has been copied to clipboard".to_string())
                 .timeout(1)
                 .build();
             toast_overlay.add_toast(toast);

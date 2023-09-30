@@ -33,7 +33,7 @@
                 <child type="top">
                   <object class="AdwHeaderBar">
                     <!-- The own profile button -->
-                    <child type="start">
+                    <child>
                       <object class="GtkButton" id="my_profile">
                         <child>
                           <object class="AdwButtonContent">
@@ -47,8 +47,13 @@
                     <!-- The new chat button -->
                     <child type="end">
                       <object class="GtkButton" id="new_chat">
-                        <property name="icon-name">list-add</property>
-                        <property name="tooltip-text" translatable="yes">Add New Chat</property>
+                        <child>
+                          <object class="AdwButtonContent">
+                            <property name="icon-name">list-add</property>
+                            <property name="tooltip-text" translatable="yes">Add New Chat</property>
+                            <property name="label">New</property>
+                          </object>
+                        </child>
                       </object>
                     </child>
                   </object>
@@ -103,7 +108,8 @@
                                 <child>
                                   <object class="GtkOverlay">
                                     <child type="overlay">
-                                      <!-- The background text of the textview when nothing is typed-->
+                                      <!-- The background text of the textview when nothing is
+                                      typed-->
                                       <object class="GtkLabel" id="placeholder">
                                         <property name="label">Enter your message...</property>
                                         <property name="can-target">false</property>
@@ -139,11 +145,12 @@
                                         <child>
                                           <!-- To be emoji button-->
                                           <object class="GtkButton">
+                                            <property name="css-classes">emoji</property>
                                             <property name="icon-name">emoji-people-symbolic</property>
                                             <property name="valign">end</property>
                                           </object>
                                         </child>
-                                      </object>                                  
+                                      </object>
                                     </child>
                                   </object>
                                 </child>

@@ -77,10 +77,12 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
+use std::time::Duration;
+
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
-use glib::{clone, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
     Native, Root, ShortcutManager, Widget,
@@ -90,7 +92,7 @@ use tracing::info;
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
-use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
+use crate::ws::{FullUserData, RequestType, UserIDs};
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -172,6 +174,11 @@ impl Window {
 
             }),
         );
+
+        let window = self.clone();
+        timeout_add_local_once(Duration::from_millis(500), move || {
+            window.imp().entry_revealer.set_reveal_child(true);
+        });
     }
 
     fn setup_actions(&self) {
@@ -182,20 +189,6 @@ impl Window {
         }));
 
         self.add_action(&button_action);
-    }
-
-    fn remove_textview(&self) {
-        let chatting_from = self.get_chatting_from();
-        if chatting_from.imp().user_token.get().is_none() {
-            self.imp().entry_revealer.set_reveal_child(false);
-        } else {
-            self.grab_focus()
-        }
-    }
-
-    fn show_textview(&self) {
-        self.imp().entry_revealer.set_reveal_child(true);
-        self.grab_focus()
     }
 
     fn bind(&self) {
@@ -233,6 +226,7 @@ impl Window {
             .child(&user_row)
             .activatable(true)
             .selectable(false)
+            .can_focus(false)
             .build();
 
         self.get_user_list().append(&user_list_row);
@@ -242,7 +236,6 @@ impl Window {
             self.get_user_list().select_row(Some(&row));
         }
         self.bind();
-        self.remove_textview();
     }
 
     fn get_chatting_with(&self) -> UserObject {
@@ -309,10 +302,9 @@ impl Window {
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
-        sender.add_to_queue(RequestType::SendMessage(MessageData::new_json(
-            receiver.user_id(),
+        sender.add_to_queue(RequestType::SendMessage((
+            receiver.clone(),
             content.to_string(),
-            sender.user_token(),
         )));
 
         buffer.set_text("");
@@ -336,12 +328,12 @@ impl Window {
 
     fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
         let message_row = MessageRow::new(data.clone(), self);
-        let list_row = ListBoxRow::builder()
+        ListBoxRow::builder()
             .child(&message_row)
             .selectable(false)
             .activatable(false)
-            .build();
-        list_row
+            .can_focus(false)
+            .build()
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
@@ -366,6 +358,7 @@ impl Window {
                         .child(&user_row)
                         .activatable(true)
                         .selectable(false)
+                        .can_focus(false)
                         .build();
                     window.get_user_list().append(&user_list_row);
                 }
@@ -375,7 +368,6 @@ impl Window {
                     if user_object == chatting_from {
                         let id_data = UserIDs::from_json(response_data[1]);
                         chatting_from.set_owner_id(id_data.user_id);
-                        window.show_textview();
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
