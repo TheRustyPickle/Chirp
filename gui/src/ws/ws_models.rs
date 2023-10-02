@@ -17,7 +17,7 @@ pub enum RequestType {
     // Send my IDs to the WS
     UpdateIDs,
     // Send a message to another user
-    SendMessage((UserObject, String)),
+    SendMessage(SendMessageData),
     // Ask the WS for a specific user info
     GetUserData(u64),
 }
@@ -80,19 +80,33 @@ impl UserIDs {
 
 #[derive(Debug, Serialize, Clone)]
 pub struct SendMessageData {
+    pub created_at: String,
     pub to_user: u64,
     pub message: String,
     pub user_token: String,
 }
 
 impl SendMessageData {
-    pub fn new_json(to_user: u64, message: String, user_token: String) -> String {
-        let data = SendMessageData {
+    pub fn new_incomplete(created_at: String, to_user: u64, message: String) -> Self {
+        SendMessageData {
+            created_at,
             message,
             to_user,
+            user_token: String::new(),
+        }
+    }
+
+    pub fn update_token(self, user_token: String) -> Self {
+        SendMessageData {
+            created_at: self.created_at,
+            message: self.message,
+            to_user: self.to_user,
             user_token,
-        };
-        serde_json::to_string(&data).unwrap()
+        }
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }
 

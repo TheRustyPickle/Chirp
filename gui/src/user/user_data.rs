@@ -60,8 +60,7 @@ use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, SendMessageData, UserIDs,
-    WSObject,
+    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject,
 };
 
 glib::wrapper! {
@@ -198,12 +197,8 @@ impl UserObject {
                         let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage((send_to, message)) => {
-                        let data = SendMessageData::new_json(
-                            send_to.user_id(),
-                            message,
-                            self.user_token(),
-                        );
+                    RequestType::SendMessage(message_data) => {
+                        let data = message_data.update_token(self.user_token()).to_json();
                         user_ws.send_text_message(&data)
                     }
                     RequestType::ImageUpdated(link) => {

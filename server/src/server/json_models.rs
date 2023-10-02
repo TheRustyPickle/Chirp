@@ -62,6 +62,7 @@ impl IDInfo {
 
 #[derive(Deserialize)]
 pub struct MessageData {
+    pub created_at: String,
     pub to_user: usize,
     pub message: String,
     pub user_token: String,

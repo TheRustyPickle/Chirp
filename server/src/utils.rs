@@ -12,3 +12,11 @@ pub fn generate_user_token() -> String {
 
     hex_string
 }
+
+pub fn create_message_group(id_1: usize, id_2: usize) -> String {
+    if id_1 > id_2 {
+        format!("{}@{}", id_2, id_1)
+    } else {
+        format!("{}@{}", id_1, id_2)
+    }
+}

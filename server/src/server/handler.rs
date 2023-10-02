@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use chrono::DateTime;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use rand::rngs::ThreadRng;
@@ -8,11 +9,11 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_user, get_user_with_id, get_user_with_token, update_user_image_link,
-    update_user_name, User,
+    create_new_message, create_new_user, get_user_with_id, get_user_with_token,
+    update_user_image_link, update_user_name, NewMessage, User,
 };
 use crate::server::{IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, WSData};
-use crate::utils::generate_user_token;
+use crate::utils::{create_message_group, generate_user_token};
 
 pub struct ChatServer {
     // {WS session ID: (IDInfo, WS Receiver)}
@@ -59,6 +60,25 @@ impl ChatServer {
         let message = message_data.message;
         let to_user_id = message_data.to_user;
         let mut conn_found = false;
+        let message_group = create_message_group(from_user_id, to_user_id);
+
+        // TODO get from the GUI
+        let message_number = 0;
+        let created_at =
+            DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.6f %:z")
+                .unwrap()
+                .naive_utc();
+
+        let new_message_data = NewMessage::new(
+            message_group,
+            message_number,
+            message.to_owned(),
+            from_user_id,
+            to_user_id,
+            created_at,
+        );
+
+        create_new_message(&mut self.conn, new_message_data);
 
         if from_user_id == to_user_id {
             info!("From and to users are the same. Stopping sending.");

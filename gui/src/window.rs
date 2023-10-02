@@ -81,6 +81,7 @@ use std::time::Duration;
 
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
+use chrono::Local;
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
@@ -92,7 +93,7 @@ use tracing::info;
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
-use crate::ws::{FullUserData, RequestType, UserIDs};
+use crate::ws::{FullUserData, RequestType, SendMessageData, UserIDs};
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -301,11 +302,12 @@ impl Window {
 
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
+        let created_at = Local::now().to_string();
 
-        sender.add_to_queue(RequestType::SendMessage((
-            receiver.clone(),
-            content.to_string(),
-        )));
+        let send_message_data =
+            SendMessageData::new_incomplete(created_at, receiver.user_id(), content.to_string());
+
+        sender.add_to_queue(RequestType::SendMessage(send_message_data));
 
         buffer.set_text("");
         let message = MessageObject::new(content, true, sender, receiver);
