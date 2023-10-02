@@ -51,6 +51,11 @@ pub fn generate_dicebear_link() -> String {
     format!("https://api.dicebear.com/7.x/{selected_choice}/svg?seed={random_num}")
 }
 
+pub fn generate_multiavatar_link() -> String {
+    let random_num = generate_random_number(5);
+    format!("https://api.multiavatar.com/{random_num}.svg")
+}
+
 // TODO: Perhaps we can add other types of image here
 // NOTE Identicon
 pub fn generate_random_avatar_link() -> String {
@@ -62,6 +67,7 @@ pub fn generate_random_avatar_link() -> String {
     match selected_choice {
         "dicebear" => generate_dicebear_link(),
         "robohash" => generate_robohash_link(),
+        "multiavatar" => generate_multiavatar_link(),
         _ => unreachable!(),
     }
 }
