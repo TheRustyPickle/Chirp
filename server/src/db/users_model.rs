@@ -1,14 +1,11 @@
-use diesel::pg::Pg;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
-use chrono::NaiveDateTime;
 
-use crate::db::schema::{users, messages};
+use crate::db::schema::users;
 
-#[derive(Queryable, Selectable, Insertable, Clone, Serialize, Deserialize, Debug)]
-#[diesel(table_name = users)]
-#[diesel(check_for_backend(Pg))]
+#[derive(Queryable, Selectable, Insertable, Identifiable, Clone, Serialize, Deserialize, Debug)]
+#[diesel(primary_key(user_id))]
 pub struct User {
     pub user_id: i32,
     pub user_name: String,
@@ -49,17 +46,4 @@ impl User {
 
         serde_json::to_string(&user_json).unwrap()
     }
-}
-
-#[derive(Queryable, Selectable)]
-#[diesel(table_name = messages)]
-#[diesel(check_for_backend(Pg))]
-pub struct Message {
-    pub message_id: i32,
-    pub message_group: String,
-    pub message_number: i32,
-    pub message_text: String,
-    pub message_sender: i32,
-    pub message_receiver: i32,
-    pub created_at: NaiveDateTime
 }

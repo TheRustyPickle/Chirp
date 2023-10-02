@@ -1,7 +1,7 @@
 use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
 
-use crate::db::models::User;
 use crate::db::schema::users;
+use crate::db::users_model::User;
 
 pub fn create_new_user(conn: &mut PgConnection, user_data: User) {
     diesel::insert_into(users::table)
