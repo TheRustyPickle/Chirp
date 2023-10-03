@@ -59,7 +59,7 @@ pub fn generate_multiavatar_link() -> String {
 // TODO: Perhaps we can add other types of image here
 // NOTE Identicon
 pub fn generate_random_avatar_link() -> String {
-    let choices = ["dicebear", "robohash"];
+    let choices = ["dicebear", "robohash", "multiavatar"];
 
     let random_index = rand::thread_rng().gen_range(0..choices.len());
     let selected_choice = choices[random_index];
