@@ -20,6 +20,8 @@ pub enum RequestType {
     SendMessage(SendMessageData),
     // Ask the WS for a specific user info
     GetUserData(u64),
+    // Broadcast new user selection to the WS
+    NewUserSelection(UserObject),
 }
 
 /// Used for sending or receiving relevant data to create an UserObject
@@ -65,10 +67,10 @@ pub struct UserIDs {
 }
 
 impl UserIDs {
-    pub fn new_json(user_object: &UserObject) -> String {
+    pub fn new_json(user_id: u64, user_token: String) -> String {
         let id_data = UserIDs {
-            user_id: user_object.user_id(),
-            user_token: user_object.user_token(),
+            user_id,
+            user_token,
         };
         serde_json::to_string(&id_data).unwrap()
     }
@@ -83,6 +85,7 @@ pub struct SendMessageData {
     pub created_at: String,
     pub to_user: u64,
     pub message: String,
+    pub message_number: u64,
     pub user_token: String,
 }
 
@@ -90,8 +93,9 @@ impl SendMessageData {
     pub fn new_incomplete(created_at: String, to_user: u64, message: String) -> Self {
         SendMessageData {
             created_at,
-            message,
             to_user,
+            message,
+            message_number: 0,
             user_token: String::new(),
         }
     }
@@ -99,9 +103,20 @@ impl SendMessageData {
     pub fn update_token(self, user_token: String) -> Self {
         SendMessageData {
             created_at: self.created_at,
-            message: self.message,
             to_user: self.to_user,
+            message: self.message,
+            message_number: self.message_number,
             user_token,
+        }
+    }
+
+    pub fn update_message_number(self, message_number: u64) -> Self {
+        SendMessageData {
+            created_at: self.created_at,
+            to_user: self.to_user,
+            message: self.message,
+            message_number,
+            user_token: self.user_token,
         }
     }
 
@@ -136,22 +151,6 @@ impl NameUpdate {
     pub fn new_json(new_name: String, user_token: String) -> String {
         let data = NameUpdate {
             new_name,
-            user_token,
-        };
-        serde_json::to_string(&data).unwrap()
-    }
-}
-
-#[derive(Serialize)]
-pub struct GetUserData {
-    user_id: u64,
-    user_token: String,
-}
-
-impl GetUserData {
-    pub fn new_json(user_id: u64, user_token: String) -> String {
-        let data = GetUserData {
-            user_id,
             user_token,
         };
         serde_json::to_string(&data).unwrap()

@@ -239,7 +239,7 @@ impl Window {
         self.bind();
     }
 
-    fn get_chatting_with(&self) -> UserObject {
+    pub fn get_chatting_with(&self) -> UserObject {
         self.imp()
             .chatting_with
             .borrow()
@@ -249,6 +249,7 @@ impl Window {
 
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
+        user.add_queue_to_first(RequestType::NewUserSelection(user.clone()));
         let message_list = user.messages();
         self.imp().message_list.bind_model(
             Some(&message_list),

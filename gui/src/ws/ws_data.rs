@@ -221,6 +221,14 @@ impl WSObject {
             .send_text(&format!("/reconnect-user {}", id_data))
     }
 
+    /// Calls the server to send last chat message number of a user
+    pub fn selection_update(&self, data: String) {
+        info!("Sending request to WS get the last message number");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/message-number {}", data))
+    }
+
     /// Saves the signal ID of the Websocket Message Signal
     pub fn set_signal_id(&self, id: SignalHandlerId) {
         self.imp().ws_signal_id.replace(Some(id));

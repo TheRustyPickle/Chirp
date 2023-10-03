@@ -16,6 +16,8 @@ pub enum CommunicationType {
     UpdateImageLink,
     // Reconnect with an existing user
     ReconnectUser,
+    // Send the last message of this user group
+    SendMessageNumber,
 }
 
 #[derive(PartialEq)]
@@ -65,6 +67,7 @@ pub struct MessageData {
     pub created_at: String,
     pub to_user: usize,
     pub message: String,
+    pub message_number: usize,
     pub user_token: String,
 }
 

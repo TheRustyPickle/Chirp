@@ -9,8 +9,8 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_message, create_new_user, get_user_with_id, get_user_with_token,
-    update_user_image_link, update_user_name, NewMessage, User,
+    create_new_message, create_new_user, get_last_message_number, get_user_with_id,
+    get_user_with_token, update_user_image_link, update_user_name, NewMessage, User,
 };
 use crate::server::{IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, WSData};
 use crate::utils::{create_message_group, generate_user_token};
@@ -62,8 +62,8 @@ impl ChatServer {
         let mut conn_found = false;
         let message_group = create_message_group(from_user_id, to_user_id);
 
-        // TODO get from the GUI
-        let message_number = 0;
+        let message_number = message_data.message_number;
+
         let created_at =
             DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.6f %:z")
                 .unwrap()
@@ -317,6 +317,29 @@ impl ChatServer {
                             receiver.do_send(Message(format!("/image-updated {new_link}")));
                         }
                     }
+                }
+            }
+        }
+    }
+
+    pub fn send_message_number(&mut self, id_data: IDInfo) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let message_group = create_message_group(owner_id, id_data.user_id);
+        let last_message_number = get_last_message_number(&mut self.conn, message_group);
+
+        for session in self.user_session[&owner_id].iter() {
+            if session.user_id == id_data.user_id {
+                if let Some(data) = self.sessions.get(&session.ws_id) {
+                    let receiver = &data.1;
+                    receiver.do_send(Message(format!("/message-number {last_message_number}")));
                 }
             }
         }

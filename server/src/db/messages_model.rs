@@ -29,7 +29,7 @@ pub struct NewMessage {
 impl NewMessage {
     pub fn new(
         message_group: String,
-        message_number: i32,
+        message_number: usize,
         message_text: String,
         message_sender: usize,
         message_receiver: usize,
@@ -37,7 +37,7 @@ impl NewMessage {
     ) -> Self {
         NewMessage {
             message_group,
-            message_number,
+            message_number: message_number as i32,
             message_text,
             message_sender: message_sender as i32,
             message_receiver: message_receiver as i32,

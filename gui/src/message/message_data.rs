@@ -18,6 +18,7 @@ mod imp {
         pub sent_from: OnceCell<UserObject>,
         #[property(get, set)]
         pub sent_to: OnceCell<UserObject>,
+        // TODO store a created_at var
     }
 
     #[object_subclass]
