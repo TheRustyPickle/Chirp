@@ -16,6 +16,8 @@ pub enum CommunicationType {
     UpdateImageLink,
     // Reconnect with an existing user
     ReconnectUser,
+    // Send the last message of this user group
+    SendMessageNumber,
 }
 
 #[derive(PartialEq)]
@@ -60,16 +62,24 @@ impl IDInfo {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct MessageData {
+    pub created_at: String,
+    #[serde(skip_serializing)]
     pub to_user: usize,
     pub message: String,
+    pub message_number: usize,
+    #[serde(skip_serializing)]
     pub user_token: String,
 }
 
 impl MessageData {
     pub fn new_from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }
 

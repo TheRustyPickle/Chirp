@@ -127,6 +127,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateImageLink,
                         }),
+                        "/message-number" => self.addr.do_send(CommunicateUser {
+                            ws_id: self.id,
+                            data: v[1].to_string(),
+                            comm_type: CommunicationType::SendMessageNumber,
+                        }),
 
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }

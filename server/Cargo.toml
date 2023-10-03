@@ -12,7 +12,8 @@ actix = "0.13.1"
 actix-rt = "2.9.0"
 actix-web = {version = "4.4.0", features = ["rustls-0_21"] }
 actix-web-actors = "4.2.0"
-diesel = { version = "2.1.1", features = ["postgres"] }
+chrono = "0.4.31"
+diesel = { version = "2.1.1", features = ["postgres", "chrono"] }
 dotenvy = "0.15.7"
 rand = "0.8.5"
 rustls = "0.21.7"

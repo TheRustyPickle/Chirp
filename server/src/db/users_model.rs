@@ -1,13 +1,11 @@
-use diesel::pg::Pg;
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
-use crate::db::schema::users;
+use crate::{db::schema::users, server::MessageData};
 
-#[derive(Queryable, Selectable, Insertable, Clone, Serialize, Deserialize, Debug)]
-#[diesel(table_name = users)]
-#[diesel(check_for_backend(Pg))]
+#[derive(Queryable, Selectable, Insertable, Identifiable, Clone, Serialize, Deserialize, Debug)]
+#[diesel(primary_key(user_id))]
 pub struct User {
     pub user_id: i32,
     pub user_name: String,
@@ -42,7 +40,7 @@ impl User {
         serde_json::to_string(self).unwrap()
     }
 
-    pub fn to_json_with_message(&self, message: String) -> String {
+    pub fn to_json_with_message(&self, message: MessageData) -> String {
         let mut user_json: Value = serde_json::to_value(self).unwrap();
         user_json["message"] = json!(message);
 

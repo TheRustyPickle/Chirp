@@ -81,6 +81,7 @@ use std::time::Duration;
 
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
+use chrono::{Local, DateTime};
 use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
@@ -92,7 +93,7 @@ use tracing::info;
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
-use crate::ws::{FullUserData, RequestType, UserIDs};
+use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -238,7 +239,7 @@ impl Window {
         self.bind();
     }
 
-    fn get_chatting_with(&self) -> UserObject {
+    pub fn get_chatting_with(&self) -> UserObject {
         self.imp()
             .chatting_with
             .borrow()
@@ -248,6 +249,7 @@ impl Window {
 
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
+        user.add_queue_to_first(RequestType::NewUserSelection(user.clone()));
         let message_list = user.messages();
         self.imp().message_list.bind_model(
             Some(&message_list),
@@ -302,26 +304,48 @@ impl Window {
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
-        sender.add_to_queue(RequestType::SendMessage((
-            receiver.clone(),
-            content.to_string(),
-        )));
+        let receiver_id = receiver.user_id();
+        let current_time = Local::now();
+        let created_at_naive = current_time.naive_local().to_string();
+
+        let created_at = current_time.to_string();
+
+        let message = MessageObject::new(
+            content.to_owned(),
+            true,
+            sender.clone(),
+            receiver,
+            created_at_naive,
+        );
+
+        let send_message_data = MessageData::new_incomplete(created_at, receiver_id, content);
+
+        sender.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
 
         buffer.set_text("");
-        let message = MessageObject::new(content, true, sender, receiver);
 
         self.chatting_with_messages().append(&message);
     }
 
-    fn receive_message(&self, content: &str, sender: UserObject) {
+    fn receive_message(&self, message_data: MessageData, sender: UserObject) {
         info!(
             "Receiving message from {} with content: {}",
             sender.name(),
-            content
+            message_data.message
         );
         let receiver = self.get_chatting_with();
 
-        let message = MessageObject::new(content.to_string(), false, sender.clone(), receiver);
+        // NOTE temporary solution. Later when user timezone is saved on the server side, it should
+        // send the correct time without zone  
+        let parsed_date_time = DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f %z").unwrap().naive_local().to_string();
+
+        let message = MessageObject::new(
+            message_data.message,
+            false,
+            sender.clone(),
+            receiver,
+            parsed_date_time,
+        );
 
         sender.messages().append(&message);
     }
@@ -362,7 +386,9 @@ impl Window {
                         .build();
                     window.get_user_list().append(&user_list_row);
                 }
-                "/message" => window.receive_message(response_data[1], user_object),
+                "/message" => {
+                    let message_data = MessageData::from_json(response_data[1]);
+                    window.receive_message(message_data, user_object)},
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
                     if user_object == chatting_from {
@@ -391,7 +417,7 @@ impl Window {
         );
 
         if user_data.message.is_some() {
-            self.receive_message(&user_data.message.unwrap(), new_user_data.clone())
+            self.receive_message(user_data.message.unwrap(), new_user_data.clone())
         }
 
         // Every single user in the UserList of the client will have the owner User ID for reference

@@ -99,6 +99,10 @@ impl Handler<CommunicateUser> for ChatServer {
                 let id_data = IDInfo::new_from_json(msg.data);
                 self.reconnect_user(msg.ws_id, id_data);
             }
+            CommunicationType::SendMessageNumber => {
+                let id_data = IDInfo::new_from_json(msg.data);
+                self.send_message_number(id_data)
+            }
         }
     }
 }

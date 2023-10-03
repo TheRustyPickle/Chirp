@@ -33,6 +33,8 @@ mod imp {
         pub owner_id: Cell<u64>,
         #[property(get, set)]
         pub user_token: OnceCell<String>,
+        #[property(get, set)]
+        pub message_number: Cell<u64>,
     }
 
     #[object_subclass]
@@ -59,10 +61,7 @@ use tracing::{debug, info};
 use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
-use crate::ws::{
-    FullUserData, GetUserData, ImageUpdate, NameUpdate, RequestType, SendMessageData, UserIDs,
-    WSObject,
-};
+use crate::ws::{FullUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -91,7 +90,7 @@ impl UserObject {
 
         obj.check_image_link();
         obj.set_user_ws(ws);
-
+        obj.set_message_number(0);
         let user_object = obj.clone();
 
         // This signal gets emitted when the connection is once lost but reconnected again
@@ -187,24 +186,26 @@ impl UserObject {
                 debug!("starting processing {task:?}");
                 match task {
                     RequestType::ReconnectUser => {
-                        let id_data = UserIDs::new_json(self);
+                        let id_data = UserIDs::new_json(self.user_id(), self.user_token());
                         user_ws.reconnect_user(id_data);
                     }
                     RequestType::UpdateIDs => {
-                        let id_data = UserIDs::new_json(self);
+                        let id_data = UserIDs::new_json(self.user_id(), self.user_token());
                         user_ws.update_ids(id_data)
                     }
                     RequestType::CreateNewUser => {
                         let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage((send_to, message)) => {
-                        let data = SendMessageData::new_json(
-                            send_to.user_id(),
-                            message,
-                            self.user_token(),
-                        );
-                        user_ws.send_text_message(&data)
+                    RequestType::SendMessage(message_data, msg_obj) => {
+                        self.set_message_number(self.message_number() + 1);
+                        msg_obj.set_message_number(self.message_number());
+
+                        let data = message_data
+                            .update_token(self.user_token())
+                            .update_message_number(self.message_number())
+                            .to_json();
+                        user_ws.send_text_message(&data);
                     }
                     RequestType::ImageUpdated(link) => {
                         let image_data = ImageUpdate::new_json(link.to_string(), self.user_token());
@@ -215,8 +216,12 @@ impl UserObject {
                         user_ws.name_updated(&name_data)
                     }
                     RequestType::GetUserData(id) => {
-                        let user_data = GetUserData::new_json(id.to_owned(), self.user_token());
+                        let user_data = UserIDs::new_json(id.to_owned(), self.user_token());
                         user_ws.get_user_data(&user_data)
+                    }
+                    RequestType::NewUserSelection(user) => {
+                        let data = UserIDs::new_json(user.user_id(), self.user_token());
+                        user_ws.selection_update(data)
                     }
                 }
                 highest_index += 1;
@@ -276,13 +281,13 @@ impl UserObject {
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
                 let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-                user_object.start_listening(sender.clone());
+                user_object.start_listening(sender.clone(), window.clone());
                 window.handle_ws_message(&user_object, receiver);
             }),
         );
     }
 
-    fn start_listening(&self, sender: Sender<String>) {
+    fn start_listening(&self, sender: Sender<String>, window: Window) {
         let user_ws = self.user_ws();
         if !user_ws.is_reconnecting() {
             if self.user_id() == 0 {
@@ -293,7 +298,7 @@ impl UserObject {
         }
 
         let id = user_ws.ws_conn().unwrap().connect_message(
-            clone!(@weak self as user_object => move |_ws, _s, bytes| {
+            clone!(@weak self as user_object, @weak window => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
                 let text = String::from_utf8(byte_slice).unwrap();
                 debug!("{} Received from WS: {text}", user_object.name());
@@ -301,7 +306,10 @@ impl UserObject {
                 if text.starts_with('/') {
                     let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
                     match splitted_data[0] {
-                        "/reconnect-success" => user_object.process_queue(None),
+                        "/reconnect-success" => {
+                            let chatting_with = window.get_chatting_with();
+                            user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
+                        }
                         "/update-user-id" => { 
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
@@ -320,6 +328,10 @@ impl UserObject {
                             user_object.check_image_link();
                         },
                         "/name-updated" => user_object.set_name(splitted_data[1]),
+                        "/message-number" => {
+                            user_object.set_message_number(splitted_data[1].parse::<u64>().unwrap());
+                            user_object.process_queue(None);
+                        }
                         "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}
                     }

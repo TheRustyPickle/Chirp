@@ -1,4 +1,5 @@
 use actix::prelude::*;
+use chrono::DateTime;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use rand::rngs::ThreadRng;
@@ -8,11 +9,11 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_user, get_user_with_id, get_user_with_token, update_user_image_link,
-    update_user_name, User,
+    create_new_message, create_new_user, get_last_message_number, get_user_with_id,
+    get_user_with_token, update_user_image_link, update_user_name, NewMessage, User,
 };
 use crate::server::{IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, WSData};
-use crate::utils::generate_user_token;
+use crate::utils::{create_message_group, generate_user_token};
 
 pub struct ChatServer {
     // {WS session ID: (IDInfo, WS Receiver)}
@@ -49,16 +50,37 @@ impl ChatServer {
     pub fn send_message(&mut self, message_data: MessageData) {
         let from_user_id;
 
-        if let Some(from_user) = get_user_with_token(&mut self.conn, message_data.user_token) {
+        if let Some(from_user) =
+            get_user_with_token(&mut self.conn, message_data.user_token.to_owned())
+        {
             from_user_id = from_user.user_id as usize;
         } else {
             error!("Invalid user token received. Discarding request");
             return;
         }
 
-        let message = message_data.message;
+        let send_message_data = message_data.to_json();
+        let user_message = message_data.message.to_owned();
         let to_user_id = message_data.to_user;
         let mut conn_found = false;
+        let message_group = create_message_group(from_user_id, to_user_id);
+        let message_number = message_data.message_number;
+
+        let created_at =
+            DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.6f %:z")
+                .unwrap()
+                .naive_utc();
+
+        let new_message_data = NewMessage::new(
+            message_group,
+            message_number,
+            user_message,
+            from_user_id,
+            to_user_id,
+            created_at,
+        );
+
+        create_new_message(&mut self.conn, new_message_data);
 
         if from_user_id == to_user_id {
             info!("From and to users are the same. Stopping sending.");
@@ -86,7 +108,7 @@ impl ChatServer {
                     if let Some(receiver_data) = self.sessions.get(&ws_id) {
                         receiver_data
                             .1
-                            .do_send(Message(format!("/message {}", message)))
+                            .do_send(Message(format!("/message {}", send_message_data)))
                     }
                     break;
                 }
@@ -101,7 +123,7 @@ impl ChatServer {
                             let user_data = get_user_with_id(&mut self.conn, from_user_id)
                                 .unwrap()
                                 .update_token(String::new())
-                                .to_json_with_message(message.to_string());
+                                .to_json_with_message(message_data);
 
                             receiver_data
                                 .1
@@ -297,6 +319,29 @@ impl ChatServer {
                             receiver.do_send(Message(format!("/image-updated {new_link}")));
                         }
                     }
+                }
+            }
+        }
+    }
+
+    pub fn send_message_number(&mut self, id_data: IDInfo) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let message_group = create_message_group(owner_id, id_data.user_id);
+        let last_message_number = get_last_message_number(&mut self.conn, message_group);
+
+        for session in self.user_session[&owner_id].iter() {
+            if session.user_id == id_data.user_id {
+                if let Some(data) = self.sessions.get(&session.ws_id) {
+                    let receiver = &data.1;
+                    receiver.do_send(Message(format!("/message-number {last_message_number}")));
                 }
             }
         }
