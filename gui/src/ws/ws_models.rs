@@ -1,7 +1,7 @@
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use serde::{Deserialize, Serialize};
 
-use crate::user::UserObject;
+use crate::{message::MessageObject, user::UserObject};
 
 /// Types of request that are processed by the GUI to WS currently
 #[derive(Debug, Clone)]
@@ -17,7 +17,7 @@ pub enum RequestType {
     // Send my IDs to the WS
     UpdateIDs,
     // Send a message to another user
-    SendMessage(SendMessageData),
+    SendMessage(MessageData, MessageObject),
     // Ask the WS for a specific user info
     GetUserData(u64),
     // Broadcast new user selection to the WS
@@ -34,7 +34,7 @@ pub struct FullUserData {
     pub user_token: String,
     // Don't serialize message because as of now message is only received from ws
     #[serde(skip_serializing)]
-    pub message: Option<String>,
+    pub message: Option<MessageData>,
 }
 
 impl FullUserData {
@@ -80,18 +80,20 @@ impl UserIDs {
     }
 }
 
-#[derive(Debug, Serialize, Clone)]
-pub struct SendMessageData {
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct MessageData {
     pub created_at: String,
+    #[serde(skip_deserializing)]
     pub to_user: u64,
     pub message: String,
     pub message_number: u64,
+    #[serde(skip_deserializing)]
     pub user_token: String,
 }
 
-impl SendMessageData {
+impl MessageData {
     pub fn new_incomplete(created_at: String, to_user: u64, message: String) -> Self {
-        SendMessageData {
+        MessageData {
             created_at,
             to_user,
             message,
@@ -101,7 +103,7 @@ impl SendMessageData {
     }
 
     pub fn update_token(self, user_token: String) -> Self {
-        SendMessageData {
+        MessageData {
             created_at: self.created_at,
             to_user: self.to_user,
             message: self.message,
@@ -111,7 +113,7 @@ impl SendMessageData {
     }
 
     pub fn update_message_number(self, message_number: u64) -> Self {
-        SendMessageData {
+        MessageData {
             created_at: self.created_at,
             to_user: self.to_user,
             message: self.message,
@@ -122,6 +124,10 @@ impl SendMessageData {
 
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).unwrap()
+    }
+
+    pub fn from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
     }
 }
 

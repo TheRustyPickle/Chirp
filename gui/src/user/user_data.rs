@@ -197,8 +197,10 @@ impl UserObject {
                         let user_data = FullUserData::new_json(self);
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage(message_data) => {
+                    RequestType::SendMessage(message_data, msg_obj) => {
                         self.set_message_number(self.message_number() + 1);
+                        msg_obj.set_message_number(self.message_number());
+
                         let data = message_data
                             .update_token(self.user_token())
                             .update_message_number(self.message_number())

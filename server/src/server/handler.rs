@@ -50,18 +50,20 @@ impl ChatServer {
     pub fn send_message(&mut self, message_data: MessageData) {
         let from_user_id;
 
-        if let Some(from_user) = get_user_with_token(&mut self.conn, message_data.user_token) {
+        if let Some(from_user) =
+            get_user_with_token(&mut self.conn, message_data.user_token.to_owned())
+        {
             from_user_id = from_user.user_id as usize;
         } else {
             error!("Invalid user token received. Discarding request");
             return;
         }
 
-        let message = message_data.message;
+        let send_message_data = message_data.to_json();
+        let user_message = message_data.message.to_owned();
         let to_user_id = message_data.to_user;
         let mut conn_found = false;
         let message_group = create_message_group(from_user_id, to_user_id);
-
         let message_number = message_data.message_number;
 
         let created_at =
@@ -72,7 +74,7 @@ impl ChatServer {
         let new_message_data = NewMessage::new(
             message_group,
             message_number,
-            message.to_owned(),
+            user_message,
             from_user_id,
             to_user_id,
             created_at,
@@ -106,7 +108,7 @@ impl ChatServer {
                     if let Some(receiver_data) = self.sessions.get(&ws_id) {
                         receiver_data
                             .1
-                            .do_send(Message(format!("/message {}", message)))
+                            .do_send(Message(format!("/message {}", send_message_data)))
                     }
                     break;
                 }
@@ -121,7 +123,7 @@ impl ChatServer {
                             let user_data = get_user_with_id(&mut self.conn, from_user_id)
                                 .unwrap()
                                 .update_token(String::new())
-                                .to_json_with_message(message.to_string());
+                                .to_json_with_message(message_data);
 
                             receiver_data
                                 .1

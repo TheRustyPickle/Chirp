@@ -18,7 +18,10 @@ mod imp {
         pub sent_from: OnceCell<UserObject>,
         #[property(get, set)]
         pub sent_to: OnceCell<UserObject>,
-        // TODO store a created_at var
+        #[property(get, set)]
+        pub created_at: OnceCell<String>,
+        #[property(get, set)]
+        pub message_number: OnceCell<u64>,
     }
 
     #[object_subclass]
@@ -41,12 +44,19 @@ wrapper! {
 }
 
 impl MessageObject {
-    pub fn new(message: String, is_send: bool, sent_from: UserObject, sent_to: UserObject) -> Self {
+    pub fn new(
+        message: String,
+        is_send: bool,
+        sent_from: UserObject,
+        sent_to: UserObject,
+        created_at: String,
+    ) -> Self {
         Object::builder()
             .property("is-send", is_send)
             .property("message", message)
             .property("sent-from", sent_from)
             .property("sent-to", sent_to)
+            .property("created-at", created_at)
             .build()
     }
 }
