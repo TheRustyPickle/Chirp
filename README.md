@@ -29,21 +29,29 @@ Chirp is my playground for exploring the world of GTK4-rs while working on a cha
 - `gui/`: Contains the UI interface built with GTK4-rs along with all the logic and components to make it run.
 - `server/`: Hosts a WebSocket server created with actix-web, facilitating communication with the GUI.
 
-## Exploring the Project
+## Explore the Project
 
-1. Clone this project onto your local machine `git clone https://github.com/TheRustyPickle/Chirp.git`.
-2. Ensure you have the required dependencies, including the latest GTK4, Libadwaita libraries, and Postgres.
-3. Install diesel cli `cargo install diesel_cli`
-4. Update Postgres credentials on `.env` file
-5. Setup DB and run migrations
+- Clone this project onto your local machine `git clone https://github.com/TheRustyPickle/Chirp.git`.
+- Ensure you have the required dependencies, including the latest GTK4, Libadwaita libraries, and Postgres.
+- Install diesel cli `cargo install diesel_cli`
+- Update Postgres credentials on `.env` file
+- Setup DB and run migrations
 
 ```bash
 diesel setup
 diesel migration run
 ```
 
-6. Start the server `cargo run --bin chirp-server`
-7. Launch the GUI using the command `cargo run --bin chirp-gui`
+- Setup GTK Schema settings
+
+```bash
+mkdir -p $HOME/.local/share/glib-2.0/schemas
+cp ./gui/src/com.github.therustypickle.chirp.gschema.xml $HOME/.local/share/glib-2.0/schemas/
+glib-compile-schemas $HOME/.local/share/glib-2.0/schemas/
+```
+
+- Start the server `cargo run --bin chirp-server`
+- Launch the GUI using the command `cargo run --bin chirp-gui`
 
 ## Get Involved
 
