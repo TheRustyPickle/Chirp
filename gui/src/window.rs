@@ -1,7 +1,7 @@
 mod imp {
     use adw::subclass::prelude::*;
     use adw::ApplicationWindow;
-    use gio::ListStore;
+    use gio::{ListStore, Settings};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{
@@ -41,6 +41,7 @@ mod imp {
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
         pub last_selected_user: Cell<i32>,
         pub bindings: RefCell<Vec<Binding>>,
+        pub settings: OnceCell<Settings>,
     }
 
     #[object_subclass]
@@ -62,6 +63,7 @@ mod imp {
         fn constructed(&self) {
             self.parent_constructed();
             let obj = self.obj();
+            obj.setup_settings();
             obj.setup_callbacks();
             obj.setup_users();
             obj.setup_actions();
@@ -77,23 +79,26 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
-use std::time::Duration;
-
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
-use chrono::{Local, DateTime};
-use gio::{ActionGroup, ActionMap, ListStore, SimpleAction};
+use chrono::{DateTime, Local};
+use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
     Native, Root, ShortcutManager, Widget,
 };
+use std::fs;
+use std::fs::File;
+use std::io::{Read, Write};
+use std::time::Duration;
 use tracing::info;
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::generate_random_avatar_link;
 use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
+use crate::APP_ID;
 
 wrapper! {
     pub struct Window(ObjectSubclass<imp::Window>)
@@ -190,6 +195,49 @@ impl Window {
         }));
 
         self.add_action(&button_action);
+    }
+
+    fn setup_settings(&self) {
+        let settings = Settings::new(APP_ID);
+        self.imp().settings.set(settings).unwrap();
+        self.update_setting("./user_data.json");
+    }
+
+    fn settings(&self) -> &Settings {
+        self.imp().settings.get().unwrap()
+    }
+
+    fn update_setting(&self, new_location: &str) {
+        self.settings()
+            .set_string("location", new_location)
+            .unwrap();
+    }
+
+    fn save_user_data(&self) {
+        let saving_location = self.settings().string("location");
+        info!("Saving new user id info on {}", saving_location);
+        let owner_id = self.get_chatting_from();
+        let id_data = UserIDs::new_json(owner_id.user_id(), owner_id.user_token());
+
+        let mut file = File::create(saving_location).unwrap();
+        file.write_all(id_data.as_bytes()).unwrap();
+    }
+
+    fn check_user_data(&self) -> Option<UserIDs> {
+        let saving_location = self.settings().string("location");
+        if !saving_location.is_empty() {
+            if fs::metadata(saving_location.to_owned()).is_ok() {
+                let mut file = File::open(saving_location).unwrap();
+                let mut file_contents = String::new();
+                file.read_to_string(&mut file_contents)
+                    .expect("Failed to read file");
+
+                let id_data = UserIDs::from_json(&file_contents);
+                return Some(id_data);
+            }
+        }
+        info!("Failed to find any previously saved user data");
+        None
     }
 
     fn bind(&self) {
@@ -336,8 +384,12 @@ impl Window {
         let receiver = self.get_chatting_with();
 
         // NOTE temporary solution. Later when user timezone is saved on the server side, it should
-        // send the correct time without zone  
-        let parsed_date_time = DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f %z").unwrap().naive_local().to_string();
+        // send the correct time without zone
+        let parsed_date_time =
+            DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f %z")
+                .unwrap()
+                .naive_local()
+                .to_string();
 
         let message = MessageObject::new(
             message_data.message,
@@ -362,7 +414,15 @@ impl Window {
 
     fn create_owner(&self, name: &str) -> UserObject {
         // It's a new user + owner so the ID will be generated on the server side
-        let user_data = UserObject::new(name, Some(generate_random_avatar_link()), None, None);
+        let id_data = self.check_user_data();
+
+        let user_data = if let Some(data) = id_data {
+            info!("Saved user data found");
+            UserObject::new(name, None, None, Some(data.user_id), Some(data.user_token))
+        } else {
+            UserObject::new(name, Some(generate_random_avatar_link()), None, None, None)
+        };
+
         user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&user_data);
 
@@ -394,6 +454,7 @@ impl Window {
                     if user_object == chatting_from {
                         let id_data = UserIDs::from_json(response_data[1]);
                         chatting_from.set_owner_id(id_data.user_id);
+                        window.save_user_data();
                     }
                     chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
@@ -414,6 +475,7 @@ impl Window {
             user_data.image_link,
             Some(&self.get_owner_name_color()),
             Some(user_data.user_id),
+            None,
         );
 
         if user_data.message.is_some() {

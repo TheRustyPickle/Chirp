@@ -183,12 +183,17 @@ impl ChatServer {
     pub fn reconnect_user(&mut self, ws_id: usize, mut id_data: IDInfo) {
         let owner_id;
 
-        if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token.clone()) {
+        let user_data = if let Some(user_data) =
+            get_user_with_token(&mut self.conn, id_data.user_token.clone())
+        {
             owner_id = user_data.user_id as usize;
+            user_data
         } else {
             error!("Invalid user token received. Discarding request");
             return;
         }
+        .update_token(String::new())
+        .to_json();
 
         let user_id = id_data.user_id;
         id_data.update_owner_id(owner_id);
@@ -206,8 +211,7 @@ impl ChatServer {
             if let Some(entry) = self.sessions.get_mut(&ws_id) {
                 let (id_info, receiver_ws) = entry;
                 *id_info = id_data;
-                // NOTE do not remove the extra space. It will crash the gui as it finds data using split
-                receiver_ws.do_send(Message("/reconnect-success ".to_string()));
+                receiver_ws.do_send(Message(format!("/reconnect-success {}", user_data)));
             }
         } else {
             error!("Unable to reconnect with a non-existing user")
@@ -337,11 +341,13 @@ impl ChatServer {
         let message_group = create_message_group(owner_id, id_data.user_id);
         let last_message_number = get_last_message_number(&mut self.conn, message_group);
 
-        for session in self.user_session[&owner_id].iter() {
-            if session.user_id == id_data.user_id {
-                if let Some(data) = self.sessions.get(&session.ws_id) {
-                    let receiver = &data.1;
-                    receiver.do_send(Message(format!("/message-number {last_message_number}")));
+        if self.user_session.contains_key(&owner_id) {
+            for session in self.user_session[&owner_id].iter() {
+                if session.user_id == id_data.user_id {
+                    if let Some(data) = self.sessions.get(&session.ws_id) {
+                        let receiver = &data.1;
+                        receiver.do_send(Message(format!("/message-number {last_message_number}")));
+                    }
                 }
             }
         }

@@ -73,11 +73,10 @@ impl UserObject {
         image_link: Option<String>,
         color_to_ignore: Option<&str>,
         user_id: Option<u64>,
+        user_token: Option<String>,
     ) -> Self {
-        let ws = WSObject::new();
         let messages = ListStore::new::<MessageObject>();
         let random_color = get_random_color(color_to_ignore);
-
         let id = if let Some(id) = user_id { id } else { 0 };
 
         let obj: UserObject = Object::builder()
@@ -88,6 +87,13 @@ impl UserObject {
             .property("name-color", random_color)
             .build();
 
+        // Will only be some in case of owner object and with some data saved
+        if let Some(token) = user_token {
+            obj.set_user_token(token);
+            obj.set_owner_id(id);
+        }
+
+        let ws = WSObject::new();
         obj.check_image_link();
         obj.set_user_ws(ws);
         obj.set_message_number(0);
@@ -289,11 +295,18 @@ impl UserObject {
 
     fn start_listening(&self, sender: Sender<String>, window: Window) {
         let user_ws = self.user_ws();
+        info!("Starting listening");
         if !user_ws.is_reconnecting() {
             if self.user_id() == 0 {
                 self.add_queue_to_first(RequestType::CreateNewUser);
             } else {
-                self.add_to_queue(RequestType::UpdateIDs);
+                // if not same, we are creating a new user after New Chat button was used
+                // if same, we have previously saved some user data and using that to reconnect
+                if self.user_id() != self.owner_id() {
+                    self.add_to_queue(RequestType::UpdateIDs);
+                } else {
+                    self.add_queue_to_first(RequestType::ReconnectUser);
+                }
             }
         }
 
@@ -308,6 +321,12 @@ impl UserObject {
                     match splitted_data[0] {
                         "/reconnect-success" => {
                             let chatting_with = window.get_chatting_with();
+                            let user_data = FullUserData::from_json(splitted_data[1]);
+                            user_object.set_name(user_data.user_name);
+                            if let Some(link) = user_data.image_link {
+                                user_object.set_image_link(link);
+                            }
+                            user_object.check_image_link();
                             user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
                         }
                         "/update-user-id" => { 
