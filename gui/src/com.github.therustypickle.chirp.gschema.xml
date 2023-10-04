@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<schemalist>
+  <schema id="com.github.therustypickle.chirp" path="/com/github/therustypickle/chirp/">
+    <key name="location" type="s">
+      <default>""</default>
+      <summary>Location Data of where User Data is saved</summary>
+    </key>
+  </schema>
+</schemalist>
