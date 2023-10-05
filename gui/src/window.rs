@@ -81,7 +81,7 @@ mod imp {
 
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
-use chrono::{DateTime, Local};
+use chrono::{Local, NaiveDateTime};
 use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
@@ -200,7 +200,6 @@ impl Window {
     fn setup_settings(&self) {
         let settings = Settings::new(APP_ID);
         self.imp().settings.set(settings).unwrap();
-        self.update_setting("./user_data.json");
     }
 
     fn settings(&self) -> &Settings {
@@ -361,14 +360,17 @@ impl Window {
         let message = MessageObject::new(
             content.to_owned(),
             true,
-            sender.clone(),
-            receiver,
+            sender,
+            receiver.clone(),
             created_at_naive,
         );
 
-        let send_message_data = MessageData::new_incomplete(created_at, receiver_id, content);
+        let send_message_data =
+            MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id, content);
 
-        sender.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
+        // Receiver gets the queue because the receiver itself saves the message number variable
+        // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
+        receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
 
         buffer.set_text("");
 
@@ -381,14 +383,14 @@ impl Window {
             sender.name(),
             message_data.message
         );
-        let receiver = self.get_chatting_with();
+        sender.set_message_number(sender.message_number() + 1);
+        let receiver = self.get_chatting_from();
 
         // NOTE temporary solution. Later when user timezone is saved on the server side, it should
-        // send the correct time without zone
+        // send the correct time instead of UTC time
         let parsed_date_time =
-            DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f %z")
+            NaiveDateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f")
                 .unwrap()
-                .naive_local()
                 .to_string();
 
         let message = MessageObject::new(
@@ -448,7 +450,8 @@ impl Window {
                 }
                 "/message" => {
                     let message_data = MessageData::from_json(response_data[1]);
-                    window.receive_message(message_data, user_object)},
+                    window.receive_message(message_data, user_object)
+                },
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
                     if user_object == chatting_from {
