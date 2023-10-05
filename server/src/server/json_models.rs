@@ -1,3 +1,4 @@
+use chrono::DateTime;
 use serde::{Deserialize, Serialize};
 
 /// The types of requests that the WS can process currently
@@ -18,6 +19,8 @@ pub enum CommunicationType {
     ReconnectUser,
     // Send the last message of this user group
     SendMessageNumber,
+    // Send message data to sync messages
+    SyncMessage,
 }
 
 #[derive(PartialEq)]
@@ -65,7 +68,7 @@ impl IDInfo {
 #[derive(Deserialize, Serialize)]
 pub struct MessageData {
     pub created_at: String,
-    #[serde(skip_serializing)]
+    pub from_user: usize,
     pub to_user: usize,
     pub message: String,
     pub message_number: usize,
@@ -75,7 +78,14 @@ pub struct MessageData {
 
 impl MessageData {
     pub fn new_from_json(data: &str) -> Self {
-        serde_json::from_str(data).unwrap()
+        let mut data: MessageData = serde_json::from_str(data).unwrap();
+        let new_created_at = DateTime::parse_from_str(&data.created_at, "%Y-%m-%d %H:%M:%S%.3f %z")
+            .unwrap()
+            .naive_utc()
+            .to_string();
+
+        data.created_at = new_created_at;
+        data
     }
 
     pub fn to_json(&self) -> String {
@@ -116,5 +126,30 @@ pub struct ImageUpdate {
 impl ImageUpdate {
     pub fn new_from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
+    }
+}
+
+#[derive(Deserialize)]
+pub struct SyncMessage {
+    pub user_id: usize,
+    pub message_number: usize,
+    pub user_token: String,
+}
+
+impl SyncMessage {
+    pub fn new_from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
+    }
+}
+
+#[derive(Serialize)]
+pub struct SyncMessageData {
+    message_data: Vec<MessageData>,
+}
+
+impl SyncMessageData {
+    pub fn new_json(message_data: Vec<MessageData>) -> String {
+        let data = SyncMessageData { message_data };
+        serde_json::to_string(&data).unwrap()
     }
 }

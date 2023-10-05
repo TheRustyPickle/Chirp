@@ -27,3 +27,18 @@ pub fn get_last_message_number(conn: &mut PgConnection, group: String) -> usize 
         Err(_) => 0,
     }
 }
+
+pub fn get_messages_from_number(
+    conn: &mut PgConnection,
+    group: String,
+    number_to_start: usize,
+) -> Vec<Message> {
+    use crate::db::schema::messages::dsl::*;
+
+    messages
+        .filter(message_group.eq(group))
+        .filter(message_number.ge(number_to_start as i32))
+        .select(Message::as_select())
+        .load(conn)
+        .unwrap()
+}

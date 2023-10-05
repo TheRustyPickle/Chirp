@@ -61,7 +61,10 @@ use tracing::{debug, info};
 use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
-use crate::ws::{FullUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject};
+use crate::ws::{
+    FullUserData, ImageUpdate, MessageSyncData, MessageSyncRequest, NameUpdate, RequestType,
+    UserIDs, WSObject,
+};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -229,6 +232,11 @@ impl UserObject {
                         let data = UserIDs::new_json(user.user_id(), self.user_token());
                         user_ws.selection_update(data)
                     }
+                    RequestType::SyncMessage(num) => {
+                        let data =
+                            MessageSyncRequest::new_json(self.user_id(), num, self.user_token());
+                        user_ws.sync_message(data)
+                    }
                 }
                 highest_index += 1;
 
@@ -348,8 +356,16 @@ impl UserObject {
                         },
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {
-                            user_object.set_message_number(splitted_data[1].parse::<u64>().unwrap());
+                            let message_number = splitted_data[1].parse::<u64>().unwrap();
+                            if message_number != user_object.message_number() {
+                                user_object.add_to_queue(RequestType::SyncMessage(user_object.message_number()));
+                            }
+                            user_object.set_message_number(message_number);
                             user_object.process_queue(None);
+                        }
+                        "/sync-message" => {
+                            let _message_data = MessageSyncData::from_json(splitted_data[1]);
+                            //info!("Handle message data here {:#?}", message_data.message_data);
                         }
                         "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}
