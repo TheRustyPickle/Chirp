@@ -3,13 +3,12 @@ use actix_web_actors::ws;
 use std::time::{Duration, Instant};
 use tracing::info;
 
-use crate::server::{ChatServer, CommunicateUser, CommunicationType, Connect, Disconnect, Message};
+use crate::server::{ChatServer, CommunicationType, Connect, Disconnect, HandleRequest, Message};
 
 const HEARTBEAT_INTERVAL: Duration = Duration::from_secs(5);
 
 const CLIENT_TIMEOUT: Duration = Duration::from_secs(10);
 
-#[derive(Debug)]
 pub struct WsChatSession {
     pub id: usize,
     pub user_id: usize,
@@ -92,47 +91,51 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 if m.starts_with('/') {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
                     match v[0] {
-                        "/create-new-user" => self.addr.do_send(CommunicateUser {
+                        "/create-new-user" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::CreateNewUser,
                         }),
-                        "/reconnect-user" => self.addr.do_send(CommunicateUser {
+                        "/reconnect-user" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::ReconnectUser,
                         }),
-                        "/get-user-data" => self.addr.do_send(CommunicateUser {
+                        "/get-user-data" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::SendUserData,
                         }),
-                        "/update-ids" => self.addr.do_send(CommunicateUser {
+                        "/update-ids" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateUserIDs,
                         }),
-                        "/message" => self.addr.do_send(CommunicateUser {
+                        "/message" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::SendMessage,
                         }),
-                        "/name-updated" => self.addr.do_send(CommunicateUser {
+                        "/name-updated" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateName,
                         }),
-                        "/image-updated" => self.addr.do_send(CommunicateUser {
+                        "/image-updated" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::UpdateImageLink,
                         }),
-                        "/message-number" => self.addr.do_send(CommunicateUser {
+                        "/message-number" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
                             data: v[1].to_string(),
                             comm_type: CommunicationType::SendMessageNumber,
                         }),
-
+                        "/sync-message" => self.addr.do_send(HandleRequest {
+                            ws_id: self.id,
+                            data: v[1].to_string(),
+                            comm_type: CommunicationType::SyncMessage,
+                        }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 }

@@ -4,7 +4,7 @@ use serde_json::{json, Value};
 
 use crate::{db::schema::users, server::MessageData};
 
-#[derive(Queryable, Selectable, Insertable, Identifiable, Clone, Serialize, Deserialize, Debug)]
+#[derive(Queryable, Selectable, Insertable, Identifiable, Clone, Serialize, Deserialize)]
 #[diesel(primary_key(user_id))]
 pub struct User {
     pub user_id: i32,

@@ -4,6 +4,7 @@ use tracing::info;
 
 use crate::server::{
     ChatServer, CommunicationType, IDInfo, ImageUpdate, MessageData, NameUpdate, SendUserData,
+    SyncMessage,
 };
 
 #[derive(Message)]
@@ -24,7 +25,7 @@ pub struct Disconnect {
 
 #[derive(Message)]
 #[rtype(result = "()")]
-pub struct CommunicateUser {
+pub struct HandleRequest {
     pub ws_id: usize,
     pub data: String,
     pub comm_type: CommunicationType,
@@ -69,10 +70,10 @@ impl Handler<Disconnect> for ChatServer {
     }
 }
 
-impl Handler<CommunicateUser> for ChatServer {
+impl Handler<HandleRequest> for ChatServer {
     type Result = ();
 
-    fn handle(&mut self, msg: CommunicateUser, _: &mut Context<Self>) {
+    fn handle(&mut self, msg: HandleRequest, _: &mut Context<Self>) {
         match msg.comm_type {
             CommunicationType::SendMessage => {
                 let message_data = MessageData::new_from_json(&msg.data);
@@ -101,7 +102,11 @@ impl Handler<CommunicateUser> for ChatServer {
             }
             CommunicationType::SendMessageNumber => {
                 let id_data = IDInfo::new_from_json(msg.data);
-                self.send_message_number(id_data)
+                self.send_message_number(msg.ws_id, id_data)
+            }
+            CommunicationType::SyncMessage => {
+                let sync_data = SyncMessage::new_from_json(&msg.data);
+                self.sync_message(msg.ws_id, sync_data);
             }
         }
     }
