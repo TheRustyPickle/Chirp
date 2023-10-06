@@ -229,6 +229,13 @@ impl WSObject {
             .send_text(&format!("/message-number {}", data))
     }
 
+    pub fn sync_message(&self, data: String) {
+        info!("Sending request to WS sync messages");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/sync-message {}", data))
+    }
+
     /// Saves the signal ID of the Websocket Message Signal
     pub fn set_signal_id(&self, id: SignalHandlerId) {
         self.imp().ws_signal_id.replace(Some(id));

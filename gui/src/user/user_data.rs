@@ -61,7 +61,10 @@ use tracing::{debug, info};
 use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
-use crate::ws::{FullUserData, ImageUpdate, NameUpdate, RequestType, UserIDs, WSObject};
+use crate::ws::{
+    FullUserData, ImageUpdate, MessageSyncData, MessageSyncRequest, NameUpdate, RequestType,
+    UserIDs, WSObject,
+};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -229,6 +232,15 @@ impl UserObject {
                         let data = UserIDs::new_json(user.user_id(), self.user_token());
                         user_ws.selection_update(data)
                     }
+                    RequestType::SyncMessage(start_at, end_at) => {
+                        let data = MessageSyncRequest::new_json(
+                            self.user_id(),
+                            start_at,
+                            end_at,
+                            self.user_token(),
+                        );
+                        user_ws.sync_message(data)
+                    }
                 }
                 highest_index += 1;
 
@@ -254,9 +266,9 @@ impl UserObject {
         }
 
         // In case connection lost, this will prevent further queue processing
-        // If there is a process limit it means certain request must be processed
-        // right away. Such requests means after the processing is done, it will
-        // call process function again which will turn it into false
+        // If there is a process limit it means certain request/s must be processed
+        // right away. Such requests means after the processing is done, something else
+        // will call the non-blocking processing request later
         if !connection_lost && process_limit.is_none() {
             self.set_request_processing(false);
         }
@@ -335,7 +347,6 @@ impl UserObject {
                             user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
 
-                            // This part earlier 
                             // self.add_queue_to_first(RequestType::CreateNewUser);
                             // ensured that the queue will stop processing requests
                             // As we got the ID details now, this will ensure all queues are processed
@@ -348,8 +359,20 @@ impl UserObject {
                         },
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {
-                            user_object.set_message_number(splitted_data[1].parse::<u64>().unwrap());
+                            let message_number = splitted_data[1].parse::<u64>().unwrap();
+                            info!("Current message_number number {}, gotten number {}", user_object.message_number(), message_number);
+                            if message_number > user_object.message_number() {
+                                user_object.add_to_queue(RequestType::SyncMessage(user_object.message_number(), message_number));
+                                user_object.set_message_number(message_number);
+                            }
                             user_object.process_queue(None);
+                        }
+                        "/sync-message" => {
+                            let chat_data = MessageSyncData::from_json(splitted_data[1]);
+
+                            for message in chat_data.message_data.into_iter() {
+                                window.receive_message(message, user_object.clone())
+                            }
                         }
                         "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}

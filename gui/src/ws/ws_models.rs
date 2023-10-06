@@ -22,6 +22,8 @@ pub enum RequestType {
     GetUserData(u64),
     // Broadcast new user selection to the WS
     NewUserSelection(UserObject),
+    // Ask the WS to send un-synced messages
+    SyncMessage(u64, u64),
 }
 
 /// Used for sending or receiving relevant data to create an UserObject
@@ -83,7 +85,7 @@ impl UserIDs {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct MessageData {
     pub created_at: String,
-    #[serde(skip_deserializing)]
+    pub from_user: u64,
     pub to_user: u64,
     pub message: String,
     pub message_number: u64,
@@ -92,9 +94,15 @@ pub struct MessageData {
 }
 
 impl MessageData {
-    pub fn new_incomplete(created_at: String, to_user: u64, message: String) -> Self {
+    pub fn new_incomplete(
+        created_at: String,
+        from_user: u64,
+        to_user: u64,
+        message: String,
+    ) -> Self {
         MessageData {
             created_at,
+            from_user,
             to_user,
             message,
             message_number: 0,
@@ -105,6 +113,7 @@ impl MessageData {
     pub fn update_token(self, user_token: String) -> Self {
         MessageData {
             created_at: self.created_at,
+            from_user: self.from_user,
             to_user: self.to_user,
             message: self.message,
             message_number: self.message_number,
@@ -115,6 +124,7 @@ impl MessageData {
     pub fn update_message_number(self, message_number: u64) -> Self {
         MessageData {
             created_at: self.created_at,
+            from_user: self.from_user,
             to_user: self.to_user,
             message: self.message,
             message_number,
@@ -160,5 +170,36 @@ impl NameUpdate {
             user_token,
         };
         serde_json::to_string(&data).unwrap()
+    }
+}
+
+#[derive(Serialize)]
+pub struct MessageSyncRequest {
+    user_id: u64,
+    start_at: u64,
+    end_at: u64,
+    user_token: String,
+}
+
+impl MessageSyncRequest {
+    pub fn new_json(user_id: u64, start_at: u64, end_at: u64, user_token: String) -> String {
+        let data = MessageSyncRequest {
+            user_id,
+            start_at,
+            end_at,
+            user_token,
+        };
+        serde_json::to_string(&data).unwrap()
+    }
+}
+
+#[derive(Deserialize)]
+pub struct MessageSyncData {
+    pub message_data: Vec<MessageData>,
+}
+
+impl MessageSyncData {
+    pub fn from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
     }
 }

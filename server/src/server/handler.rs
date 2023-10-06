@@ -1,5 +1,5 @@
 use actix::prelude::*;
-use chrono::DateTime;
+use chrono::NaiveDateTime;
 use diesel::pg::PgConnection;
 use diesel::prelude::*;
 use rand::rngs::ThreadRng;
@@ -9,10 +9,14 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_message, create_new_user, get_last_message_number, get_user_with_id,
-    get_user_with_token, update_user_image_link, update_user_name, NewMessage, User,
+    create_new_message, create_new_user, get_last_message_number, get_messages_from_number,
+    get_user_with_id, get_user_with_token, update_user_image_link, update_user_name, NewMessage,
+    User,
 };
-use crate::server::{IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, WSData};
+use crate::server::{
+    IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, SyncMessage,
+    SyncMessageData, WSData,
+};
 use crate::utils::{create_message_group, generate_user_token};
 
 pub struct ChatServer {
@@ -67,9 +71,8 @@ impl ChatServer {
         let message_number = message_data.message_number;
 
         let created_at =
-            DateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.6f %:z")
-                .unwrap()
-                .naive_utc();
+            NaiveDateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.6f")
+                .unwrap();
 
         let new_message_data = NewMessage::new(
             message_group,
@@ -79,6 +82,8 @@ impl ChatServer {
             to_user_id,
             created_at,
         );
+
+        info!("Sending message from {} to {}", from_user_id, to_user_id);
 
         create_new_message(&mut self.conn, new_message_data);
 
@@ -98,8 +103,6 @@ impl ChatServer {
         // added from_user as a new chat yet. So in this case, get all the sessions of the to_user
         // => Find the session that has the user id to_user which will always be the owner session
         // => send a request to the owner
-
-        info!("Sending message from {} to {}", from_user_id, to_user_id);
         if let Some(receiver_ws_data) = self.user_session.get(&to_user_id) {
             for i in receiver_ws_data {
                 if i.user_id == from_user_id {
@@ -148,10 +151,7 @@ impl ChatServer {
             user_id = self.rng.gen_range(1..=2_147_483_647) as usize;
         }
 
-        info!(
-            "Creating new user on WS ID {} with User ID {user_id}.",
-            ws_id
-        );
+        info!("Creating new user with User ID {user_id}");
 
         let user_data = User::new(other_data)
             .update_id(user_id)
@@ -183,24 +183,22 @@ impl ChatServer {
     pub fn reconnect_user(&mut self, ws_id: usize, mut id_data: IDInfo) {
         let owner_id;
 
-        let user_data = if let Some(user_data) =
-            get_user_with_token(&mut self.conn, id_data.user_token.clone())
-        {
-            owner_id = user_data.user_id as usize;
-            user_data
+        if let Some(owner_data) = get_user_with_token(&mut self.conn, id_data.user_token.clone()) {
+            owner_id = owner_data.user_id as usize;
         } else {
             error!("Invalid user token received. Discarding request");
             return;
-        }
-        .update_token(String::new())
-        .to_json();
+        };
 
         let user_id = id_data.user_id;
         id_data.update_owner_id(owner_id);
 
-        info!("Reconnecting with User ID {} on WS ID {ws_id}.", user_id);
+        info!(
+            "Reconnecting with User ID {} with owner ID {}",
+            user_id, owner_id
+        );
 
-        if get_user_with_id(&mut self.conn, user_id).is_some() {
+        if let Some(user_data) = get_user_with_id(&mut self.conn, user_id) {
             let ws_data = WSData::new(user_id, ws_id);
 
             self.user_session
@@ -211,7 +209,10 @@ impl ChatServer {
             if let Some(entry) = self.sessions.get_mut(&ws_id) {
                 let (id_info, receiver_ws) = entry;
                 *id_info = id_data;
-                receiver_ws.do_send(Message(format!("/reconnect-success {}", user_data)));
+                receiver_ws.do_send(Message(format!(
+                    "/reconnect-success {}",
+                    user_data.update_token(String::new()).to_json()
+                )));
             }
         } else {
             error!("Unable to reconnect with a non-existing user")
@@ -252,7 +253,7 @@ impl ChatServer {
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (id_info, _) = entry;
-            *id_info = id_data;
+            *id_info = id_data.clone();
         }
 
         let ws_data = WSData::new(user_id, ws_id);
@@ -262,6 +263,8 @@ impl ChatServer {
         if !session_data.contains(&ws_data) {
             session_data.push(ws_data);
         }
+
+        self.send_message_number(ws_id, id_data);
     }
 
     /// Updates user name of a user
@@ -328,7 +331,7 @@ impl ChatServer {
         }
     }
 
-    pub fn send_message_number(&mut self, id_data: IDInfo) {
+    pub fn send_message_number(&mut self, ws_id: usize, id_data: IDInfo) {
         let owner_id;
 
         if let Some(user_data) = get_user_with_token(&mut self.conn, id_data.user_token) {
@@ -339,17 +342,57 @@ impl ChatServer {
         }
 
         let message_group = create_message_group(owner_id, id_data.user_id);
+
+        info!("Sending message number of group {}", message_group);
+
         let last_message_number = get_last_message_number(&mut self.conn, message_group);
 
-        if self.user_session.contains_key(&owner_id) {
-            for session in self.user_session[&owner_id].iter() {
-                if session.user_id == id_data.user_id {
-                    if let Some(data) = self.sessions.get(&session.ws_id) {
-                        let receiver = &data.1;
-                        receiver.do_send(Message(format!("/message-number {last_message_number}")));
-                    }
-                }
-            }
+        if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
+            receiver_ws.do_send(Message(format!("/message-number {last_message_number}")));
+        };
+    }
+
+    pub fn sync_message(&mut self, ws_id: usize, sync_data: SyncMessage) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, sync_data.user_token) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
         }
+
+        let group_name = create_message_group(owner_id, sync_data.user_id);
+
+        info!("Sending sync message data of group {}", group_name);
+
+        let gathered_message_data = get_messages_from_number(
+            &mut self.conn,
+            group_name,
+            sync_data.start_at,
+            sync_data.end_at,
+        );
+
+        if gathered_message_data.is_empty() {
+            return;
+        }
+
+        let message_data: Vec<MessageData> = gathered_message_data
+            .into_iter()
+            .map(|msg| MessageData {
+                created_at: msg.created_at.to_string(),
+                from_user: msg.message_sender as usize,
+                to_user: msg.message_receiver as usize,
+                message: msg.message_text,
+                message_number: msg.message_number as usize,
+                user_token: String::new(),
+            })
+            .collect();
+
+        let to_send = SyncMessageData::new_json(message_data);
+
+        if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
+            receiver_ws.do_send(Message(format!("/sync-message {}", to_send)))
+        };
     }
 }

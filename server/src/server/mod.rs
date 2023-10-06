@@ -4,4 +4,4 @@ mod websocket;
 
 pub use handler::ChatServer;
 pub use json_models::*;
-pub use websocket::{CommunicateUser, Connect, Disconnect, Message};
+pub use websocket::{Connect, Disconnect, HandleRequest, Message};
