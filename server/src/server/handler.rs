@@ -183,24 +183,22 @@ impl ChatServer {
     pub fn reconnect_user(&mut self, ws_id: usize, mut id_data: IDInfo) {
         let owner_id;
 
-        let user_data = if let Some(user_data) =
-            get_user_with_token(&mut self.conn, id_data.user_token.clone())
-        {
-            owner_id = user_data.user_id as usize;
-            user_data
+        if let Some(owner_data) = get_user_with_token(&mut self.conn, id_data.user_token.clone()) {
+            owner_id = owner_data.user_id as usize;
         } else {
             error!("Invalid user token received. Discarding request");
             return;
-        }
-        .update_token(String::new())
-        .to_json();
+        };
 
         let user_id = id_data.user_id;
         id_data.update_owner_id(owner_id);
 
-        info!("Reconnecting with User ID {}", user_id);
+        info!(
+            "Reconnecting with User ID {} with owner ID {}",
+            user_id, owner_id
+        );
 
-        if get_user_with_id(&mut self.conn, user_id).is_some() {
+        if let Some(user_data) = get_user_with_id(&mut self.conn, user_id) {
             let ws_data = WSData::new(user_id, ws_id);
 
             self.user_session
@@ -211,7 +209,10 @@ impl ChatServer {
             if let Some(entry) = self.sessions.get_mut(&ws_id) {
                 let (id_info, receiver_ws) = entry;
                 *id_info = id_data;
-                receiver_ws.do_send(Message(format!("/reconnect-success {}", user_data)));
+                receiver_ws.do_send(Message(format!(
+                    "/reconnect-success {}",
+                    user_data.update_token(String::new()).to_json()
+                )));
             }
         } else {
             error!("Unable to reconnect with a non-existing user")
@@ -365,8 +366,16 @@ impl ChatServer {
 
         info!("Sending sync message data of group {}", group_name);
 
-        let gathered_message_data =
-            get_messages_from_number(&mut self.conn, group_name, sync_data.message_number);
+        let gathered_message_data = get_messages_from_number(
+            &mut self.conn,
+            group_name,
+            sync_data.start_at,
+            sync_data.end_at,
+        );
+
+        if gathered_message_data.is_empty() {
+            return;
+        }
 
         let message_data: Vec<MessageData> = gathered_message_data
             .into_iter()

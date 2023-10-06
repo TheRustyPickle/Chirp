@@ -132,7 +132,8 @@ impl ImageUpdate {
 #[derive(Deserialize)]
 pub struct SyncMessage {
     pub user_id: usize,
-    pub message_number: usize,
+    pub start_at: usize,
+    pub end_at: usize,
     pub user_token: String,
 }
 

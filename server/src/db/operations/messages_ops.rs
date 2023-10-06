@@ -31,13 +31,16 @@ pub fn get_last_message_number(conn: &mut PgConnection, group: String) -> usize 
 pub fn get_messages_from_number(
     conn: &mut PgConnection,
     group: String,
-    number_to_start: usize,
+    start_at: usize,
+    end_at: usize,
 ) -> Vec<Message> {
     use crate::db::schema::messages::dsl::*;
 
     messages
         .filter(message_group.eq(group))
-        .filter(message_number.ge(number_to_start as i32))
+        .filter(message_number.gt(start_at as i32))
+        .filter(message_number.le(end_at as i32))
+        .order(message_number.desc())
         .select(Message::as_select())
         .load(conn)
         .unwrap()

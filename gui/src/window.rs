@@ -122,8 +122,8 @@ impl Window {
                 let index = row.index();
 
                 if last_index != index {
-                    window.remove_avatar_css(last_index, listbox);
-                    window.add_avatar_css(index, listbox);
+                    window.remove_selected_avatar_css(last_index, listbox);
+                    window.add_selected_avatar_css(index, listbox);
                 }
 
                 let selected_chat = window.get_users_liststore()
@@ -206,7 +206,8 @@ impl Window {
         self.imp().settings.get().unwrap()
     }
 
-    fn update_setting(&self, new_location: &str) {
+    // TODO use for when the app can take a location input
+    fn _update_setting(&self, new_location: &str) {
         self.settings()
             .set_string("location", new_location)
             .unwrap();
@@ -346,8 +347,6 @@ impl Window {
             return;
         }
 
-        info!("Sending new text message: {}", content);
-
         let sender = self.get_chatting_from();
         let receiver = self.get_chatting_with();
 
@@ -377,14 +376,19 @@ impl Window {
         self.chatting_with_messages().append(&message);
     }
 
-    fn receive_message(&self, message_data: MessageData, sender: UserObject) {
-        info!(
-            "Receiving message from {} with content: {}",
-            sender.name(),
-            message_data.message
-        );
-        sender.set_message_number(sender.message_number() + 1);
-        let receiver = self.get_chatting_from();
+    /// Gets called when a message is received or when syncing previous message data
+    pub fn receive_message(&self, message_data: MessageData, other_user: UserObject) {
+        let current_message_number = other_user.message_number();
+        if current_message_number < message_data.message_number {
+            other_user.set_message_number(other_user.message_number() + 1);
+        }
+
+        let (sender, receiver, is_send) =
+            if self.get_chatting_from().user_id() == message_data.from_user {
+                (self.get_chatting_from(), other_user.clone(), true)
+            } else {
+                (other_user.clone(), self.get_chatting_from(), false)
+            };
 
         // NOTE temporary solution. Later when user timezone is saved on the server side, it should
         // send the correct time instead of UTC time
@@ -395,13 +399,17 @@ impl Window {
 
         let message = MessageObject::new(
             message_data.message,
-            false,
-            sender.clone(),
+            is_send,
+            sender,
             receiver,
             parsed_date_time,
         );
 
-        sender.messages().append(&message);
+        if current_message_number > message_data.message_number {
+            other_user.messages().insert(0, &message);
+        } else {
+            other_user.messages().append(&message);
+        }
     }
 
     fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
@@ -431,6 +439,8 @@ impl Window {
         user_data
     }
 
+    /// Function that handles some WS requests. Every added UserObject will have an instance of this to
+    /// process their requests. user variable calls the function
     pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
@@ -467,6 +477,8 @@ impl Window {
         }));
     }
 
+    /// Used to create all UserObject for the self's users ListStore except the owner Object.
+    /// Called when New Chat button is used or a message is received but the user was not added
     fn create_user(&self, user_data: FullUserData) -> UserObject {
         info!(
             "Creating new user with name: {}, id: {}",
@@ -486,6 +498,7 @@ impl Window {
         }
 
         // Every single user in the UserList of the client will have the owner User ID for reference
+        // In case of connection  issues, bind is used so when the owner gets the data, all users will too.
         let chatting_from = self.get_chatting_from();
         chatting_from
             .bind_property("user-id", &new_user_data, "owner-id")
@@ -514,7 +527,7 @@ impl Window {
         self.imp().message_entry.grab_focus();
     }
 
-    fn remove_avatar_css(&self, index: i32, listbox: &ListBox) {
+    fn remove_selected_avatar_css(&self, index: i32, listbox: &ListBox) {
         let b = listbox.row_at_index(index).unwrap();
         let c: UserRow = b.child().unwrap().downcast().unwrap();
 
@@ -522,7 +535,7 @@ impl Window {
         c.imp().user_avatar.add_css_class("user-inactive");
     }
 
-    fn add_avatar_css(&self, index: i32, listbox: &ListBox) {
+    fn add_selected_avatar_css(&self, index: i32, listbox: &ListBox) {
         let b = listbox.row_at_index(index).unwrap();
         let c: UserRow = b.child().unwrap().downcast().unwrap();
 

@@ -23,7 +23,7 @@ pub enum RequestType {
     // Broadcast new user selection to the WS
     NewUserSelection(UserObject),
     // Ask the WS to send un-synced messages
-    SyncMessage(u64),
+    SyncMessage(u64, u64),
 }
 
 /// Used for sending or receiving relevant data to create an UserObject
@@ -176,15 +176,17 @@ impl NameUpdate {
 #[derive(Serialize)]
 pub struct MessageSyncRequest {
     user_id: u64,
-    message_number: u64,
+    start_at: u64,
+    end_at: u64,
     user_token: String,
 }
 
 impl MessageSyncRequest {
-    pub fn new_json(user_id: u64, message_number: u64, user_token: String) -> String {
+    pub fn new_json(user_id: u64, start_at: u64, end_at: u64, user_token: String) -> String {
         let data = MessageSyncRequest {
             user_id,
-            message_number,
+            start_at,
+            end_at,
             user_token,
         };
         serde_json::to_string(&data).unwrap()
