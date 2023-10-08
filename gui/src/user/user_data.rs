@@ -20,7 +20,7 @@ mod imp {
         #[property(name = "small-image", get, set, type = Option<Paintable>, member = small_image)]
         #[property(name = "name", get, set, type = String, member = name)]
         #[property(name = "name-color", get, set, type = String, member = name_color)]
-        #[property(name = "image-link", get, set, type = Option<String>, member = image_link)]
+        #[property(name = "image-link", get, set, nullable, type = Option<String>, member = image_link)]
         pub data: RefCell<UserData>,
         #[property(get, set)]
         pub messages: OnceCell<ListStore>,
@@ -49,13 +49,14 @@ mod imp {
 
 use adw::prelude::*;
 use gdk::{gdk_pixbuf, Paintable, Texture};
-use gdk_pixbuf::InterpType;
+use gdk_pixbuf::{InterpType, PixbufLoader};
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
-    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
+    clone, closure_local, Bytes, ControlFlow, Error, MainContext, Object, Priority, Receiver,
+    Sender,
 };
-use gtk::{gdk, glib, Image};
+use gtk::{gdk, glib};
 use tracing::{debug, info};
 
 use crate::message::MessageObject;
@@ -85,7 +86,7 @@ impl UserObject {
         let obj: UserObject = Object::builder()
             .property("user-id", id)
             .property("name", name)
-            .property("image-link", image_link.clone())
+            .property("image-link", image_link.to_owned())
             .property("messages", messages)
             .property("name-color", random_color)
             .build();
@@ -97,7 +98,11 @@ impl UserObject {
         }
 
         let ws = WSObject::new();
-        obj.check_image_link();
+
+        if let Some(link) = image_link {
+            obj.check_image_link(link);
+        }
+
         obj.set_user_ws(ws);
         obj.set_message_number(0);
         let user_object = obj.clone();
@@ -114,39 +119,48 @@ impl UserObject {
         obj
     }
 
-    // TODO: Pass a result instead of Bytes directly
-    fn check_image_link(&self) {
-        if let Some(image_link) = self.image_link() {
-            let (sender, receiver) = MainContext::channel(Priority::default());
-            self.set_user_image(receiver);
-            spawn_blocking(move || {
-                let avatar = get_avatar(image_link);
-                sender.send(avatar).unwrap();
-            });
-        }
+    fn check_image_link(&self, new_link: String) {
+        let (sender, receiver) = MainContext::channel(Priority::default());
+        self.set_user_image(receiver);
+        spawn_blocking(move || {
+            let avatar = get_avatar(new_link);
+            sender.send(avatar).unwrap();
+        });
     }
 
-    // TODO: Verify image link
-    #[allow(deprecated)]
-    fn set_user_image(&self, receiver: Receiver<Bytes>) {
+    fn set_user_image(&self, receiver: Receiver<(String, Result<Bytes, Error>)>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
-                move |image_data| {
-                    let texture = Texture::from_bytes(&image_data).unwrap();
-                    let pixbuf = gdk::pixbuf_get_from_texture(&texture).unwrap();
+                move |(image_link, image_data_result)| {
+                    if let Ok(image_data) = image_data_result {
+                        // Try to load the image data and turn it into pixbuf
+                        let pixbuf_loader = PixbufLoader::new();
+                        if let Err(_) = pixbuf_loader.write(&image_data) {
+                            return ControlFlow::Break
+                        };
 
-                    let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
-                    let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
+                        if let Err(_) = pixbuf_loader.close() {
+                            return ControlFlow::Break
+                        };
 
-                    let big_image = Image::from_pixbuf(Some(&big_image_buf));
-                    let small_image = Image::from_pixbuf(Some(&small_image_buf));
+                        let pixbuf = if let Some(data) = pixbuf_loader.pixbuf() {
+                            data
+                        } else {
+                            return ControlFlow::Break
+                        };
+                        // Gtk handles some scaling by itself but the quality is terrible for smaller size.
+                        // Manually scaling it retains some quality
+                        let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
+                        let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
 
-                    let paintable = big_image.paintable().unwrap();
-                    user_object.set_big_image(paintable);
+                        let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
+                        let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
 
-                    let paintable = small_image.paintable().unwrap();
-                    user_object.set_small_image(paintable);
+                        user_object.set_big_image(big_paintable);
+                        user_object.set_small_image(small_paintable);
+                        user_object.set_image_link(Some(image_link));
+                    }
                     ControlFlow::Break
                 }
             ),
@@ -279,8 +293,7 @@ impl UserObject {
     }
 
     pub fn set_new_image_link(&self, link: String) {
-        self.set_image_link(link);
-        self.check_image_link()
+        self.check_image_link(link);
     }
 
     pub fn set_random_image(&self) {
@@ -336,9 +349,9 @@ impl UserObject {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             if let Some(link) = user_data.image_link {
-                                user_object.set_image_link(link);
+                                user_object.check_image_link(link);
                             }
-                            user_object.check_image_link();
+                            
                             user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
                         }
                         "/update-user-id" => { 
@@ -354,8 +367,7 @@ impl UserObject {
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
-                            user_object.set_image_link(splitted_data[1]);
-                            user_object.check_image_link();
+                            user_object.check_image_link(splitted_data[1].to_string());
                         },
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {

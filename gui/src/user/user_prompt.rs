@@ -66,7 +66,12 @@ impl UserPrompt {
         prompt_entry.add_css_class("blue-entry");
         prompt_entry.set_activates_default(true);
 
-        prompt_entry.connect_changed(clone!(@weak obj as prompt => move |entry| {
+        obj
+    }
+
+    fn bind(&self) {
+        let prompt_entry = self.imp().prompt_entry.get();
+        prompt_entry.connect_changed(clone!(@weak self as prompt => move |entry| {
             let text = entry.text();
             let empty = text.is_empty();
 
@@ -80,11 +85,30 @@ impl UserPrompt {
                 entry.add_css_class("blue-entry");
             }
         }));
+    }
 
-        obj
+    fn bind_int(&self) {
+        let prompt_entry = self.imp().prompt_entry.get();
+        prompt_entry.connect_changed(clone!(@weak self as prompt => move |entry| {
+            let text = entry.text();
+            let empty = text.is_empty();
+
+            let to_enable = !empty && text.parse::<u64>().is_ok();
+
+            prompt.set_response_enabled("accept", to_enable);
+
+            if !to_enable {
+                entry.remove_css_class("blue-entry");
+                entry.add_css_class("error");
+            } else {
+                entry.remove_css_class("error");
+                entry.add_css_class("blue-entry");
+            }
+        }));
     }
 
     pub fn add_user(self, window: &window::Window) -> Self {
+        self.bind_int();
         self.set_transient_for(Some(window));
         let entry = self.imp().prompt_entry.get();
 
@@ -97,7 +121,6 @@ impl UserPrompt {
                 if response != "accept" {
                     return;
                 }
-                // TODO parse number properly
                 let entry_data = entry.text();
                 info!("Entry data: {}", entry_data);
                 window.get_chatting_from().add_to_queue(RequestType::GetUserData(entry_data.parse().unwrap()));
@@ -110,6 +133,7 @@ impl UserPrompt {
     }
 
     pub fn edit_name(self, window: &UserProfile, user_data: &UserObject) -> Self {
+        self.bind();
         self.set_transient_for(Some(window));
         let entry = self.imp().prompt_entry.get();
 
@@ -141,6 +165,7 @@ impl UserPrompt {
     }
 
     pub fn edit_image_link(self, window: &UserProfile, user_data: &UserObject) -> Self {
+        self.bind();
         self.set_transient_for(Some(window));
         let entry = self.imp().prompt_entry.get();
 
