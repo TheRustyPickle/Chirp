@@ -1,5 +1,5 @@
 use gio::Cancellable;
-use gtk::glib::{Bytes, Error};
+use gtk::glib::Bytes;
 use rand::Rng;
 use soup::{prelude::*, Message, Session};
 use tracing::info;
@@ -9,13 +9,17 @@ const COLORS: [&str; 10] = [
     "purple-2", "brown-1",
 ];
 
-pub fn get_avatar(link: String) -> (String, Result<Bytes, Error>) {
+pub fn get_avatar(link: String) -> Result<(String, Bytes), String> {
     info!("Starting fetching avatar...");
     let session = Session::new();
-    let message = Message::new("GET", &link).unwrap();
     let cancel = Cancellable::new();
 
-    (link, session.send_and_read(&message, Some(&cancel)))
+    let message = Message::new("GET", &link).map_err(|_| format!("Invalid link"))?;
+    let image_data = session
+        .send_and_read(&message, Some(&cancel))
+        .map_err(|_| format!("Failed to get image data"))?;
+
+    Ok((link, image_data))
 }
 
 fn generate_random_number(length: usize) -> String {

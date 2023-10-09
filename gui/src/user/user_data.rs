@@ -2,7 +2,9 @@ mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use gdk::Paintable;
+    use gio::glib::subclass::Signal;
     use gio::ListStore;
+    use glib::once_cell::sync::Lazy;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::{gdk, glib};
     use std::cell::{Cell, OnceCell, RefCell};
@@ -44,7 +46,18 @@ mod imp {
     }
 
     #[derived_properties]
-    impl ObjectImpl for UserObject {}
+    impl ObjectImpl for UserObject {
+        fn signals() -> &'static [Signal] {
+            // Gets emitted when updating image to open a Toast on profile page
+            // Empty string => Success
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+                vec![Signal::builder("image-modified")
+                    .param_types([String::static_type()])
+                    .build()]
+            });
+            SIGNALS.as_ref()
+        }
+    }
 }
 
 use adw::prelude::*;
@@ -53,8 +66,7 @@ use gdk_pixbuf::{InterpType, PixbufLoader};
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
-    clone, closure_local, Bytes, ControlFlow, Error, MainContext, Object, Priority, Receiver,
-    Sender,
+    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
 };
 use gtk::{gdk, glib};
 use tracing::{debug, info};
@@ -128,38 +140,46 @@ impl UserObject {
         });
     }
 
-    fn set_user_image(&self, receiver: Receiver<(String, Result<Bytes, Error>)>) {
+    fn set_user_image(&self, receiver: Receiver<Result<(String, Bytes), String>>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
-                move |(image_link, image_data_result)| {
-                    if let Ok(image_data) = image_data_result {
-                        // Try to load the image data and turn it into pixbuf
-                        let pixbuf_loader = PixbufLoader::new();
-                        if let Err(_) = pixbuf_loader.write(&image_data) {
-                            return ControlFlow::Break
-                        };
+                move |image_result| {
+                    match image_result {
+                        Ok((image_link, image_data)) => {
+                            let pixbuf_loader = PixbufLoader::new();
+                            if let Err(_) = pixbuf_loader.write(&image_data) {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
 
-                        if let Err(_) = pixbuf_loader.close() {
-                            return ControlFlow::Break
-                        };
+                            if let Err(_) = pixbuf_loader.close() {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
 
-                        let pixbuf = if let Some(data) = pixbuf_loader.pixbuf() {
-                            data
-                        } else {
-                            return ControlFlow::Break
-                        };
-                        // Gtk handles some scaling by itself but the quality is terrible for smaller size.
-                        // Manually scaling it retains some quality
-                        let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
-                        let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
+                            let pixbuf = if let Some(data) = pixbuf_loader.pixbuf() {
+                                data
+                            } else {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
+                            // Gtk handles some scaling by itself but the quality is terrible for smaller size.
+                            // Manually scaling it retains some quality
+                            let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
+                            let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
 
-                        let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
-                        let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
+                            let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
+                            let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
 
-                        user_object.set_big_image(big_paintable);
-                        user_object.set_small_image(small_paintable);
-                        user_object.set_image_link(Some(image_link));
+                            user_object.set_big_image(big_paintable);
+                            user_object.set_small_image(small_paintable);
+                            user_object.set_image_link(Some(image_link));
+                            user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
+                        }
+                        Err(msg) => {
+                            user_object.emit_by_name::<()>("image-modified", &[&msg]);
+                        }
                     }
                     ControlFlow::Break
                 }
@@ -351,16 +371,15 @@ impl UserObject {
                             if let Some(link) = user_data.image_link {
                                 user_object.check_image_link(link);
                             }
-                            
                             user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
                         }
-                        "/update-user-id" => { 
+                        "/update-user-id" => {
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
 
-                            // self.add_queue_to_first(RequestType::CreateNewUser);
+                            // self.add_queue_to_first(_);
                             // ensured that the queue will stop processing requests
                             // As we got the ID details now, this will ensure all queues are processed
                             // And further processing is not blocked.
@@ -368,13 +387,20 @@ impl UserObject {
                         }
                         "/image-updated" => {
                             user_object.check_image_link(splitted_data[1].to_string());
-                        },
+                        }
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {
                             let message_number = splitted_data[1].parse::<u64>().unwrap();
-                            info!("Current message_number number {}, gotten number {}", user_object.message_number(), message_number);
+                            info!(
+                                "Current message_number number {}, gotten number {}",
+                                user_object.message_number(),
+                                message_number
+                            );
                             if message_number > user_object.message_number() {
-                                user_object.add_to_queue(RequestType::SyncMessage(user_object.message_number(), message_number));
+                                user_object.add_to_queue(RequestType::SyncMessage(
+                                    user_object.message_number(),
+                                    message_number,
+                                ));
                                 user_object.set_message_number(message_number);
                             }
                             user_object.process_queue(None);
@@ -392,7 +418,6 @@ impl UserObject {
                 }
             }),
         );
-
         self.user_ws().set_signal_id(id);
     }
 }
