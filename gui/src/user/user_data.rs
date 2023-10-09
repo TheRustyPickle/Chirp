@@ -2,7 +2,9 @@ mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use gdk::Paintable;
+    use gio::glib::subclass::Signal;
     use gio::ListStore;
+    use glib::once_cell::sync::Lazy;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::{gdk, glib};
     use std::cell::{Cell, OnceCell, RefCell};
@@ -20,7 +22,7 @@ mod imp {
         #[property(name = "small-image", get, set, type = Option<Paintable>, member = small_image)]
         #[property(name = "name", get, set, type = String, member = name)]
         #[property(name = "name-color", get, set, type = String, member = name_color)]
-        #[property(name = "image-link", get, set, type = Option<String>, member = image_link)]
+        #[property(name = "image-link", get, set, nullable, type = Option<String>, member = image_link)]
         pub data: RefCell<UserData>,
         #[property(get, set)]
         pub messages: OnceCell<ListStore>,
@@ -44,18 +46,29 @@ mod imp {
     }
 
     #[derived_properties]
-    impl ObjectImpl for UserObject {}
+    impl ObjectImpl for UserObject {
+        fn signals() -> &'static [Signal] {
+            // Gets emitted when updating image to open a Toast on profile page
+            // Empty string => Success
+            static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
+                vec![Signal::builder("image-modified")
+                    .param_types([String::static_type()])
+                    .build()]
+            });
+            SIGNALS.as_ref()
+        }
+    }
 }
 
 use adw::prelude::*;
 use gdk::{gdk_pixbuf, Paintable, Texture};
-use gdk_pixbuf::InterpType;
+use gdk_pixbuf::{InterpType, PixbufLoader};
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
     clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
 };
-use gtk::{gdk, glib, Image};
+use gtk::{gdk, glib};
 use tracing::{debug, info};
 
 use crate::message::MessageObject;
@@ -85,7 +98,7 @@ impl UserObject {
         let obj: UserObject = Object::builder()
             .property("user-id", id)
             .property("name", name)
-            .property("image-link", image_link.clone())
+            .property("image-link", image_link.to_owned())
             .property("messages", messages)
             .property("name-color", random_color)
             .build();
@@ -97,7 +110,11 @@ impl UserObject {
         }
 
         let ws = WSObject::new();
-        obj.check_image_link();
+
+        if let Some(link) = image_link {
+            obj.check_image_link(link);
+        }
+
         obj.set_user_ws(ws);
         obj.set_message_number(0);
         let user_object = obj.clone();
@@ -114,39 +131,56 @@ impl UserObject {
         obj
     }
 
-    // TODO: Pass a result instead of Bytes directly
-    fn check_image_link(&self) {
-        if let Some(image_link) = self.image_link() {
-            let (sender, receiver) = MainContext::channel(Priority::default());
-            self.set_user_image(receiver);
-            spawn_blocking(move || {
-                let avatar = get_avatar(image_link);
-                sender.send(avatar).unwrap();
-            });
-        }
+    fn check_image_link(&self, new_link: String) {
+        let (sender, receiver) = MainContext::channel(Priority::default());
+        self.set_user_image(receiver);
+        spawn_blocking(move || {
+            let avatar = get_avatar(new_link);
+            sender.send(avatar).unwrap();
+        });
     }
 
-    // TODO: Verify image link
-    #[allow(deprecated)]
-    fn set_user_image(&self, receiver: Receiver<Bytes>) {
+    fn set_user_image(&self, receiver: Receiver<Result<(String, Bytes), String>>) {
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
-                move |image_data| {
-                    let texture = Texture::from_bytes(&image_data).unwrap();
-                    let pixbuf = gdk::pixbuf_get_from_texture(&texture).unwrap();
+                move |image_result| {
+                    match image_result {
+                        Ok((image_link, image_data)) => {
+                            let pixbuf_loader = PixbufLoader::new();
+                            if let Err(_) = pixbuf_loader.write(&image_data) {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
 
-                    let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
-                    let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
+                            if let Err(_) = pixbuf_loader.close() {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
 
-                    let big_image = Image::from_pixbuf(Some(&big_image_buf));
-                    let small_image = Image::from_pixbuf(Some(&small_image_buf));
+                            let pixbuf = if let Some(data) = pixbuf_loader.pixbuf() {
+                                data
+                            } else {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                return ControlFlow::Break
+                            };
+                            // Gtk handles some scaling by itself but the quality is terrible for smaller size.
+                            // Manually scaling it retains some quality
+                            let big_image_buf = pixbuf.scale_simple(150, 150, InterpType::Hyper).unwrap();
+                            let small_image_buf = pixbuf.scale_simple(45, 45, InterpType::Hyper).unwrap();
 
-                    let paintable = big_image.paintable().unwrap();
-                    user_object.set_big_image(paintable);
+                            let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
+                            let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
 
-                    let paintable = small_image.paintable().unwrap();
-                    user_object.set_small_image(paintable);
+                            user_object.set_big_image(big_paintable);
+                            user_object.set_small_image(small_paintable);
+                            user_object.set_image_link(Some(image_link));
+                            user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
+                        }
+                        Err(msg) => {
+                            user_object.emit_by_name::<()>("image-modified", &[&msg]);
+                        }
+                    }
                     ControlFlow::Break
                 }
             ),
@@ -279,8 +313,7 @@ impl UserObject {
     }
 
     pub fn set_new_image_link(&self, link: String) {
-        self.set_image_link(link);
-        self.check_image_link()
+        self.check_image_link(link);
     }
 
     pub fn set_random_image(&self) {
@@ -336,33 +369,38 @@ impl UserObject {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             if let Some(link) = user_data.image_link {
-                                user_object.set_image_link(link);
+                                user_object.check_image_link(link);
                             }
-                            user_object.check_image_link();
                             user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
                         }
-                        "/update-user-id" => { 
+                        "/update-user-id" => {
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
 
-                            // self.add_queue_to_first(RequestType::CreateNewUser);
+                            // self.add_queue_to_first(_);
                             // ensured that the queue will stop processing requests
                             // As we got the ID details now, this will ensure all queues are processed
                             // And further processing is not blocked.
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
-                            user_object.set_image_link(splitted_data[1]);
-                            user_object.check_image_link();
-                        },
+                            user_object.check_image_link(splitted_data[1].to_string());
+                        }
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {
                             let message_number = splitted_data[1].parse::<u64>().unwrap();
-                            info!("Current message_number number {}, gotten number {}", user_object.message_number(), message_number);
+                            info!(
+                                "Current message_number number {}, gotten number {}",
+                                user_object.message_number(),
+                                message_number
+                            );
                             if message_number > user_object.message_number() {
-                                user_object.add_to_queue(RequestType::SyncMessage(user_object.message_number(), message_number));
+                                user_object.add_to_queue(RequestType::SyncMessage(
+                                    user_object.message_number(),
+                                    message_number,
+                                ));
                                 user_object.set_message_number(message_number);
                             }
                             user_object.process_queue(None);
@@ -380,7 +418,6 @@ impl UserObject {
                 }
             }),
         );
-
         self.user_ws().set_signal_id(id);
     }
 }

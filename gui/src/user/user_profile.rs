@@ -62,8 +62,10 @@ mod imp {
     impl MessageDialogImpl for UserProfile {}
 }
 
+use adw::prelude::*;
 use adw::subclass::prelude::*;
-use adw::{prelude::*, Toast};
+use adw::Toast;
+use glib::closure_local;
 use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
@@ -82,6 +84,25 @@ wrapper! {
 impl UserProfile {
     pub fn new(user_data: UserObject, window: &window::Window, is_owner: bool) -> Self {
         let obj: UserProfile = Object::builder().build();
+
+        let obj_clone = obj.clone();
+        if is_owner {
+            user_data.connect_closure(
+                "image-modified",
+                false,
+                closure_local!(move |_from: UserObject, message: String| {
+                    if !message.is_empty() {
+                        let toast_overlay = obj_clone.imp().toast_overlay.get();
+                        let toast = Toast::builder()
+                            .title(format!("Failed to update image: {}", message))
+                            .timeout(2)
+                            .build();
+                        toast_overlay.add_toast(toast);
+                    }
+                }),
+            );
+        }
+
         obj.imp().user_data.set(user_data).unwrap();
         obj.set_transient_for(Some(window));
         obj.set_modal(true);

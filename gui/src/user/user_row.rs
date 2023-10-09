@@ -64,7 +64,6 @@ wrapper! {
 }
 
 impl UserRow {
-    #[allow(deprecated)]
     pub fn new(object: UserObject) -> Self {
         let row: UserRow = Object::builder().build();
         row.imp().popover_visible.set(false);
@@ -80,11 +79,13 @@ impl UserRow {
         motion.connect_enter(move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
                 let popover = row_clone.imp().user_popover.get();
-                let position = row_clone.imp().user_avatar.get().allocation();
+                let position = row_clone
+                    .compute_bounds(&row_clone.imp().user_avatar.get())
+                    .unwrap();
                 let popover_text = row_clone.imp().user_data.get().unwrap().name();
 
-                let x_position = position.x() + 40;
-                let y_position = position.y() + 20;
+                let x_position = position.x() as i32 + 45;
+                let y_position = position.y() as i32 + 25;
 
                 let position = Rectangle::new(x_position, y_position, -1, -1);
 
