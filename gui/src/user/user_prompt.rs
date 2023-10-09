@@ -118,14 +118,13 @@ impl UserPrompt {
         self.connect_response(
             None,
             clone!(@weak window, @weak entry => move |dialog, response| {
+                dialog.destroy();
                 if response != "accept" {
                     return;
                 }
                 let entry_data = entry.text();
                 info!("Entry data: {}", entry_data);
                 window.get_chatting_from().add_to_queue(RequestType::GetUserData(entry_data.parse().unwrap()));
-
-                dialog.destroy();
             }),
         );
 
@@ -142,6 +141,7 @@ impl UserPrompt {
         self.connect_response(
             None,
             clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
+                dialog.destroy();
                 if response != "accept" {
                     return;
                 }
@@ -157,7 +157,6 @@ impl UserPrompt {
 
                 user_data.set_new_name(entry_data.to_string());
                 user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
-                dialog.destroy();
             }),
         );
 
@@ -175,6 +174,7 @@ impl UserPrompt {
         self.connect_response(
             None,
             clone!(@weak window, @weak entry, @weak user_data => move |dialog, response| {
+                dialog.destroy();
                 if response != "accept" {
                     return;
                 }
@@ -190,7 +190,6 @@ impl UserPrompt {
 
                 user_data.set_new_image_link(entry_data.to_string());
                 user_data.add_to_queue(RequestType::ImageUpdated(entry_data.to_string()));
-                dialog.destroy();
             }),
         );
 

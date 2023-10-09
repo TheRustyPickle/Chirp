@@ -79,7 +79,9 @@ impl UserRow {
         motion.connect_enter(move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
                 let popover = row_clone.imp().user_popover.get();
-                let position = row_clone.compute_bounds(&row_clone.imp().user_avatar.get()).unwrap();
+                let position = row_clone
+                    .compute_bounds(&row_clone.imp().user_avatar.get())
+                    .unwrap();
                 let popover_text = row_clone.imp().user_data.get().unwrap().name();
 
                 let x_position = position.x() as i32 + 45;
