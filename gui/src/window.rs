@@ -538,4 +538,13 @@ impl Window {
         c.imp().user_avatar.add_css_class("user-selected");
         c.imp().user_avatar.remove_css_class("user-inactive");
     }
+
+    pub fn reload_user_ws(&self) {
+        let user_list = self.imp().users.get().unwrap();
+
+        for user_data in user_list.iter() {
+            let user_data: UserObject = user_data.unwrap();
+            user_data.user_ws().reload_manually();
+        }
+    }
 }

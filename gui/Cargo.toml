@@ -16,6 +16,7 @@ tracing-subscriber = "0.3.17"
 serde = { version = "1.0.188", features = ["derive"]}
 serde_json = "1.0.107"
 chrono = "0.4.31"
+dotenvy = "0.15.7"
 
 [build-dependencies]
 glib-build-tools = "0.18.0"

@@ -12,7 +12,7 @@ mod imp {
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::WSObject)]
     pub struct WSObject {
-        #[property(get, set)]
+        #[property(get, set, nullable)]
         pub ws_conn: RefCell<Option<WebsocketConnection>>,
         pub ws_signal_id: RefCell<Option<SignalHandlerId>>,
         pub ws_sender: OnceCell<Sender<Option<WebsocketConnection>>>,
@@ -21,6 +21,10 @@ mod imp {
         pub is_reconnecting: Cell<bool>,
         #[property(get, set)]
         pub reconnecting_timer: Cell<u32>,
+        #[property(get, set)]
+        pub last_timer: Cell<u32>,
+        #[property(get, set)]
+        pub manually_reloaded: Cell<bool>,
     }
 
     #[object_subclass]
@@ -50,11 +54,12 @@ mod imp {
 use adw::subclass::prelude::*;
 use gio::Cancellable;
 use glib::{
-    clone, timeout_add_seconds_local_once, wrapper, ControlFlow, MainContext, Object, Priority,
+    clone, timeout_add_seconds_local, wrapper, ControlFlow, MainContext, Object, Priority,
     SignalHandlerId,
 };
 use gtk::{glib, prelude::*};
-use soup::{prelude::*, Message, Session};
+use soup::{prelude::*, Message, Session, WebsocketConnection};
+use std::env;
 use tracing::{error, info};
 
 wrapper! {
@@ -73,10 +78,9 @@ impl WSObject {
         let session = Session::new();
         let sender = self.imp().ws_sender.get().unwrap().clone();
 
-        // TODO: update it dynamically based on a yaml, json or something file
-        let websocket_url = "wss://localhost:8080/ws/";
+        let websocket_url = env::var("WEBSOCKET_URL").expect("WEBSOCKET_URL must be set");
 
-        let message = Message::new("GET", websocket_url).unwrap();
+        let message = Message::new("GET", &websocket_url).unwrap();
 
         message.connect_accept_certificate(move |_, _, _| true);
 
@@ -123,20 +127,31 @@ impl WSObject {
             None,
             clone!(@weak self as ws_object => @default-return ControlFlow::Break, move |conn| {
                 if conn.is_some() {
-                    ws_object.set_ws_conn(conn.unwrap());
+                    ws_object.set_ws_conn(Some(conn.unwrap()));
                     info!("WebSocket connection success");
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
                     ws_object.start_pinging();
                     ws_object.set_reconnecting_timer(10);
                 } else {
-                    let timer = ws_object.reconnecting_timer();
-                    error!("WebSocket connection failed. Starting reconnecting again in {} seconds", timer);
-
+                    let timer = (ws_object.reconnecting_timer() as f32 * 1.5) as u32;
+                    ws_object.set_last_timer(timer);
                     if timer < 300 {
-                        ws_object.set_reconnecting_timer((timer as f32 * 1.5) as u32);
+                        ws_object.set_reconnecting_timer(timer);
                     }
-                    timeout_add_seconds_local_once(timer, move || {
-                        ws_object.connect_to_ws();
+                    error!("WebSocket connection failed. Starting reconnecting again in {} seconds", timer);
+                    timeout_add_seconds_local(1, move || {
+                        if ws_object.manually_reloaded() {
+                            ws_object.set_manually_reloaded(false);
+                            return ControlFlow::Break
+                        }
+                        if ws_object.reconnecting_timer() == 0 {
+                            ws_object.connect_to_ws();
+                            ws_object.set_reconnecting_timer(timer);
+                            return ControlFlow::Break
+                        } else {
+                            ws_object.set_reconnecting_timer(ws_object.reconnecting_timer() - 1);
+                        }
+                        ControlFlow::Continue
                     });
                 }
                 ControlFlow::Continue
@@ -150,6 +165,26 @@ impl WSObject {
                 ControlFlow::Continue
             }),
         );
+    }
+
+    /// Pings and follows if the connection was closed
+    pub fn start_pinging(&self) {
+        let conn = self.ws_conn().unwrap();
+        conn.set_keepalive_interval(5);
+
+        conn.connect_closed(clone!(@weak self as ws => move |_| {
+            info!("connection closed. Starting again");
+            ws.set_ws_conn(None::<WebsocketConnection>);
+            ws.set_is_reconnecting(true);
+            ws.connect_to_ws();
+        }));
+    }
+
+    /// Reload the connection without waiting for the timer to end
+    pub fn reload_manually(&self) {
+        self.set_manually_reloaded(true);
+        self.set_reconnecting_timer(self.last_timer());
+        self.connect_to_ws();
     }
 
     /// Sends a message
@@ -198,19 +233,6 @@ impl WSObject {
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/name-updated {}", name))
-    }
-
-    /// Pings and follows if the connection was closed
-    pub fn start_pinging(&self) {
-        let conn = self.ws_conn().unwrap();
-        conn.set_keepalive_interval(5);
-
-        conn.connect_closed(clone!(@weak self as ws => move |_| {
-            info!("connection closed. Starting again");
-            ws.imp().ws_conn.replace(None);
-            ws.set_is_reconnecting(true);
-            ws.connect_to_ws();
-        }));
     }
 
     /// Connects to the WS to reconnect with previously server deleted user data

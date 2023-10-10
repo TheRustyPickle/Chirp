@@ -2,7 +2,7 @@
 <interface>
   <template class="UserProfile" parent="AdwWindow">
     <property name="default_width">400</property>
-    <property name="default_height">430</property>
+    <property name="default_height">500</property>
     <property name="title" translatable="yes">Profile</property>
     <property name="content">
       <object class="AdwToolbarView">
@@ -122,6 +122,35 @@
                                         <property name="icon-name">document-edit-symbolic</property>
                                         <property name="has-frame">false</property>
                                         <property name="tooltip-text">Update image link</property>
+                                      </object>
+                                    </child>
+                                  </object>
+                                </child>
+                                <child>
+                                  <!-- The Connection Status Row-->
+                                  <object class="AdwActionRow" id="conn_row">
+                                    <property name="title">Connection Status</property>
+                                    <property name="subtitle-lines">1</property>
+                                    <style>
+                                      <class name="property" />
+                                    </style>
+                                    <child>
+                                      <object class="GtkLabel" id="conn_timer">
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkButton" id="conn_reload">
+                                        <property name="has-frame">false</property>
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">software-update-symbolic</property>
+                                      </object>
+                                    </child>
+                                    <child>
+                                      <object class="GtkSwitch" id="conn_switch">
+                                        <property name="margin-top">12</property>
+                                        <property name="margin-bottom">12</property>
+                                        <property name="can-focus">false</property>
+                                        <property name="sensitive">false</property>
                                       </object>
                                     </child>
                                   </object>
