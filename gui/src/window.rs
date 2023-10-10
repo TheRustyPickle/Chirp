@@ -493,10 +493,6 @@ impl Window {
             None,
         );
 
-        if user_data.message.is_some() {
-            self.receive_message(user_data.message.unwrap(), new_user_data.clone())
-        }
-
         // Every single user in the UserList of the client will have the owner User ID for reference
         // In case of connection  issues, bind is used so when the owner gets the data, all users will too.
         let chatting_from = self.get_chatting_from();
