@@ -18,8 +18,8 @@ mod imp {
     #[properties(wrapper_type = super::UserObject)]
     pub struct UserObject {
         #[property(name = "user-id", get, set, type = u64, member = user_id)]
-        #[property(name = "big-image", get, set, type = Option<Paintable>, member = big_image)]
-        #[property(name = "small-image", get, set, type = Option<Paintable>, member = small_image)]
+        #[property(name = "big-image", get, set, nullable, type = Option<Paintable>, member = big_image)]
+        #[property(name = "small-image", get, set, nullable, type = Option<Paintable>, member = small_image)]
         #[property(name = "name", get, set, type = String, member = name)]
         #[property(name = "name-color", get, set, type = String, member = name_color)]
         #[property(name = "image-link", get, set, nullable, type = Option<String>, member = image_link)]
@@ -172,8 +172,8 @@ impl UserObject {
                             let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
                             let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
 
-                            user_object.set_big_image(big_paintable);
-                            user_object.set_small_image(small_paintable);
+                            user_object.set_big_image(Some(big_paintable));
+                            user_object.set_small_image(Some(small_paintable));
                             user_object.set_image_link(Some(image_link));
                             user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
                         }
@@ -251,7 +251,7 @@ impl UserObject {
                         user_ws.send_text_message(&data);
                     }
                     RequestType::ImageUpdated(link) => {
-                        let image_data = ImageUpdate::new_json(link.to_string(), self.user_token());
+                        let image_data = ImageUpdate::new_json(link, self.user_token());
                         user_ws.image_link_updated(&image_data);
                     }
                     RequestType::NameUpdated(name) => {
@@ -319,8 +319,14 @@ impl UserObject {
     pub fn set_random_image(&self) {
         let new_link = generate_random_avatar_link();
         info!("Generated random image link: {}", new_link);
-        self.add_to_queue(RequestType::ImageUpdated(new_link.to_owned()));
+        self.add_to_queue(RequestType::ImageUpdated(Some(new_link.to_owned())));
         self.set_new_image_link(new_link);
+    }
+
+    pub fn remove_image(&self) {
+        self.set_image_link(None::<String>);
+        self.set_big_image(None::<Paintable>);
+        self.set_small_image(None::<Paintable>);
     }
 
     pub fn handle_ws(&self, window: Window) {
@@ -386,7 +392,12 @@ impl UserObject {
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
-                            user_object.check_image_link(splitted_data[1].to_string());
+                            let image_data = ImageUpdate::new_from_json(splitted_data[1]);
+                            if let Some(image) = image_data.image_link {
+                                user_object.check_image_link(image);
+                            } else {
+                                user_object.remove_image()
+                            }
                         }
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {

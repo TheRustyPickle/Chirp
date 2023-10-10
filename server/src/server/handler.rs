@@ -126,7 +126,7 @@ impl ChatServer {
                             let user_data = get_user_with_id(&mut self.conn, from_user_id)
                                 .unwrap()
                                 .update_token(String::new())
-                                .to_json_with_message(message_data);
+                                .to_json();
 
                             receiver_data
                                 .1
@@ -303,18 +303,20 @@ impl ChatServer {
     pub fn image_link_update(&mut self, update_data: ImageUpdate) {
         let user_id;
 
-        if let Some(user_data) = get_user_with_token(&mut self.conn, update_data.user_token) {
+        if let Some(user_data) =
+            get_user_with_token(&mut self.conn, update_data.user_token.to_owned())
+        {
             user_id = user_data.user_id as usize;
         } else {
             error!("Invalid user token received. Discarding request");
             return;
         }
 
+        let image_update_data = update_data.to_json();
         let new_link = update_data.image_link;
 
-        info!("Updating image link of user {} to {new_link}", user_id);
-
-        update_user_image_link(&mut self.conn, user_id, &new_link);
+        info!("Updating image link of user {} to {new_link:?}", user_id);
+        update_user_image_link(&mut self.conn, user_id, new_link);
 
         // broadcast the image update update to every active session that has added this user id
         for (id, session_data) in self.user_session.iter() {
@@ -323,7 +325,8 @@ impl ChatServer {
                     if session.user_id == user_id {
                         if let Some(data) = self.sessions.get(&session.ws_id) {
                             let receiver = &data.1;
-                            receiver.do_send(Message(format!("/image-updated {new_link}")));
+                            receiver
+                                .do_send(Message(format!("/image-updated {image_update_data}")));
                         }
                     }
                 }

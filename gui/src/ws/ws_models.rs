@@ -11,7 +11,7 @@ pub enum RequestType {
     // Broadcast name update to the WS
     NameUpdated(String),
     // Broadcast image update to the WS
-    ImageUpdated(String),
+    ImageUpdated(Option<String>),
     // Try to reconnect with the WS again
     ReconnectUser,
     // Send my IDs to the WS
@@ -34,9 +34,6 @@ pub struct FullUserData {
     pub user_name: String,
     pub image_link: Option<String>,
     pub user_token: String,
-    // Don't serialize message because as of now message is only received from ws
-    #[serde(skip_serializing)]
-    pub message: Option<MessageData>,
 }
 
 impl FullUserData {
@@ -52,7 +49,6 @@ impl FullUserData {
             user_name: user_object.name(),
             image_link: user_object.image_link(),
             user_token,
-            message: None,
         };
         serde_json::to_string(&user_data).unwrap()
     }
@@ -141,19 +137,24 @@ impl MessageData {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Deserialize)]
 pub struct ImageUpdate {
-    image_link: String,
+    pub image_link: Option<String>,
+    #[serde(skip_deserializing)]
     user_token: String,
 }
 
 impl ImageUpdate {
-    pub fn new_json(image_link: String, user_token: String) -> String {
+    pub fn new_json(image_link: Option<String>, user_token: String) -> String {
         let data = ImageUpdate {
             image_link,
             user_token,
         };
         serde_json::to_string(&data).unwrap()
+    }
+
+    pub fn new_from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
     }
 }
 

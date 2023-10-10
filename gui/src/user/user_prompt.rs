@@ -189,7 +189,7 @@ impl UserPrompt {
                 over_lay.add_toast(toast);
 
                 user_data.set_new_image_link(entry_data.to_string());
-                user_data.add_to_queue(RequestType::ImageUpdated(entry_data.to_string()));
+                user_data.add_to_queue(RequestType::ImageUpdated(Some(entry_data.to_string())));
             }),
         );
 

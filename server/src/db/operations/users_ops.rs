@@ -50,7 +50,7 @@ pub fn update_user_name(conn: &mut PgConnection, id: usize, new_name: &str) {
         .unwrap();
 }
 
-pub fn update_user_image_link(conn: &mut PgConnection, id: usize, new_image_link: &str) {
+pub fn update_user_image_link(conn: &mut PgConnection, id: usize, new_image_link: Option<String>) {
     use crate::db::schema::users::dsl::*;
 
     diesel::update(users.find(id as i32))
