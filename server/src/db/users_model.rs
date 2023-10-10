@@ -1,8 +1,7 @@
 use diesel::prelude::*;
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
 
-use crate::{db::schema::users, server::MessageData};
+use crate::db::schema::users;
 
 #[derive(Queryable, Selectable, Insertable, Identifiable, Clone, Serialize, Deserialize)]
 #[diesel(primary_key(user_id))]
@@ -38,12 +37,5 @@ impl User {
 
     pub fn to_json(&self) -> String {
         serde_json::to_string(self).unwrap()
-    }
-
-    pub fn to_json_with_message(&self, message: MessageData) -> String {
-        let mut user_json: Value = serde_json::to_value(self).unwrap();
-        user_json["message"] = json!(message);
-
-        serde_json::to_string(&user_json).unwrap()
     }
 }

@@ -32,6 +32,8 @@ mod imp {
         pub image_link_reload: TemplateChild<Button>,
         #[template_child]
         pub image_link_edit: TemplateChild<Button>,
+        #[template_child]
+        pub image_link_delete: TemplateChild<Button>,
         pub user_data: OnceCell<UserObject>,
         pub bindings: RefCell<Vec<Binding>>,
     }
@@ -74,6 +76,7 @@ use tracing::info;
 
 use crate::user::{UserObject, UserPrompt};
 use crate::window;
+use crate::ws::RequestType;
 
 wrapper! {
     pub struct UserProfile(ObjectSubclass<imp::UserProfile>)
@@ -125,6 +128,8 @@ impl UserProfile {
         let image_link_row = self.imp().image_link_row.get();
         let id_warning = self.imp().id_warning.get();
         let user_data = self.imp().user_data.get().unwrap();
+        let image_link_delete_button = self.imp().image_link_delete.get();
+        let image_link_copy_button = self.imp().image_link_copy.get();
 
         let avatar_text_binding = user_data
             .bind_property("name", &profile_avatar, "text")
@@ -163,18 +168,45 @@ impl UserProfile {
             .sync_create()
             .build();
 
+        let image_delete_biding = user_data
+            .bind_property("image-link", &image_link_delete_button, "sensitive")
+            .transform_to(|_, link: Option<String>| {
+                if link.is_some() {
+                    Some(true.to_value())
+                } else {
+                    Some(false.to_value())
+                }
+            })
+            .sync_create()
+            .build();
+
+        let image_copy_biding = user_data
+            .bind_property("image-link", &image_link_copy_button, "sensitive")
+            .transform_to(|_, link: Option<String>| {
+                if link.is_some() {
+                    Some(true.to_value())
+                } else {
+                    Some(false.to_value())
+                }
+            })
+            .sync_create()
+            .build();
+
         bindings.push(avatar_text_binding);
         bindings.push(avatar_image_binding);
         bindings.push(name_subtitle_binding);
         bindings.push(id_subtitle_binding);
         bindings.push(id_warning_binding);
         bindings.push(image_link_subtitle_binding);
+        bindings.push(image_delete_biding);
+        bindings.push(image_copy_biding);
     }
 
     fn hide_editing_buttons(&self) {
         self.imp().name_edit.set_visible(false);
         self.imp().image_link_edit.set_visible(false);
         self.imp().image_link_reload.set_visible(false);
+        self.imp().image_link_delete.set_visible(false);
 
         let user_data = self.imp().user_data.get().unwrap();
         user_data
@@ -190,6 +222,7 @@ impl UserProfile {
         let id_copy = self.imp().id_copy.get();
         let image_link_copy = self.imp().image_link_copy.get();
         let image_link_reload = self.imp().image_link_reload.get();
+        let image_link_delete = self.imp().image_link_delete.get();
 
         name_edit.connect_clicked(clone!(@weak self as window => move |_| {
             info!("Opening prompt to get new name");
@@ -245,6 +278,14 @@ impl UserProfile {
                 .timeout(1)
                 .build();
             toast_overlay.add_toast(toast);
+        }));
+
+        image_link_delete.connect_clicked(clone!(@weak self as window => move |_| {
+            info!("Removing user image");
+
+            let user_data = window.imp().user_data.get().unwrap();
+            user_data.remove_image();
+            user_data.add_to_queue(RequestType::ImageUpdated(None));
         }));
     }
 }

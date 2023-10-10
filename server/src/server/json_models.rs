@@ -117,15 +117,20 @@ impl NameUpdate {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Serialize)]
 pub struct ImageUpdate {
-    pub image_link: String,
+    pub image_link: Option<String>,
+    #[serde(skip_serializing)]
     pub user_token: String,
 }
 
 impl ImageUpdate {
     pub fn new_from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }
 

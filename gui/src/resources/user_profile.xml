@@ -93,6 +93,14 @@
                                       <class name="property" />
                                     </style>
                                     <child>
+                                      <object class="GtkButton" id="image_link_delete">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">user-trash</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Delete image link</property>
+                                      </object>
+                                    </child>
+                                    <child>
                                       <object class="GtkButton" id="image_link_copy">
                                         <property name="can-focus">false</property>
                                         <property name="icon-name">edit-copy-symbolic</property>
