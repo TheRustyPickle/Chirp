@@ -5,6 +5,7 @@ mod window;
 mod ws;
 
 use adw::Application;
+use dotenvy::dotenv;
 use gdk::Display;
 use gio::resources_register_include;
 use glib::ExitCode;
@@ -24,6 +25,7 @@ fn main() -> ExitCode {
     app.connect_activate(build_ui);
     app.set_accels_for_action("win.send-message", &["<Primary>Return"]);
     info!("Starting the app");
+    dotenv().ok();
     app.run()
 }
 

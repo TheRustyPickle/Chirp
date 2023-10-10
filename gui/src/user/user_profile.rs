@@ -2,7 +2,7 @@ mod imp {
     use adw::{subclass::prelude::*, ActionRow, Avatar, ToastOverlay, Window};
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Button, CompositeTemplate, Image};
+    use gtk::{glib, Button, CompositeTemplate, Image, Label, Switch};
     use std::cell::{OnceCell, RefCell};
 
     use crate::user::UserObject;
@@ -34,6 +34,14 @@ mod imp {
         pub image_link_edit: TemplateChild<Button>,
         #[template_child]
         pub image_link_delete: TemplateChild<Button>,
+        #[template_child]
+        pub conn_row: TemplateChild<ActionRow>,
+        #[template_child]
+        pub conn_switch: TemplateChild<Switch>,
+        #[template_child]
+        pub conn_timer: TemplateChild<Label>,
+        #[template_child]
+        pub conn_reload: TemplateChild<Button>,
         pub user_data: OnceCell<UserObject>,
         pub bindings: RefCell<Vec<Binding>>,
     }
@@ -64,14 +72,17 @@ mod imp {
     impl MessageDialogImpl for UserProfile {}
 }
 
+use std::env;
+
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Toast;
 use glib::closure_local;
-use glib::{clone, wrapper, Object};
+use glib::{clone, timeout_add_seconds_local_once, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
+use soup::WebsocketConnection;
 use tracing::info;
 
 use crate::user::{UserObject, UserPrompt};
@@ -88,8 +99,8 @@ impl UserProfile {
     pub fn new(user_data: UserObject, window: &window::Window, is_owner: bool) -> Self {
         let obj: UserProfile = Object::builder().build();
 
-        let obj_clone = obj.clone();
         if is_owner {
+            let obj_clone = obj.clone();
             user_data.connect_closure(
                 "image-modified",
                 false,
@@ -110,13 +121,16 @@ impl UserProfile {
         obj.set_transient_for(Some(window));
         obj.set_modal(true);
         obj.set_visible(true);
+        obj.imp()
+            .conn_row
+            .set_subtitle(&env::var("WEBSOCKET_URL").unwrap());
         obj.bind();
 
         if !is_owner {
             obj.hide_editing_buttons();
         }
 
-        obj.connect_button_signals();
+        obj.connect_button_signals(window);
         obj
     }
 
@@ -130,6 +144,9 @@ impl UserProfile {
         let user_data = self.imp().user_data.get().unwrap();
         let image_link_delete_button = self.imp().image_link_delete.get();
         let image_link_copy_button = self.imp().image_link_copy.get();
+        let conn_switch = self.imp().conn_switch.get();
+        let conn_reload = self.imp().conn_reload.get();
+        let conn_timer = self.imp().conn_timer.get();
 
         let avatar_text_binding = user_data
             .bind_property("name", &profile_avatar, "text")
@@ -192,6 +209,51 @@ impl UserProfile {
             .sync_create()
             .build();
 
+        let conn_status_binding = user_data
+            .user_ws()
+            .bind_property("ws-conn", &conn_switch, "active")
+            .transform_to(|_, link: Option<WebsocketConnection>| {
+                if link.is_some() {
+                    Some(true.to_value())
+                } else {
+                    Some(false.to_value())
+                }
+            })
+            .sync_create()
+            .build();
+
+        let conn_reload_binding = user_data
+            .user_ws()
+            .bind_property("ws-conn", &conn_reload, "visible")
+            .transform_to(|_, link: Option<WebsocketConnection>| {
+                if link.is_some() {
+                    Some(false.to_value())
+                } else {
+                    Some(true.to_value())
+                }
+            })
+            .sync_create()
+            .build();
+
+        let conn_timer_label_binding = user_data
+            .user_ws()
+            .bind_property("reconnecting-timer", &conn_timer, "label")
+            .sync_create()
+            .build();
+
+        let conn_timer_visible_binding = user_data
+            .user_ws()
+            .bind_property("ws-conn", &conn_timer, "visible")
+            .transform_to(|_, link: Option<WebsocketConnection>| {
+                if link.is_some() {
+                    Some(false.to_value())
+                } else {
+                    Some(true.to_value())
+                }
+            })
+            .sync_create()
+            .build();
+
         bindings.push(avatar_text_binding);
         bindings.push(avatar_image_binding);
         bindings.push(name_subtitle_binding);
@@ -200,6 +262,10 @@ impl UserProfile {
         bindings.push(image_link_subtitle_binding);
         bindings.push(image_delete_biding);
         bindings.push(image_copy_biding);
+        bindings.push(conn_status_binding);
+        bindings.push(conn_reload_binding);
+        bindings.push(conn_timer_label_binding);
+        bindings.push(conn_timer_visible_binding);
     }
 
     fn hide_editing_buttons(&self) {
@@ -207,6 +273,7 @@ impl UserProfile {
         self.imp().image_link_edit.set_visible(false);
         self.imp().image_link_reload.set_visible(false);
         self.imp().image_link_delete.set_visible(false);
+        self.imp().conn_row.set_visible(false);
 
         let user_data = self.imp().user_data.get().unwrap();
         user_data
@@ -216,35 +283,36 @@ impl UserProfile {
             .build();
     }
 
-    fn connect_button_signals(&self) {
+    fn connect_button_signals(&self, window: &window::Window) {
         let name_edit = self.imp().name_edit.get();
         let image_link_edit = self.imp().image_link_edit.get();
         let id_copy = self.imp().id_copy.get();
         let image_link_copy = self.imp().image_link_copy.get();
         let image_link_reload = self.imp().image_link_reload.get();
         let image_link_delete = self.imp().image_link_delete.get();
+        let conn_reload = self.imp().conn_reload.get();
 
-        name_edit.connect_clicked(clone!(@weak self as window => move |_| {
+        name_edit.connect_clicked(clone!(@weak self as profile => move |_| {
             info!("Opening prompt to get new name");
-            let user_data = window.imp().user_data.get().unwrap();
-            let prompt = UserPrompt::new("Confirm").edit_name(&window, user_data);
+            let user_data = profile.imp().user_data.get().unwrap();
+            let prompt = UserPrompt::new("Confirm").edit_name(&profile, user_data);
             prompt.present();
         }));
 
-        image_link_edit.connect_clicked(clone!(@weak self as window => move |_| {
+        image_link_edit.connect_clicked(clone!(@weak self as profile => move |_| {
             info!("Opening prompt to get new image link");
-            let user_data = window.imp().user_data.get().unwrap();
-            let prompt = UserPrompt::new("Confirm").edit_image_link(&window, user_data);
+            let user_data = profile.imp().user_data.get().unwrap();
+            let prompt = UserPrompt::new("Confirm").edit_image_link(&profile, user_data);
             prompt.present();
         }));
 
-        id_copy.connect_clicked(clone!(@weak self as window => move |_| {
-            let text = window.imp().id_row.get().subtitle().unwrap();
+        id_copy.connect_clicked(clone!(@weak self as profile => move |_| {
+            let text = profile.imp().id_row.get().subtitle().unwrap();
             info!("Copying User ID {text} to clipboard.");
 
-            window.clipboard().set(&text);
+            profile.clipboard().set(&text);
 
-            let toast_overlay = window.imp().toast_overlay.get();
+            let toast_overlay = profile.imp().toast_overlay.get();
             let toast = Toast::builder()
                 .title("User ID has been copied to clipboard".to_string())
                 .timeout(1)
@@ -252,13 +320,13 @@ impl UserProfile {
             toast_overlay.add_toast(toast);
         }));
 
-        image_link_copy.connect_clicked(clone!(@weak self as window => move |_| {
-            let text = window.imp().image_link_row.get().subtitle().unwrap();
+        image_link_copy.connect_clicked(clone!(@weak self as profile => move |_| {
+            let text = profile.imp().image_link_row.get().subtitle().unwrap();
             info!("Copying Image Link {text} to clipboard.");
 
-            window.clipboard().set(&text);
+            profile.clipboard().set(&text);
 
-            let toast_overlay = window.imp().toast_overlay.get();
+            let toast_overlay = profile.imp().toast_overlay.get();
             let toast = Toast::builder()
                 .title("Image Link has been copied to clipboard")
                 .timeout(1)
@@ -266,13 +334,13 @@ impl UserProfile {
             toast_overlay.add_toast(toast);
         }));
 
-        image_link_reload.connect_clicked(clone!(@weak self as window => move |_| {
+        image_link_reload.connect_clicked(clone!(@weak self as profile => move |_| {
             info!("Updating Image Link with a new random link");
 
-            let user_data = window.imp().user_data.get().unwrap();
+            let user_data = profile.imp().user_data.get().unwrap();
             user_data.set_random_image();
 
-            let toast_overlay = window.imp().toast_overlay.get();
+            let toast_overlay = profile.imp().toast_overlay.get();
             let toast = Toast::builder()
                 .title("Generating a new random image...")
                 .timeout(1)
@@ -280,12 +348,27 @@ impl UserProfile {
             toast_overlay.add_toast(toast);
         }));
 
-        image_link_delete.connect_clicked(clone!(@weak self as window => move |_| {
+        image_link_delete.connect_clicked(clone!(@weak self as profile => move |_| {
             info!("Removing user image");
 
-            let user_data = window.imp().user_data.get().unwrap();
+            let user_data = profile.imp().user_data.get().unwrap();
             user_data.remove_image();
             user_data.add_to_queue(RequestType::ImageUpdated(None));
+        }));
+
+        conn_reload.connect_clicked(clone!(@weak self as profile, @weak window => move |_| {
+            info!("Reloading websocket connection");
+            profile.imp().conn_reload.set_sensitive(false);
+            window.reload_user_ws();
+            let toast_overlay = profile.imp().toast_overlay.get();
+            let toast = Toast::builder()
+                .title("Reloading websocket connection...")
+                .timeout(1)
+                .build();
+            toast_overlay.add_toast(toast);
+            timeout_add_seconds_local_once(5, move || {
+                profile.imp().conn_reload.set_sensitive(true);
+            });
         }));
     }
 }

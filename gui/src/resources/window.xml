@@ -37,7 +37,7 @@
                       <object class="GtkButton" id="my_profile">
                         <child>
                           <object class="AdwButtonContent">
-                            <property name="icon-name">preferences-desktop-personal</property>
+                            <property name="icon-name">user-info-symbolic</property>
                             <property name="tooltip-text" translatable="yes">View Profile</property>
                             <property name="label">Profile</property>
                           </object>
