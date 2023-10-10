@@ -167,14 +167,13 @@ impl MessageRow {
         let receiver_button = self.imp().receiver_avatar_button.get();
 
         let sent_from = self.imp().message_data.get().unwrap().sent_from();
-        let sent_to = self.imp().message_data.get().unwrap().sent_to();
 
         sender_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
             UserProfile::new(sent_from, &window, true);
         }));
 
-        receiver_button.connect_clicked(clone!(@weak window, @weak sent_to => move |_| {
-            UserProfile::new(sent_to, &window, false);
+        receiver_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
+            UserProfile::new(sent_from, &window, false);
         }));
     }
 }
