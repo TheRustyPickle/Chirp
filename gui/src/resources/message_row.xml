@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
+  <menu id="message-menu">
+    <section>
+      <item>
+        <attribute name="label">Copy Text</attribute>
+        <attribute name="action">message-row.copy</attribute>
+      </item>
+      <item>
+        <attribute name="label">Delete Message</attribute>
+        <attribute name="action">message-row.delete</attribute>
+      </item>
+    </section>
+  </menu>
   <template class="MessageRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
     <child>
@@ -54,13 +66,19 @@
                     </child>
                     <child>
                       <object class="GtkLabel" id="message">
-                        <property name="selectable">true</property>
                         <property name="margin-start">6</property>
                         <property name="margin-end">6</property>
                         <property name="margin-top">2</property>
                         <property name="margin-bottom">5</property>
                         <property name="wrap">true</property>
                         <property name="wrap-mode">word-char</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkPopoverMenu" id="message_menu">
+                        <property name="has-arrow">false</property>
+                        <property name="autohide">true</property>
+                        <property name="menu-model">message-menu</property>
                       </object>
                     </child>
                   </object>
