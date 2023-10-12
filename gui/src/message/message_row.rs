@@ -1,8 +1,9 @@
 mod imp {
-    use adw::{subclass::prelude::*, Avatar};
+    use adw::subclass::prelude::*;
+    use adw::Avatar;
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Box, Button, CompositeTemplate, Label, Revealer};
+    use gtk::{glib, Box, Button, CompositeTemplate, Label, PopoverMenu, Revealer};
     use std::cell::{OnceCell, RefCell};
 
     use crate::message::MessageObject;
@@ -28,6 +29,8 @@ mod imp {
         pub sender_avatar_button: TemplateChild<Button>,
         #[template_child]
         pub receiver_avatar_button: TemplateChild<Button>,
+        #[template_child]
+        pub message_menu: TemplateChild<PopoverMenu>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
     }
@@ -40,6 +43,12 @@ mod imp {
 
         fn class_init(klass: &mut Self::Class) {
             klass.bind_template();
+            klass.install_action("message-row.copy", None, move |row, _, _| {
+                row.copy_message()
+            });
+            klass.install_action("message-row.delete", None, move |row, _, _| {
+                row.delete_message()
+            });
         }
 
         fn instance_init(obj: &InitializingObject<Self>) {
@@ -56,17 +65,19 @@ mod imp {
 
 use adw::prelude::*;
 use adw::subclass::prelude::*;
-use gdk::Cursor;
+use gdk::{Cursor, Rectangle};
 use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
-    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, Orientable, RevealerTransitionType,
-    Widget,
+    gdk, glib, Accessible, Box, Buildable, ConstraintTarget, GestureClick, Orientable,
+    RevealerTransitionType, Widget,
 };
 use std::time::Duration;
+use tracing::info;
 
 use crate::message::MessageObject;
 use crate::user::UserProfile;
 use crate::window::Window;
+use crate::ws::RequestType;
 
 wrapper! {
     pub struct MessageRow(ObjectSubclass<imp::MessageRow>)
@@ -175,5 +186,44 @@ impl MessageRow {
         receiver_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
             UserProfile::new(sent_from, &window, false);
         }));
+
+        let gesture = GestureClick::new();
+        gesture.set_button(3);
+        self.imp().message_content.add_controller(gesture.clone());
+
+        gesture.connect_pressed(
+            clone!(@weak self as row => move |_, _, x_position, y_position|{
+                let popover = row.imp().message_menu.get();
+                let position = Rectangle::new(x_position as i32, y_position as i32 + 10, -1, -1);
+                popover.set_pointing_to(Some(&position));
+                popover.set_visible(true);
+            }),
+        );
+    }
+
+    fn delete_message(&self) {
+        info!("Deleting a message from the UI");
+        let message_data = self.imp().message_data.get().unwrap();
+
+        let other_user =
+            if message_data.sent_from().user_id() == message_data.sent_from().owner_id() {
+                message_data.sent_to()
+            } else {
+                message_data.sent_from()
+            };
+
+        let message_number = message_data.message_number();
+
+        other_user.add_to_queue(RequestType::DeleteMessage(
+            other_user.user_id(),
+            message_number,
+        ));
+        other_user.remove_message(message_number);
+    }
+
+    fn copy_message(&self) {
+        info!("Copying message text to clipboard");
+        let text = self.imp().message_data.get().unwrap().message();
+        self.clipboard().set(&text);
     }
 }

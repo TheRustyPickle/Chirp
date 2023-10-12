@@ -69,7 +69,7 @@ wrapper! {
 impl WSObject {
     pub fn new() -> Self {
         let obj: WSObject = Object::builder().build();
-        obj.set_reconnecting_timer(10);
+        obj.set_last_timer(10);
         obj.set_ws();
         obj
     }
@@ -131,22 +131,26 @@ impl WSObject {
                     info!("WebSocket connection success");
                     ws_object.emit_by_name::<()>("ws-success", &[&true]);
                     ws_object.start_pinging();
-                    ws_object.set_reconnecting_timer(10);
+                    ws_object.set_last_timer(10);
                 } else {
-                    let timer = (ws_object.reconnecting_timer() as f32 * 1.5) as u32;
-                    ws_object.set_last_timer(timer);
-                    if timer < 300 {
-                        ws_object.set_reconnecting_timer(timer);
-                    }
-                    error!("WebSocket connection failed. Starting reconnecting again in {} seconds", timer);
+                    let last_timer = ws_object.last_timer();
+
+                    let new_timer = if last_timer > 300 {
+                        last_timer
+                    } else {
+                        (last_timer as f32 * 1.5) as u32
+                    };
+                    ws_object.set_reconnecting_timer(new_timer);
+
+                    error!("WebSocket connection failed. Starting reconnecting again in {} seconds", new_timer);
                     timeout_add_seconds_local(1, move || {
                         if ws_object.manually_reloaded() {
                             ws_object.set_manually_reloaded(false);
                             return ControlFlow::Break
                         }
                         if ws_object.reconnecting_timer() == 0 {
+                            ws_object.set_last_timer(new_timer);
                             ws_object.connect_to_ws();
-                            ws_object.set_reconnecting_timer(timer);
                             return ControlFlow::Break
                         } else {
                             ws_object.set_reconnecting_timer(ws_object.reconnecting_timer() - 1);
@@ -183,7 +187,12 @@ impl WSObject {
     /// Reload the connection without waiting for the timer to end
     pub fn reload_manually(&self) {
         self.set_manually_reloaded(true);
-        self.set_reconnecting_timer(self.last_timer());
+        let new_timer = if self.last_timer() > 300 {
+            self.last_timer()
+        } else {
+            (self.last_timer() as f32 * 1.5) as u32
+        };
+        self.set_last_timer(new_timer);
         self.connect_to_ws();
     }
 
@@ -256,6 +265,13 @@ impl WSObject {
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/sync-message {}", data))
+    }
+
+    pub fn delete_message(&self, data: String) {
+        info!("Sending request to WS delete a message");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/delete-message {}", data))
     }
 
     /// Saves the signal ID of the Websocket Message Signal

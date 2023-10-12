@@ -21,6 +21,8 @@ pub enum CommunicationType {
     SendMessageNumber,
     // Send message data to sync messages
     SyncMessage,
+    // Broadcast message deletion
+    DeleteMessage,
 }
 
 #[derive(PartialEq)]
@@ -157,5 +159,23 @@ impl SyncMessageData {
     pub fn new_json(message_data: Vec<MessageData>) -> String {
         let data = SyncMessageData { message_data };
         serde_json::to_string(&data).unwrap()
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DeleteMessage {
+    pub user_id: usize,
+    pub message_number: usize,
+    #[serde(skip_serializing)]
+    pub user_token: String,
+}
+
+impl DeleteMessage {
+    pub fn from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
     }
 }

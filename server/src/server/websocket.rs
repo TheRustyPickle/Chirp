@@ -3,8 +3,8 @@ use rand::Rng;
 use tracing::info;
 
 use crate::server::{
-    ChatServer, CommunicationType, IDInfo, ImageUpdate, MessageData, NameUpdate, SendUserData,
-    SyncMessage,
+    ChatServer, CommunicationType, DeleteMessage, IDInfo, ImageUpdate, MessageData, NameUpdate,
+    SendUserData, SyncMessage,
 };
 
 #[derive(Message)]
@@ -107,6 +107,10 @@ impl Handler<HandleRequest> for ChatServer {
             CommunicationType::SyncMessage => {
                 let sync_data = SyncMessage::new_from_json(&msg.data);
                 self.sync_message(msg.ws_id, sync_data);
+            }
+            CommunicationType::DeleteMessage => {
+                let data = DeleteMessage::from_json(&msg.data);
+                self.delete_message(data);
             }
         }
     }

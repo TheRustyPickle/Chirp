@@ -24,6 +24,8 @@ pub enum RequestType {
     NewUserSelection(UserObject),
     // Ask the WS to send un-synced messages
     SyncMessage(u64, u64),
+    // Ask the WS to delete a message
+    DeleteMessage(u64, u64),
 }
 
 /// Used for sending or receiving relevant data to create an UserObject
@@ -200,6 +202,28 @@ pub struct MessageSyncData {
 }
 
 impl MessageSyncData {
+    pub fn from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
+    }
+}
+
+#[derive(Deserialize, Serialize)]
+pub struct DeleteMessage {
+    user_id: u64,
+    pub message_number: u64,
+    #[serde(skip_deserializing)]
+    user_token: String,
+}
+
+impl DeleteMessage {
+    pub fn new_json(user_id: u64, message_number: u64, user_token: String) -> String {
+        let data = DeleteMessage {
+            user_id,
+            message_number,
+            user_token,
+        };
+        serde_json::to_string(&data).unwrap()
+    }
     pub fn from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
     }

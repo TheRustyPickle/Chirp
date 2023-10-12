@@ -362,6 +362,7 @@ impl Window {
             sender,
             receiver.clone(),
             created_at_naive,
+            None,
         );
 
         let send_message_data =
@@ -403,6 +404,7 @@ impl Window {
             sender,
             receiver,
             parsed_date_time,
+            Some(message_data.message_number),
         );
 
         if current_message_number > message_data.message_number {
@@ -414,12 +416,16 @@ impl Window {
 
     fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
         let message_row = MessageRow::new(data.clone(), self);
-        ListBoxRow::builder()
+        let list_row = ListBoxRow::builder()
             .child(&message_row)
             .selectable(false)
             .activatable(false)
             .can_focus(false)
-            .build()
+            .build();
+
+        data.set_target_row(message_row);
+
+        list_row
     }
 
     fn create_owner(&self, name: &str) -> UserObject {
