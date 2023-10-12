@@ -66,17 +66,19 @@ use gdk_pixbuf::{InterpType, PixbufLoader};
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
-    clone, closure_local, Bytes, ControlFlow, MainContext, Object, Priority, Receiver, Sender,
+    clone, closure_local, timeout_add_local_once, Bytes, ControlFlow, MainContext, Object,
+    Priority, Receiver, Sender,
 };
 use gtk::{gdk, glib};
+use std::time::Duration;
 use tracing::{debug, info};
 
 use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    FullUserData, ImageUpdate, MessageSyncData, MessageSyncRequest, NameUpdate, RequestType,
-    UserIDs, WSObject,
+    DeleteMessage, FullUserData, ImageUpdate, MessageSyncData, MessageSyncRequest, NameUpdate,
+    RequestType, UserIDs, WSObject,
 };
 
 glib::wrapper! {
@@ -275,6 +277,10 @@ impl UserObject {
                         );
                         user_ws.sync_message(data)
                     }
+                    RequestType::DeleteMessage(user_id, number) => {
+                        let data = DeleteMessage::new_json(user_id, number, self.user_token());
+                        user_ws.delete_message(data)
+                    }
                 }
                 highest_index += 1;
 
@@ -327,6 +333,27 @@ impl UserObject {
         self.set_image_link(None::<String>);
         self.set_big_image(None::<Paintable>);
         self.set_small_image(None::<Paintable>);
+    }
+
+    pub fn remove_message(&self, target_number: u64) {
+        for (index, message_data) in self.messages().iter().enumerate() {
+            let message_content: MessageObject = message_data.unwrap();
+            if message_content.message_number() == target_number {
+                message_content
+                    .target_row()
+                    .unwrap()
+                    .imp()
+                    .message_revealer
+                    .set_reveal_child(false);
+
+                let user_object = self.clone();
+                timeout_add_local_once(Duration::from_millis(500), move || {
+                    user_object.messages().remove(index as u32);
+                });
+
+                break;
+            }
+        }
     }
 
     pub fn handle_ws(&self, window: Window) {
@@ -422,6 +449,10 @@ impl UserObject {
                             for message in chat_data.message_data.into_iter() {
                                 window.receive_message(message, user_object.clone())
                             }
+                        }
+                        "/delete-message" => {
+                            let deletion_data = DeleteMessage::from_json(splitted_data[1]);
+                            user_object.remove_message(deletion_data.message_number)
                         }
                         "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}

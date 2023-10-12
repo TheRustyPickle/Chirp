@@ -136,6 +136,11 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                             data: v[1].to_string(),
                             comm_type: CommunicationType::SyncMessage,
                         }),
+                        "/delete-message" => self.addr.do_send(HandleRequest {
+                            ws_id: self.id,
+                            data: v[1].to_string(),
+                            comm_type: CommunicationType::DeleteMessage,
+                        }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
                 }

@@ -9,13 +9,13 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_message, create_new_user, get_last_message_number, get_messages_from_number,
-    get_user_with_id, get_user_with_token, update_user_image_link, update_user_name, NewMessage,
-    User,
+    create_new_message, create_new_user, delete_message_with_number, get_last_message_number,
+    get_messages_from_number, get_user_with_id, get_user_with_token, update_user_image_link,
+    update_user_name, NewMessage, User,
 };
 use crate::server::{
-    IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData, SyncMessage,
-    SyncMessageData, WSData,
+    DeleteMessage, IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData,
+    SyncMessage, SyncMessageData, WSData,
 };
 use crate::utils::{create_message_group, generate_user_token};
 
@@ -397,5 +397,43 @@ impl ChatServer {
         if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
             receiver_ws.do_send(Message(format!("/sync-message {}", to_send)))
         };
+    }
+
+    pub fn delete_message(&mut self, deletion_data: DeleteMessage) {
+        let owner_id;
+
+        if let Some(user_data) =
+            get_user_with_token(&mut self.conn, deletion_data.user_token.to_owned())
+        {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let to_send = deletion_data.to_json();
+        let group_name = create_message_group(owner_id, deletion_data.user_id);
+
+        info!(
+            "Processing a delete message request for group {}",
+            group_name
+        );
+
+        delete_message_with_number(&mut self.conn, group_name, deletion_data.message_number);
+
+        if owner_id == deletion_data.user_id {
+            return;
+        }
+
+        if let Some(user_sessions) = self.user_session.get(&deletion_data.user_id) {
+            for session in user_sessions {
+                if session.user_id == owner_id {
+                    if let Some((_, receiver_ws)) = self.sessions.get(&session.ws_id) {
+                        receiver_ws.do_send(Message(format!("/delete-message {}", to_send)));
+                        break;
+                    }
+                }
+            }
+        }
     }
 }

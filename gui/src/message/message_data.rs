@@ -6,6 +6,7 @@ mod imp {
     use std::cell::{OnceCell, RefCell};
 
     use super::MessageData;
+    use crate::message::MessageRow;
     use crate::user::UserObject;
 
     #[derive(Properties, Default)]
@@ -22,6 +23,8 @@ mod imp {
         pub created_at: OnceCell<String>,
         #[property(get, set)]
         pub message_number: OnceCell<u64>,
+        #[property(get, set)]
+        pub target_row: RefCell<Option<MessageRow>>,
     }
 
     #[object_subclass]
@@ -50,14 +53,21 @@ impl MessageObject {
         sent_from: UserObject,
         sent_to: UserObject,
         created_at: String,
+        message_number: Option<u64>,
     ) -> Self {
-        Object::builder()
+        let obj: MessageObject = Object::builder()
             .property("is-send", is_send)
             .property("message", message)
             .property("sent-from", sent_from)
             .property("sent-to", sent_to)
             .property("created-at", created_at)
-            .build()
+            .build();
+
+        if let Some(num) = message_number {
+            obj.set_message_number(num)
+        }
+
+        obj
     }
 }
 

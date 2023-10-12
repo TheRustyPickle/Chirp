@@ -1,4 +1,4 @@
-use diesel::{ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
+use diesel::{delete, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
 
 use crate::db::messages_model::Message;
 use crate::db::schema::messages;
@@ -44,4 +44,16 @@ pub fn get_messages_from_number(
         .select(Message::as_select())
         .load(conn)
         .unwrap()
+}
+
+pub fn delete_message_with_number(conn: &mut PgConnection, group: String, number: usize) {
+    use crate::db::schema::messages::dsl::*;
+
+    delete(
+        messages
+            .filter(message_group.eq(group))
+            .filter(message_number.eq(number as i32)),
+    )
+    .execute(conn)
+    .unwrap();
 }
