@@ -85,7 +85,7 @@
                       <object class="GtkBox">
                         <property name="orientation">vertical</property>
                         <child>
-                          <!-- The listbox that contains all the message data-->
+                          <!-- The listbox that contains all the message rows-->
                           <object class="GtkScrolledWindow" id="message_scroller">
                             <property name="vexpand">True</property>
                             <property name="hscrollbar-policy">never</property>
@@ -97,6 +97,7 @@
                           </object>
                         </child>
                         <child>
+                          <!-- The revealer for the textview for typing-->
                           <object class="GtkRevealer" id="entry_revealer">
                             <property name="transition-duration">800</property>
                             <child>

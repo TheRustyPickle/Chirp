@@ -38,7 +38,8 @@
                 </child>
               </object>
             </child>
-            <!-- For some reason the labels after this one does not go to the right most corner even with xlign 1.0
+            <!-- For some reason the labels after this one does not go to the right most corner even
+            with xlign 1.0
             so this consumes all the space so those labels can reach the corner -->
             <child>
               <object class="GtkLabel" id="placeholder">
@@ -47,12 +48,14 @@
               </object>
             </child>
             <child>
-              <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside gtkgrid without hexpand
+              <!-- gtklabel wrapping doesn't work smoothly without hexpand but it works inside
+              gtkgrid without hexpand
               with hexpand can't add proper borders with css-->
               <object class="GtkGrid">
                 <child>
                   <object class="GtkBox" id="message_content">
                     <property name="orientation">vertical</property>
+                    <!-- Sender name label-->
                     <child>
                       <object class="GtkLabel" id="sent_by">
                         <property name="ellipsize">end</property>
@@ -64,6 +67,7 @@
                         <property name="margin-bottom">5</property>
                       </object>
                     </child>
+                    <!-- Label where message will be shown-->
                     <child>
                       <object class="GtkLabel" id="message">
                         <property name="margin-start">6</property>
@@ -74,6 +78,7 @@
                         <property name="wrap-mode">word-char</property>
                       </object>
                     </child>
+                    <!-- The menu that will open on right click-->
                     <child>
                       <object class="GtkPopoverMenu" id="message_menu">
                         <property name="has-arrow">false</property>
