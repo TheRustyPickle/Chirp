@@ -108,7 +108,7 @@ impl UserProfile {
                     if !message.is_empty() {
                         let toast_overlay = obj_clone.imp().toast_overlay.get();
                         let toast = Toast::builder()
-                            .title(format!("Failed to update image: {}", message))
+                            .title(format!("Error: {}", message))
                             .timeout(2)
                             .build();
                         toast_overlay.add_toast(toast);
@@ -352,7 +352,6 @@ impl UserProfile {
             info!("Removing user image");
 
             let user_data = profile.imp().user_data.get().unwrap();
-            user_data.remove_image();
             user_data.add_to_queue(RequestType::ImageUpdated(None));
         }));
 
