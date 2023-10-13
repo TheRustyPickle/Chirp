@@ -180,11 +180,11 @@ impl MessageRow {
         let sent_from = self.imp().message_data.get().unwrap().sent_from();
 
         sender_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
-            UserProfile::new(sent_from, &window, true);
+            UserProfile::new(sent_from, &window);
         }));
 
         receiver_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
-            UserProfile::new(sent_from, &window, false);
+            UserProfile::new(sent_from, &window);
         }));
 
         let gesture = GestureClick::new();

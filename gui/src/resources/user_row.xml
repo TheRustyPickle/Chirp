@@ -1,5 +1,17 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
+  <menu id="user-menu">
+    <section>
+      <item>
+        <attribute name="label">View Profile</attribute>
+        <attribute name="action">user-row.profile</attribute>
+      </item>
+      <item>
+        <attribute name="label">Delete User</attribute>
+        <attribute name="action">user-row.delete</attribute>
+      </item>
+    </section>
+  </menu>
   <template class="UserRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
     <child>
@@ -29,6 +41,13 @@
                       <object class="GtkLabel" id="popover_label">
                       </object>
                     </property>
+                  </object>
+                </child>
+                <child>
+                  <object class="GtkPopoverMenu" id="user_menu">
+                    <property name="has-arrow">false</property>
+                    <property name="autohide">true</property>
+                    <property name="menu-model">user-menu</property>
                   </object>
                 </child>
               </object>
