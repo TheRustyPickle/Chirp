@@ -453,6 +453,12 @@ impl Window {
             match response_data[0] {
                 "/get-user-data" | "/new-user-message" => {
                     let user_data = FullUserData::from_json(response_data[1]);
+
+                    if window.find_user(user_data.user_id).is_some() {
+                        info!("User {} has already been added. Dismissing the request", user_data.user_id);
+                        return ControlFlow::Continue;
+                    }
+
                     let user = window.create_user(user_data);
                     let user_row = UserRow::new(user);
                     user_row.imp().user_avatar.add_css_class("user-inactive");
@@ -552,5 +558,16 @@ impl Window {
             let user_data: UserObject = user_data.unwrap();
             user_data.user_ws().reload_manually();
         }
+    }
+
+    pub fn find_user(&self, target_id: u64) -> Option<UserObject> {
+        let user_list = self.imp().users.get().unwrap();
+        for user_data in user_list.iter() {
+            let user_data: UserObject = user_data.unwrap();
+            if user_data.user_id() == target_id {
+                return Some(user_data);
+            }
+        }
+        None
     }
 }
