@@ -154,8 +154,6 @@ impl UserPrompt {
                     .timeout(1)
                     .build();
                 over_lay.add_toast(toast);
-
-                user_data.set_new_name(entry_data.to_string());
                 user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
             }),
         );
@@ -187,8 +185,6 @@ impl UserPrompt {
                     .timeout(1)
                     .build();
                 over_lay.add_toast(toast);
-
-                user_data.set_new_image_link(entry_data.to_string());
                 user_data.add_to_queue(RequestType::ImageUpdated(Some(entry_data.to_string())));
             }),
         );

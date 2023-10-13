@@ -143,6 +143,7 @@ impl UserObject {
     }
 
     fn set_user_image(&self, receiver: Receiver<Result<(String, Bytes), String>>) {
+        let working_link = self.image_link();
         receiver.attach(
             None,
             clone!(@weak self as user_object => @default-return ControlFlow::Break,
@@ -174,12 +175,19 @@ impl UserObject {
                             let big_paintable = Paintable::from(Texture::for_pixbuf(&big_image_buf));
                             let small_paintable = Paintable::from(Texture::for_pixbuf(&small_image_buf));
 
-                            user_object.set_big_image(Some(big_paintable));
-                            user_object.set_small_image(Some(small_paintable));
-                            user_object.set_image_link(Some(image_link));
-                            user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
+                            // If not same means while the image was being fetched
+                            // it was updated again so changing them would show inaccurate
+                            // current image than what's on the server
+                            if user_object.image_link() == working_link {
+                                user_object.set_big_image(Some(big_paintable));
+                                user_object.set_small_image(Some(small_paintable));
+                                user_object.set_image_link(Some(image_link));
+                            } else {
+                                info!("abandoning {}", image_link)
+                            }
                         }
                         Err(msg) => {
+                            // Emit the signal to the user profile to show a toast with the error
                             user_object.emit_by_name::<()>("image-modified", &[&msg]);
                         }
                     }
@@ -253,10 +261,16 @@ impl UserObject {
                         user_ws.send_text_message(&data);
                     }
                     RequestType::ImageUpdated(link) => {
+                        if let Some(image) = link.clone() {
+                            self.check_image_link(image)
+                        } else {
+                            self.remove_image();
+                        }
                         let image_data = ImageUpdate::new_json(link, self.user_token());
                         user_ws.image_link_updated(&image_data);
                     }
                     RequestType::NameUpdated(name) => {
+                        self.set_name(name.to_owned());
                         let name_data = NameUpdate::new_json(name.to_string(), self.user_token());
                         user_ws.name_updated(&name_data)
                     }
@@ -314,19 +328,10 @@ impl UserObject {
         }
     }
 
-    pub fn set_new_name(&self, name: String) {
-        self.set_name(name);
-    }
-
-    pub fn set_new_image_link(&self, link: String) {
-        self.check_image_link(link);
-    }
-
     pub fn set_random_image(&self) {
         let new_link = generate_random_avatar_link();
         info!("Generated random image link: {}", new_link);
         self.add_to_queue(RequestType::ImageUpdated(Some(new_link.to_owned())));
-        self.set_new_image_link(new_link);
     }
 
     pub fn remove_image(&self) {
