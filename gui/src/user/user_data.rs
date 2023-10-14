@@ -344,12 +344,14 @@ impl UserObject {
         for (index, message_data) in self.messages().iter().enumerate() {
             let message_content: MessageObject = message_data.unwrap();
             if message_content.message_number() == target_number {
-                message_content
+                let revealer = message_content
                     .target_row()
                     .unwrap()
                     .imp()
                     .message_revealer
-                    .set_reveal_child(false);
+                    .get();
+                revealer.set_transition_duration(4000);
+                revealer.set_reveal_child(false);
 
                 let user_object = self.clone();
                 timeout_add_local_once(Duration::from_millis(500), move || {
