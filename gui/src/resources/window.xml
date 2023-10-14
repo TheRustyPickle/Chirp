@@ -103,6 +103,7 @@
                             <child>
                               <object class="GtkBox">
                                 <property name="css-classes">message-entry</property>
+                                <property name="vexpand">false</property>
                                 <style>
                                   <class name="toolbar" />
                                 </style>
@@ -144,8 +145,8 @@
                                           </object>
                                         </child>
                                         <child>
-                                          <!-- To be emoji button-->
-                                          <object class="GtkButton">
+                                          <!-- The button to open the emoji popup -->
+                                          <object class="GtkButton" id="emoji_button">
                                             <property name="css-classes">emoji</property>
                                             <property name="icon-name">emoji-people-symbolic</property>
                                             <property name="valign">end</property>
@@ -166,6 +167,9 @@
                                       <class name="suggested-action" />
                                     </style>
                                   </object>
+                                </child>
+                                <child>
+                                  <object class="GtkEmojiChooser" id="emoji_chooser"></object>
                                 </child>
                               </object>
                             </child>

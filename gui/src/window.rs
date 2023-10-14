@@ -6,7 +6,7 @@ mod imp {
     use glib::{object_subclass, Binding};
     use gtk::{
         gio, glib, Button, CompositeTemplate, Label, ListBox, Revealer, ScrolledWindow, Stack,
-        TextView,
+        TextView, EmojiChooser
     };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
@@ -36,6 +36,10 @@ mod imp {
         pub placeholder: TemplateChild<Label>,
         #[template_child]
         pub entry_revealer: TemplateChild<Revealer>,
+        #[template_child]
+        pub emoji_button: TemplateChild<Button>,
+        #[template_child]
+        pub emoji_chooser: TemplateChild<EmojiChooser>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -86,7 +90,7 @@ use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    Native, Root, ShortcutManager, Widget,
+    Native, Root, ShortcutManager, Widget, PositionType
 };
 use std::fs;
 use std::fs::File;
@@ -189,10 +193,24 @@ impl Window {
             }),
         );
 
+        // Timeout half a second before revealing the textview
         let window = self.clone();
         timeout_add_local_once(Duration::from_millis(500), move || {
             window.imp().entry_revealer.set_reveal_child(true);
         });
+
+        // Set emoji chooser to visible on click
+        self.imp().emoji_button.connect_clicked(clone!(@weak self as window => move |_| {
+            window.imp().emoji_chooser.set_position(PositionType::Top);
+            window.imp().emoji_chooser.set_has_arrow(false);
+            window.imp().emoji_chooser.set_visible(true);
+        }));
+
+        // Add the chosen emoji to the textview at the cursor point
+        self.imp().emoji_chooser.connect_emoji_picked(clone!(@weak self as window => move |_, emoji| {
+            let buffer = window.imp().message_entry.buffer();
+            buffer.insert_at_cursor(emoji);
+        }));
     }
 
     fn setup_actions(&self) {
