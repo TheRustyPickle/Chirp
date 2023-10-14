@@ -138,6 +138,7 @@ impl Window {
                 window.imp().last_selected_user.set(index);
                 window.set_chatting_with(selected_chat);
                 window.remove_last_binding();
+                window.grab_focus();
                 window.bind();
             }));
 
