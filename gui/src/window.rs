@@ -5,8 +5,8 @@ mod imp {
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{
-        gio, glib, Button, CompositeTemplate, Label, ListBox, Revealer, ScrolledWindow, Stack,
-        TextView,
+        gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, Revealer,
+        ScrolledWindow, Stack, TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::rc::Rc;
@@ -36,6 +36,10 @@ mod imp {
         pub placeholder: TemplateChild<Label>,
         #[template_child]
         pub entry_revealer: TemplateChild<Revealer>,
+        #[template_child]
+        pub emoji_button: TemplateChild<Button>,
+        #[template_child]
+        pub emoji_chooser: TemplateChild<EmojiChooser>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -86,7 +90,7 @@ use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    Native, Root, ShortcutManager, Widget,
+    Native, PositionType, Root, ShortcutManager, Widget,
 };
 use std::fs;
 use std::fs::File;
@@ -142,7 +146,7 @@ impl Window {
                 window.bind();
             }));
 
-            // The event on New Chat button clicked 
+        // The event on New Chat button clicked
         self.imp()
             .new_chat
             .connect_clicked(clone!(@weak self as window => move |_| {
@@ -150,14 +154,14 @@ impl Window {
                 prompt.present();
             }));
 
-            // The event on Profile button clicked
+        // The event on Profile button clicked
         self.imp()
             .my_profile
             .connect_clicked(clone!(@weak self as window => move |_| {
                 UserProfile::new(window.get_chatting_from(), &window);
             }));
 
-            // The event on the send button beside the textview
+        // The event on the send button beside the textview
         self.imp()
             .send_button
             .connect_clicked(clone!(@weak self as window => move |_| {
@@ -189,10 +193,28 @@ impl Window {
             }),
         );
 
+        // Timeout half a second before revealing the textview
         let window = self.clone();
         timeout_add_local_once(Duration::from_millis(500), move || {
             window.imp().entry_revealer.set_reveal_child(true);
         });
+
+        // Set emoji chooser to visible on click
+        self.imp()
+            .emoji_button
+            .connect_clicked(clone!(@weak self as window => move |_| {
+                window.imp().emoji_chooser.set_position(PositionType::Top);
+                window.imp().emoji_chooser.set_has_arrow(false);
+                window.imp().emoji_chooser.set_visible(true);
+            }));
+
+        // Add the chosen emoji to the textview at the cursor point
+        self.imp().emoji_chooser.connect_emoji_picked(
+            clone!(@weak self as window => move |_, emoji| {
+                let buffer = window.imp().message_entry.buffer();
+                buffer.insert_at_cursor(emoji);
+            }),
+        );
     }
 
     fn setup_actions(&self) {
@@ -353,7 +375,7 @@ impl Window {
         self.get_chatting_with().messages()
     }
 
-    /// Send the text on the Textview as a message 
+    /// Send the text on the Textview as a message
     fn send_message(&self) {
         let buffer = self.imp().message_entry.buffer();
         let content = buffer
@@ -482,7 +504,7 @@ impl Window {
     }
 
     /// Function that handles some WS requests. Every added UserObject will have an instance of this to
-    /// process their requests. 
+    /// process their requests.
     pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
         receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
             let response_data: Vec<&str> = response.splitn(2, ' ').collect();
@@ -590,7 +612,7 @@ impl Window {
         }
     }
 
-    /// Find a UserObject based on the User ID 
+    /// Find a UserObject based on the User ID
     pub fn find_user(&self, target_id: u64) -> Option<UserObject> {
         let user_list = self.get_users_liststore();
         for user_data in user_list.iter() {
