@@ -3,7 +3,11 @@
   <schema id="com.github.therustypickle.chirp" path="/com/github/therustypickle/chirp/">
     <key name="location" type="s">
       <default>"./user_data.json"</default>
-      <summary>Location Data of where User Data is saved</summary>
+      <summary>Location of where owner id and token is saved</summary>
+    </key>
+    <key name="users" type="s">
+      <default>""</default>
+      <summary>Saved user data list in json format</summary>
     </key>
   </schema>
 </schemalist>
