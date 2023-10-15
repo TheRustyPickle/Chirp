@@ -39,20 +39,32 @@ pub struct FullUserData {
 }
 
 impl FullUserData {
-    pub fn new_json(user_object: &UserObject) -> String {
+    pub fn new(user_object: &UserObject) -> Self {
         let user_token = if user_object.imp().user_token.get().is_some() {
             user_object.user_token()
         } else {
             String::new()
         };
 
-        let user_data = FullUserData {
+        FullUserData {
             user_id: user_object.user_id(),
             user_name: user_object.name(),
             image_link: user_object.image_link(),
             user_token,
-        };
-        serde_json::to_string(&user_data).unwrap()
+        }
+    }
+
+    pub fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+
+    pub fn empty_token(self) -> Self {
+        FullUserData {
+            user_id: self.user_id,
+            user_name: self.user_name,
+            image_link: self.image_link,
+            user_token: String::new(),
+        }
     }
 
     pub fn from_json(data: &str) -> Self {
@@ -60,7 +72,7 @@ impl FullUserData {
     }
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct UserIDs {
     pub user_id: u64,
     pub user_token: String,

@@ -112,10 +112,7 @@ impl UserObject {
         }
 
         let ws = WSObject::new();
-
-        if let Some(link) = image_link {
-            obj.check_image_link(link);
-        }
+        obj.check_image_link(image_link);
 
         obj.set_user_ws(ws);
         obj.set_message_number(0);
@@ -133,13 +130,17 @@ impl UserObject {
         obj
     }
 
-    fn check_image_link(&self, new_link: String) {
-        let (sender, receiver) = MainContext::channel(Priority::default());
-        self.set_user_image(receiver);
-        spawn_blocking(move || {
-            let avatar = get_avatar(new_link);
-            sender.send(avatar).unwrap();
-        });
+    pub fn check_image_link(&self, new_link: Option<String>) {
+        if let Some(link) = new_link {
+            let (sender, receiver) = MainContext::channel(Priority::default());
+            self.set_user_image(receiver);
+            spawn_blocking(move || {
+                let avatar = get_avatar(link);
+                sender.send(avatar).unwrap();
+            });
+        } else {
+            self.remove_image()
+        }
     }
 
     fn set_user_image(&self, receiver: Receiver<Result<(String, Bytes), String>>) {
@@ -247,7 +248,7 @@ impl UserObject {
                         user_ws.update_ids(id_data)
                     }
                     RequestType::CreateNewUser => {
-                        let user_data = FullUserData::new_json(self);
+                        let user_data = FullUserData::new(self).to_json();
                         user_ws.create_new_user(user_data);
                     }
                     RequestType::SendMessage(message_data, msg_obj) => {
@@ -261,11 +262,7 @@ impl UserObject {
                         user_ws.send_text_message(&data);
                     }
                     RequestType::ImageUpdated(link) => {
-                        if let Some(image) = link.clone() {
-                            self.check_image_link(image)
-                        } else {
-                            self.remove_image();
-                        }
+                        self.check_image_link(link.clone());
                         let image_data = ImageUpdate::new_json(link, self.user_token());
                         user_ws.image_link_updated(&image_data);
                     }
@@ -350,6 +347,8 @@ impl UserObject {
                     .imp()
                     .message_revealer
                     .get();
+
+                // Remove the transition time before it gets remove for smoother animation
                 revealer.set_transition_duration(4000);
                 revealer.set_reveal_child(false);
 
@@ -408,9 +407,7 @@ impl UserObject {
                             let chatting_with = window.get_chatting_with();
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
-                            if let Some(link) = user_data.image_link {
-                                user_object.check_image_link(link);
-                            }
+                            user_object.check_image_link(user_data.image_link);
                             user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
                         }
                         "/update-user-id" => {
@@ -427,11 +424,7 @@ impl UserObject {
                         }
                         "/image-updated" => {
                             let image_data = ImageUpdate::new_from_json(splitted_data[1]);
-                            if let Some(image) = image_data.image_link {
-                                user_object.check_image_link(image);
-                            } else {
-                                user_object.remove_image()
-                            }
+                            user_object.check_image_link(image_data.image_link);
                         }
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {

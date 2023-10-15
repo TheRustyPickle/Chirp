@@ -25,6 +25,8 @@ mod imp {
         pub last_timer: Cell<u32>,
         #[property(get, set)]
         pub manually_reloaded: Cell<bool>,
+        #[property(get, set)]
+        pub stop_processing: Cell<bool>,
     }
 
     #[object_subclass]
@@ -44,6 +46,9 @@ mod imp {
                     Signal::builder("ws-reconnect")
                         .param_types([bool::static_type()])
                         .build(),
+                    Signal::builder("stop-processing")
+                        .param_types([bool::static_type()])
+                        .build(),
                 ]
             });
             SIGNALS.as_ref()
@@ -54,8 +59,8 @@ mod imp {
 use adw::subclass::prelude::*;
 use gio::Cancellable;
 use glib::{
-    clone, timeout_add_seconds_local, wrapper, ControlFlow, MainContext, Object, Priority,
-    SignalHandlerId,
+    clone, closure_local, timeout_add_seconds_local, wrapper, ControlFlow, MainContext, Object,
+    Priority, SignalHandlerId,
 };
 use gtk::{glib, prelude::*};
 use soup::{prelude::*, Message, Session, WebsocketConnection};
@@ -71,6 +76,7 @@ impl WSObject {
         let obj: WSObject = Object::builder().build();
         obj.set_last_timer(10);
         obj.set_ws();
+        obj.set_stop_processing(false);
         obj
     }
 
@@ -126,6 +132,10 @@ impl WSObject {
         receiver.attach(
             None,
             clone!(@weak self as ws_object => @default-return ControlFlow::Break, move |conn| {
+                if ws_object.stop_processing() {
+                    info!("Shutting down receiver 1");
+                    return ControlFlow::Break
+                }
                 if conn.is_some() {
                     ws_object.set_ws_conn(Some(conn.unwrap()));
                     info!("WebSocket connection success");
@@ -165,8 +175,33 @@ impl WSObject {
         notifier_receive.attach(
             None,
             clone!(@weak self as ws => @default-return ControlFlow::Break, move |_| {
+                if ws.stop_processing() {
+                    info!("Shutting down receiver 2");
+                    return ControlFlow::Break
+                }
                 ws.emit_by_name::<()>("ws-reconnect", &[&true]);
                 ControlFlow::Continue
+            }),
+        );
+
+        self.connect_closure(
+            "stop-processing",
+            false,
+            closure_local!(move |from: WSObject, stop: bool| {
+                from.set_stop_processing(stop);
+                if let Some(conn) = from.ws_conn() {
+                    info!("Closing websocket connection");
+                    conn.close(1000, None);
+                    from.set_ws_conn(None::<WebsocketConnection>);
+                }
+                // Send a message via the sender so the receiver can shut down
+                if let Some(sender) = from.imp().ws_sender.get() {
+                    sender.send(None).unwrap();
+                }
+                if let Some(sender) = from.imp().notifier.get() {
+                    sender.send(true).unwrap();
+                }
+                from.imp().ws_signal_id.replace(None);
             }),
         );
     }
