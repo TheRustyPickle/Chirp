@@ -6,28 +6,31 @@ Chirp is my playground for exploring the world of GTK4-rs while working on a cha
 
 ## Current Status
 
-🎨 **User Interface (UI):** Chirp features an interface crafted using GTK4-rs. I'm refining it into a chat app that offers a practical and smooth experience, where messages are composed and displayed effortlessly.
+🎨 **User Interface:** Chirp features an interface crafted using GTK4-rs. It is being actively developed and refined with more features.
 
-🌐 **WebSocket Support:** Chirp now contains a WebSocket server created with actix-web the GUI can communicate with, allowing usage of multiple clients with auto-reconnecting.
+🌐 **Server:** A WebSocket server created with actix-web the GUI can communicate with, allowing usage of multiple clients with auto-reconnecting.
+
+🛡️ **Security:** The application incorporates several security measures, including TLS-encrypted server communication and token-based authentication for the GUI client.
+
+💬 **Messaging:** The app supports basic messaging capabilities including sending and deleting messages, adding new chat, and message synchronization upon startup.
 
 <details>
 <summary>App Screenshots</summary>
-  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/56a88c28-3cbe-4ecf-8d32-ffb85e0f6a56">
-  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/39919dd7-8ebe-42ee-9a07-d5c4dcbf5601">
+  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/ad9ef82e-dc2f-40b9-8fa7-0df20a3dc62e">
+  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/5f7b22c1-3afd-44f9-928b-dfabc2ffd236">
 </details>
 
 ## What's on the Horizon?
 
-🔧 **Refining UI:** Further refining the user interface for a more user-friendly experience.
+🔧 **Refining UI:** Further refining of the user interface for a more user-friendly experience and with more features.
 
-🛡️ **Security:** Enhancing overall security, especially WebSocket communication and authentication.
-
-🔒 **Message Encryption:** Implementation of encryption measures to further enhance the privacy and security of messages.
+🔒 **Message Encryption:** Implementation of encryption measures to enhance the privacy and security of messages.
 
 ## Project Components
 
-- `gui/`: Contains the UI interface built with GTK4-rs along with all the logic and components to make it run.
-- `server/`: Hosts a WebSocket server created with actix-web, facilitating communication with the GUI.
+- `gui/`: Contains the UI interface built with GTK4-rs along with all the logic and UI components to make it run.
+- `server/`: Hosts a WebSocket server created with actix-web, facilitating communication with the GUI and managing the DB.
+- `migrations/`: Contains DB migrations details, should be handled with diesel-rs
 
 ## Explore the Project
 
@@ -57,6 +60,6 @@ glib-compile-schemas $HOME/.local/share/glib-2.0/schemas/
 
 Want to contribute or share ideas? All participation is welcome! Feel free to open an issue or submit a pull request to get the conversation going.
 
-## Licensing
+## License
 
 Chirp is under the [MIT License](LICENSE).
