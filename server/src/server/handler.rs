@@ -208,7 +208,7 @@ impl ChatServer {
 
             if let Some(entry) = self.sessions.get_mut(&ws_id) {
                 let (id_info, receiver_ws) = entry;
-                *id_info = id_data;
+                *id_info = id_data.clone();
                 receiver_ws.do_send(Message(format!(
                     "/reconnect-success {}",
                     user_data.update_token(String::new()).to_json()
@@ -217,6 +217,7 @@ impl ChatServer {
         } else {
             error!("Unable to reconnect with a non-existing user")
         }
+        self.update_ids(ws_id, id_data)
     }
 
     /// Sends a user profile data to a client
@@ -263,6 +264,8 @@ impl ChatServer {
                 session_data.push(ws_data);
             }
             self.send_message_number(ws_id, id_data);
+        } else {
+            error!("Owner session issue");
         }
     }
 
