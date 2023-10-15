@@ -3,7 +3,7 @@ mod imp {
     use adw::ApplicationWindow;
     use gio::{ListStore, Settings};
     use glib::subclass::InitializingObject;
-    use glib::{object_subclass, Binding};
+    use glib::{object_subclass, Binding, Propagation};
     use gtk::{
         gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, Revealer,
         ScrolledWindow, Stack, TextView,
@@ -74,7 +74,13 @@ mod imp {
         }
     }
 
-    impl WindowImpl for Window {}
+    impl WindowImpl for Window {
+        /// On window close save all existing user data to gschema
+        fn close_request(&self) -> Propagation {
+            self.obj().save_user_list();
+            Propagation::Proceed
+        }
+    }
 
     impl WidgetImpl for Window {}
 
@@ -96,7 +102,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::time::Duration;
-use tracing::info;
+use tracing::{info, debug, error};
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
@@ -256,7 +262,7 @@ impl Window {
     }
 
     /// Check if any existing owner data is available
-    fn check_user_data(&self) -> Option<UserIDs> {
+    fn check_owner_id(&self) -> Option<UserIDs> {
         let saving_location = self.settings().string("location");
         if !saving_location.is_empty() {
             if fs::metadata(saving_location.to_owned()).is_ok() {
@@ -271,6 +277,33 @@ impl Window {
         }
         info!("Failed to find any previously saved user data");
         None
+    }
+
+    /// Get the saved data from gschema
+    fn get_saved_user_data(&self) -> Vec<FullUserData> {
+        let all_user_data = self.settings().string("users");
+        if !all_user_data.is_empty() {
+            serde_json::from_str(&all_user_data).unwrap()
+        } else {
+            Vec::new()
+        }
+    }
+
+    // Save added UserObject data to gschema for later retrieval
+    fn save_user_list(&self) {
+        info!("Starting saving user list");
+        let mut save_list = Vec::new();
+
+        let user_list = self.get_users_liststore();
+        for user_data in user_list.iter() {
+            let user_object: UserObject = user_data.unwrap();
+            debug!("Saving user object {} {} {:?}", user_object.user_id(), user_object.name(), user_object.image_link());
+            let user_data = FullUserData::new(&user_object).empty_token();
+            save_list.push(user_data)
+        }
+
+        let to_save = serde_json::to_string(&save_list).unwrap();
+        self.settings().set_string("users", &to_save).unwrap();
     }
 
     /// Bind the main window header bar's title to the selected chat
@@ -312,14 +345,40 @@ impl Window {
         );
 
         info!("Setting own profile");
-        let data: UserObject = self.create_owner("Me");
-        let user_clone = data.clone();
+        let saved_user_id = self.check_owner_id();
+        let data: UserObject = self.create_owner(saved_user_id.clone());
 
-        self.imp().own_profile.replace(Some(data));
-        self.set_chatting_with(user_clone);
+        self.imp().own_profile.replace(Some(data.clone()));
+        self.set_chatting_with(data.clone());
 
         // Select the first row we just added
         self.get_user_list().row_at_index(0).unwrap().activate();
+
+        if let Some(id_data) = saved_user_id {
+            let mut saved_users = self.get_saved_user_data();
+            // If empty stop checking
+            if saved_users.is_empty() {
+                return;
+            }
+
+            let owner_data = saved_users.remove(0);
+            // If it's not the same then the saved data is outdated or invalid
+            if owner_data.user_id != id_data.user_id {
+                error!("Invalid or outdated owner data found. Dismissing saved data");
+                return;
+            }
+
+            data.set_name(owner_data.user_name);
+
+            // Have to set the image link manually otherwise if new users are added 
+            // after this and the image is not loaded it would save None image link 
+            data.set_image_link(owner_data.image_link.clone());
+            data.check_image_link(owner_data.image_link);
+
+            for user_data in saved_users {
+                self.create_user(user_data)
+            }
+        }
     }
 
     /// Get the UserObject that is currently selected/chatting with
@@ -485,16 +544,12 @@ impl Window {
     }
 
     /// Used during the startup of the app. Called only once to create the owner profile
-    fn create_owner(&self, name: &str) -> UserObject {
-        // It's a new user + owner so the ID will be generated on the server side
-        let id_data = self.check_user_data();
-
-        // attempt to find previously saved owner data
+    fn create_owner(&self, id_data: Option<UserIDs>) -> UserObject {
         let user_data = if let Some(data) = id_data {
             info!("Saved user data found");
-            UserObject::new(name, None, None, Some(data.user_id), Some(data.user_token))
+            UserObject::new("Me", None, None, Some(data.user_id), Some(data.user_token))
         } else {
-            UserObject::new(name, Some(generate_random_avatar_link()), None, None, None)
+            UserObject::new("Me", Some(generate_random_avatar_link()), None, None, None)
         };
 
         user_data.handle_ws(self.clone());
@@ -569,6 +624,7 @@ impl Window {
 
         new_user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&new_user_data);
+        self.save_user_list();
     }
 
     /// Get the users ListBox
@@ -635,6 +691,8 @@ impl Window {
                     self.get_user_list().row_at_index(0).unwrap().activate();
                 }
                 self.get_users_liststore().remove(index as u32);
+                user_data.user_ws().set_stop_processing(true);
+                self.save_user_list();
                 break;
             }
         }
