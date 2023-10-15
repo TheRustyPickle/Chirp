@@ -258,13 +258,12 @@ impl ChatServer {
 
         let ws_data = WSData::new(user_id, ws_id);
 
-        let session_data = self.user_session.get_mut(&owner_id).unwrap();
-
-        if !session_data.contains(&ws_data) {
-            session_data.push(ws_data);
+        if let Some(session_data) = self.user_session.get_mut(&owner_id) {
+            if !session_data.contains(&ws_data) {
+                session_data.push(ws_data);
+            }
+            self.send_message_number(ws_id, id_data);
         }
-
-        self.send_message_number(ws_id, id_data);
     }
 
     /// Updates user name of a user

@@ -102,7 +102,7 @@ use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
 use std::time::Duration;
-use tracing::{info, debug, error};
+use tracing::{debug, error, info};
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
@@ -297,7 +297,12 @@ impl Window {
         let user_list = self.get_users_liststore();
         for user_data in user_list.iter() {
             let user_object: UserObject = user_data.unwrap();
-            debug!("Saving user object {} {} {:?}", user_object.user_id(), user_object.name(), user_object.image_link());
+            debug!(
+                "Saving user object {} {} {:?}",
+                user_object.user_id(),
+                user_object.name(),
+                user_object.image_link()
+            );
             let user_data = FullUserData::new(&user_object).empty_token();
             save_list.push(user_data)
         }
@@ -370,8 +375,8 @@ impl Window {
 
             data.set_name(owner_data.user_name);
 
-            // Have to set the image link manually otherwise if new users are added 
-            // after this and the image is not loaded it would save None image link 
+            // Have to set the image link manually otherwise if new users are added
+            // after this and the image is not loaded it would save None image link
             data.set_image_link(owner_data.image_link.clone());
             data.check_image_link(owner_data.image_link);
 
@@ -691,7 +696,9 @@ impl Window {
                     self.get_user_list().row_at_index(0).unwrap().activate();
                 }
                 self.get_users_liststore().remove(index as u32);
-                user_data.user_ws().set_stop_processing(true);
+                user_data
+                    .user_ws()
+                    .emit_by_name::<()>("stop-processing", &[&true]);
                 self.save_user_list();
                 break;
             }
