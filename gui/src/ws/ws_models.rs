@@ -14,8 +14,6 @@ pub enum RequestType {
     ImageUpdated(Option<String>),
     // Try to reconnect with the WS again
     ReconnectUser,
-    // Send my IDs to the WS
-    UpdateIDs,
     // Send a message to another user
     SendMessage(MessageData, MessageObject),
     // Ask the WS for a specific user info

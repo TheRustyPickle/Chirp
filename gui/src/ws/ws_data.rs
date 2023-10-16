@@ -255,14 +255,6 @@ impl WSObject {
             .send_text(&format!("/get-user-data {}", data))
     }
 
-    /// Calls the server to update necessary IDs
-    pub fn update_ids(&self, data: String) {
-        info!("Sending request to WS to update ids");
-        self.ws_conn()
-            .unwrap()
-            .send_text(&format!("/update-ids {}", data))
-    }
-
     /// Calls the server to update the user image link
     pub fn image_link_updated(&self, link: &str) {
         info!("Sending request to WS to update image link");
