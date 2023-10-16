@@ -275,7 +275,7 @@ impl UserObject {
                         let user_data = UserIDs::new_json(id.to_owned(), self.user_token());
                         user_ws.get_user_data(&user_data)
                     }
-                    RequestType::NewUserSelection(user) => {
+                    RequestType::GetLastMessageNumber(user) => {
                         let data = UserIDs::new_json(user.user_id(), self.user_token());
                         user_ws.selection_update(data)
                     }
@@ -364,8 +364,8 @@ impl UserObject {
 
     pub fn handle_ws(&self, window: Window) {
         let user_object = self.clone();
-
         let user_ws = self.user_ws();
+        
         user_ws.connect_closure(
             "ws-success",
             false,
@@ -379,47 +379,39 @@ impl UserObject {
 
     fn start_listening(&self, sender: Sender<String>, window: Window) {
         let user_ws = self.user_ws();
-        info!("Starting listening");
+        info!(
+            "Starting listening for user {} with {}",
+            self.name(),
+            self.user_id()
+        );
         if !user_ws.is_reconnecting() {
             if self.user_id() == 0 {
                 self.add_queue_to_first(RequestType::CreateNewUser);
             } else {
-                // if not same, we are creating a new user after New Chat button was used
-                // if same, we have previously saved some user data and using that to reconnect
-                if self.user_id() != self.owner_id() {
-                    self.add_to_queue(RequestType::UpdateIDs);
-                } else {
-                    self.add_queue_to_first(RequestType::ReconnectUser);
-                }
+                self.add_queue_to_first(RequestType::ReconnectUser);
             }
         }
 
         let id = user_ws.ws_conn().unwrap().connect_message(
-            clone!(@weak self as user_object, @weak window => move |_ws, _s, bytes| {
+            clone!(@weak self as user_object => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
                 let text = String::from_utf8(byte_slice).unwrap();
-                debug!("{} Received from WS: {text}", user_object.name());
+                debug!("{} {} Received from WS: {text}", user_object.name(), user_object.user_id());
 
                 if text.starts_with('/') {
                     let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
                     match splitted_data[0] {
                         "/reconnect-success" => {
-                            let chatting_with = window.get_chatting_with();
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             user_object.check_image_link(user_data.image_link);
-                            user_object.add_queue_to_first(RequestType::NewUserSelection(chatting_with))
+                            user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()))
                         }
                         "/update-user-id" => {
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
                             sender.send(text).unwrap();
-
-                            // self.add_queue_to_first(_);
-                            // ensured that the queue will stop processing requests
-                            // As we got the ID details now, this will ensure all queues are processed
-                            // And further processing is not blocked.
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
@@ -447,7 +439,7 @@ impl UserObject {
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
                             for message in chat_data.message_data.into_iter() {
-                                window.receive_message(message, user_object.clone())
+                                window.receive_message(message, user_object.clone(), false)
                             }
                         }
                         "/delete-message" => {
