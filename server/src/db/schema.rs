@@ -6,7 +6,7 @@ diesel::table! {
         #[max_length = 40]
         message_group -> Varchar,
         message_number -> Int4,
-        message_text -> Text,
+        message_text -> Nullable<Text>,
         message_sender -> Int4,
         message_receiver -> Int4,
         created_at -> Timestamptz,

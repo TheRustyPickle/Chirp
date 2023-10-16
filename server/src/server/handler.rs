@@ -259,13 +259,9 @@ impl ChatServer {
 
         let ws_data = WSData::new(user_id, ws_id);
 
-        if let Some(session_data) = self.user_session.get_mut(&owner_id) {
-            if !session_data.contains(&ws_data) {
-                session_data.push(ws_data);
-            }
-            self.send_message_number(ws_id, id_data);
-        } else {
-            error!("Owner session issue");
+        let session_data = self.user_session.entry(owner_id).or_insert(Vec::new());
+        if !session_data.contains(&ws_data) {
+            session_data.push(ws_data);
         }
     }
 
@@ -388,7 +384,7 @@ impl ChatServer {
                 created_at: msg.created_at.to_string(),
                 from_user: msg.message_sender as usize,
                 to_user: msg.message_receiver as usize,
-                message: msg.message_text,
+                message: msg.message_text.unwrap(),
                 message_number: msg.message_number as usize,
                 user_token: String::new(),
             })
