@@ -1,4 +1,4 @@
-use diesel::{delete, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
+use diesel::{update, ExpressionMethods, PgConnection, QueryDsl, RunQueryDsl, SelectableHelper};
 
 use crate::db::messages_model::Message;
 use crate::db::schema::messages;
@@ -38,6 +38,7 @@ pub fn get_messages_from_number(
 
     messages
         .filter(message_group.eq(group))
+        .filter(message_text.is_not_null())
         .filter(message_number.gt(start_at as i32))
         .filter(message_number.le(end_at as i32))
         .order(message_number.desc())
@@ -49,11 +50,10 @@ pub fn get_messages_from_number(
 pub fn delete_message_with_number(conn: &mut PgConnection, group: String, number: usize) {
     use crate::db::schema::messages::dsl::*;
 
-    delete(
-        messages
-            .filter(message_group.eq(group))
-            .filter(message_number.eq(number as i32)),
-    )
-    .execute(conn)
-    .unwrap();
+    update(messages)
+        .filter(message_group.eq(group))
+        .filter(message_number.eq(number as i32))
+        .set(message_text.eq(None::<String>))
+        .execute(conn)
+        .unwrap();
 }

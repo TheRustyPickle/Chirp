@@ -398,7 +398,7 @@ impl Window {
     /// Set chatting with the given user
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
-        user.add_queue_to_first(RequestType::NewUserSelection(user.clone()));
+        user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
 
         // Bind the model to a specific ListStore so if any new message gets added there
         // new message row creation also starts
@@ -483,7 +483,12 @@ impl Window {
     }
 
     /// Gets called when a message is received or when syncing previous message data
-    pub fn receive_message(&self, message_data: MessageData, other_user: UserObject) {
+    pub fn receive_message(
+        &self,
+        message_data: MessageData,
+        other_user: UserObject,
+        add_css: bool,
+    ) {
         let current_message_number = other_user.message_number();
         if current_message_number < message_data.message_number {
             // Less than current number means it's an old message
@@ -507,8 +512,8 @@ impl Window {
         let message = MessageObject::new(
             message_data.message,
             is_send,
-            sender,
-            receiver,
+            sender.clone(),
+            receiver.clone(),
             parsed_date_time,
             Some(message_data.message_number),
         );
@@ -518,6 +523,15 @@ impl Window {
             other_user.messages().insert(0, &message);
         } else {
             other_user.messages().append(&message);
+        }
+
+        // Pending message color should not be added when syncing messages
+        if add_css {
+            let target_user = if is_send { receiver } else { sender };
+
+            if target_user != self.get_chatting_with() {
+                self.add_pending_avatar_css(target_user)
+            }
         }
     }
 
@@ -581,7 +595,7 @@ impl Window {
                 }
                 "/message" => {
                     let message_data = MessageData::from_json(response_data[1]);
-                    window.receive_message(message_data, user_object)
+                    window.receive_message(message_data, user_object, true)
                 },
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
@@ -652,6 +666,7 @@ impl Window {
             let user_row: UserRow = row_data.child().unwrap().downcast().unwrap();
             user_row.imp().user_avatar.remove_css_class("user-selected");
             user_row.imp().user_avatar.add_css_class("user-inactive");
+            user_row.imp().user_avatar.remove_css_class("user-pending");
         }
     }
 
@@ -660,6 +675,24 @@ impl Window {
             let user_row: UserRow = row_data.child().unwrap().downcast().unwrap();
             user_row.imp().user_avatar.add_css_class("user-selected");
             user_row.imp().user_avatar.remove_css_class("user-inactive");
+            user_row.imp().user_avatar.remove_css_class("user-pending");
+        }
+    }
+
+    fn add_pending_avatar_css(&self, target_user: UserObject) {
+        let listbox = self.get_user_list();
+        let total_user = self.get_users_liststore().n_items() as i32;
+
+        for index in 0..total_user {
+            if let Some(row_data) = listbox.row_at_index(index) {
+                let user_row: UserRow = row_data.child().unwrap().downcast().unwrap();
+                if user_row.imp().user_data.get().unwrap() == &target_user {
+                    user_row.imp().user_avatar.remove_css_class("user-selected");
+                    user_row.imp().user_avatar.remove_css_class("user-inactive");
+                    user_row.imp().user_avatar.add_css_class("user-pending");
+                    break;
+                }
+            }
         }
     }
 

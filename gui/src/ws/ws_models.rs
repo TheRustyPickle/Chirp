@@ -21,7 +21,7 @@ pub enum RequestType {
     // Ask the WS for a specific user info
     GetUserData(u64),
     // Broadcast new user selection to the WS
-    NewUserSelection(UserObject),
+    GetLastMessageNumber(UserObject),
     // Ask the WS to send un-synced messages
     SyncMessage(u64, u64),
     // Ask the WS to delete a message
