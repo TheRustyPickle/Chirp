@@ -51,9 +51,14 @@ mod imp {
             // Gets emitted when updating image to open a Toast on profile page
             // Empty string => Success
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
-                vec![Signal::builder("image-modified")
-                    .param_types([String::static_type()])
-                    .build()]
+                vec![
+                    Signal::builder("image-modified")
+                        .param_types([String::static_type()])
+                        .build(),
+                    Signal::builder("user-exists")
+                        .param_types([bool::static_type()])
+                        .build(),
+                ]
             });
             SIGNALS.as_ref()
         }
@@ -184,8 +189,9 @@ impl UserObject {
                                 user_object.set_small_image(Some(small_paintable));
                                 user_object.set_image_link(Some(image_link));
                             } else {
-                                info!("abandoning {}", image_link)
+                                info!("Image link was updated. Abandoning {}", image_link)
                             }
+                            user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
                         }
                         Err(msg) => {
                             // Emit the signal to the user profile to show a toast with the error

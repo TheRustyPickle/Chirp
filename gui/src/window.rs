@@ -577,6 +577,15 @@ impl Window {
                 "/get-user-data" | "/new-user-message" => {
                     let user_data = FullUserData::from_json(response_data[1]);
 
+                    if response_data[0] == "/get-user-data" {
+                        if user_data.user_id != 0 {
+                            user_object.emit_by_name::<()>("user-exists", &[&true]);
+                        } else {
+                            user_object.emit_by_name::<()>("user-exists", &[&false]);
+                            return ControlFlow::Continue;
+                        }
+                    }
+
                     if window.find_user(user_data.user_id).is_some() {
                         info!("User {} has already been added. Dismissing the request", user_data.user_id);
                         return ControlFlow::Continue;

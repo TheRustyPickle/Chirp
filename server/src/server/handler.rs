@@ -153,7 +153,7 @@ impl ChatServer {
 
         info!("Creating new user with User ID {user_id}");
 
-        let user_data = User::new(other_data)
+        let user_data = User::from_json(other_data)
             .update_id(user_id)
             .update_token(user_token.to_owned());
 
@@ -234,6 +234,11 @@ impl ChatServer {
             let user_data = user_data.update_token(String::new()).to_json();
             if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
                 receiver_ws.do_send(Message(format!("/get-user-data {}", user_data)))
+            };
+        } else {
+            let empty_user = User::new().to_json();
+            if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
+                receiver_ws.do_send(Message(format!("/get-user-data {}", empty_user)))
             };
         }
     }
