@@ -68,8 +68,6 @@ mod imp {
     impl WindowImpl for UserProfile {}
 
     impl AdwWindowImpl for UserProfile {}
-
-    impl MessageDialogImpl for UserProfile {}
 }
 
 use std::env;

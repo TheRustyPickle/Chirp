@@ -136,6 +136,7 @@
                                     </style>
                                     <child>
                                       <object class="GtkLabel" id="conn_timer">
+                                        <property name="tooltip-text">Next reconnection timer</property>
                                       </object>
                                     </child>
                                     <child>
@@ -143,6 +144,7 @@
                                         <property name="has-frame">false</property>
                                         <property name="can-focus">false</property>
                                         <property name="icon-name">software-update-symbolic</property>
+                                        <property name="tooltip-text">Attempt to reconnect</property>
                                       </object>
                                     </child>
                                     <child>
@@ -151,6 +153,7 @@
                                         <property name="margin-bottom">12</property>
                                         <property name="can-focus">false</property>
                                         <property name="sensitive">false</property>
+                                        <property name="tooltip-text">Connection status</property>
                                       </object>
                                     </child>
                                   </object>

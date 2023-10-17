@@ -387,11 +387,7 @@ impl Window {
 
     /// Get the UserObject that is currently selected/chatting with
     pub fn get_chatting_with(&self) -> UserObject {
-        self.imp()
-            .chatting_with
-            .borrow()
-            .clone()
-            .unwrap()
+        self.imp().chatting_with.borrow().clone().unwrap()
     }
 
     /// Set chatting with the given user
@@ -416,11 +412,7 @@ impl Window {
 
     /// Get the UserObject of the owner/chatting from
     pub fn get_chatting_from(&self) -> UserObject {
-        self.imp()
-            .own_profile
-            .borrow()
-            .clone()
-            .unwrap()
+        self.imp().own_profile.borrow().clone().unwrap()
     }
 
     /// Get the owner user id
