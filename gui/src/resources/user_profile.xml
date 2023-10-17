@@ -31,6 +31,7 @@
                             <!-- Top avatar-->
                             <child>
                               <object class="AdwAvatar" id="profile_avatar">
+                                <property name="can-focus">false</property>
                                 <property name="css-classes">avatar</property>
                                 <property name="show-initials">true</property>
                                 <property name="size">150</property>
@@ -46,9 +47,18 @@
                                   <!-- The name row-->
                                   <object class="AdwActionRow" id="name_row">
                                     <property name="title">Name</property>
+                                    <property name="can-focus">false</property>
                                     <style>
                                       <class name="property" />
                                     </style>
+                                    <child>
+                                      <object class="GtkButton" id="name_copy">
+                                        <property name="can-focus">false</property>
+                                        <property name="icon-name">edit-copy-symbolic</property>
+                                        <property name="has-frame">false</property>
+                                        <property name="tooltip-text">Copy name</property>
+                                      </object>
+                                    </child>
                                     <child>
                                       <object class="GtkButton" id="name_edit">
                                         <property name="can-focus">false</property>
@@ -62,6 +72,7 @@
                                 <child>
                                   <!-- The ID row-->
                                   <object class="AdwActionRow" id="id_row">
+                                    <property name="can-focus">false</property>
                                     <property name="title">User ID</property>
                                     <style>
                                       <class name="property" />
@@ -87,6 +98,7 @@
                                 <child>
                                   <!-- The image link row-->
                                   <object class="AdwActionRow" id="image_link_row">
+                                    <property name="can-focus">false</property>
                                     <property name="title">Image Link</property>
                                     <property name="subtitle-lines">1</property>
                                     <style>
@@ -129,6 +141,7 @@
                                 <child>
                                   <!-- The Connection Status Row-->
                                   <object class="AdwActionRow" id="conn_row">
+                                    <property name="can-focus">false</property>
                                     <property name="title">Connection Status</property>
                                     <property name="subtitle-lines">1</property>
                                     <style>
