@@ -13,7 +13,16 @@ pub struct User {
 }
 
 impl User {
-    pub fn new(data: String) -> Self {
+    pub fn new() -> Self {
+        User {
+            user_id: 0,
+            user_name: String::new(),
+            image_link: None,
+            user_token: String::new(),
+        }
+    }
+
+    pub fn from_json(data: String) -> Self {
         serde_json::from_str(&data).unwrap()
     }
 

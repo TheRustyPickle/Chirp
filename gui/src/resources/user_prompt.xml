@@ -9,7 +9,6 @@
         <property name="orientation">vertical</property>
         <child>
           <object class="GtkLabel" id="prompt_text">
-            <property name="label">Enter your input</property>
             <property name="margin-top">30</property>
           </object>
         </child>
@@ -19,18 +18,26 @@
               <object class="GtkEntry" id="user_entry">
                 <property name="hexpand">true</property>
                 <property name="margin-top">20</property>
-                <property name="margin-bottom">20</property>
+                <property name="margin-bottom">5</property>
                 <property name="margin-start">30</property>
                 <property name="margin-end">5</property>
                 <property name="css-classes">prompt-entry</property>
               </object>
             </child>
             <child>
-              <object class="GtkSpinner">
-                <property name="margin-bottom">10</property>
+              <object class="GtkSpinner" id="loading_spinner">
+                <property name="margin-top">8</property>
                 <property name="margin-end">15</property>
               </object>
             </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkLabel" id="error_text">
+            <property name="css-classes">small-label</property>
+            <property name="margin-bottom">10</property>
+            <property name="margin-start">30</property>
+            <property name="halign">start</property>
           </object>
         </child>
         <child>

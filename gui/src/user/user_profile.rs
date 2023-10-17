@@ -19,6 +19,8 @@ mod imp {
         #[template_child]
         pub name_edit: TemplateChild<Button>,
         #[template_child]
+        pub name_copy: TemplateChild<Button>,
+        #[template_child]
         pub id_row: TemplateChild<ActionRow>,
         #[template_child]
         pub id_warning: TemplateChild<Image>,
@@ -295,6 +297,7 @@ impl UserProfile {
         let image_link_reload = self.imp().image_link_reload.get();
         let image_link_delete = self.imp().image_link_delete.get();
         let conn_reload = self.imp().conn_reload.get();
+        let name_copy = self.imp().name_copy.get();
 
         name_edit.connect_clicked(clone!(@weak self as profile => move |_| {
             info!("Opening prompt to get new name");
@@ -372,6 +375,20 @@ impl UserProfile {
             timeout_add_seconds_local_once(5, move || {
                 profile.imp().conn_reload.set_sensitive(true);
             });
+        }));
+
+        name_copy.connect_clicked(clone!(@weak self as profile => move |_| {
+            let text = profile.imp().name_row.get().subtitle().unwrap();
+            info!("Copying name {text} to clipboard.");
+
+            profile.clipboard().set(&text);
+
+            let toast_overlay = profile.imp().toast_overlay.get();
+            let toast = Toast::builder()
+                .title("Name has been copied to clipboard")
+                .timeout(1)
+                .build();
+            toast_overlay.add_toast(toast);
         }));
     }
 }

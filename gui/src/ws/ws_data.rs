@@ -65,7 +65,7 @@ use glib::{
 use gtk::{glib, prelude::*};
 use soup::{prelude::*, Message, Session, WebsocketConnection};
 use std::env;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 wrapper! {
     pub struct WSObject(ObjectSubclass<imp::WSObject>);
@@ -111,7 +111,7 @@ impl WSObject {
                 }
                 Err(error) => {
                     sender.send(None).unwrap();
-                    error!("WebSocket connection error: {:?}", error);
+                    debug!("WebSocket connection error: {:?}", error);
                 }
             },
         );
@@ -249,7 +249,7 @@ impl WSObject {
 
     /// Calls the server to get profile data of a user
     pub fn get_user_data(&self, data: &str) {
-        info!("Sending request for getting UserObject Data with data");
+        info!("Sending request for getting UserObject Data");
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/get-user-data {}", data))

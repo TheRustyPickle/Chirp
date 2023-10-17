@@ -3,7 +3,7 @@ mod imp {
     use adw::Window;
     use glib::object_subclass;
     use glib::subclass::InitializingObject;
-    use gtk::{glib, Button, CompositeTemplate, Entry, Label};
+    use gtk::{glib, Button, CompositeTemplate, Entry, Label, Spinner};
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_prompt.xml")]
@@ -16,6 +16,10 @@ mod imp {
         pub confirm_button: TemplateChild<Button>,
         #[template_child]
         pub cancel_button: TemplateChild<Button>,
+        #[template_child]
+        pub loading_spinner: TemplateChild<Spinner>,
+        #[template_child]
+        pub error_text: TemplateChild<Label>,
     }
 
     #[object_subclass]
@@ -45,11 +49,12 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Toast;
+use gio::glib::closure_local;
 use glib::{clone, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
-use tracing::info;
+use tracing::{error, info};
 
 use crate::user::{UserObject, UserProfile};
 use crate::window;
@@ -100,6 +105,7 @@ impl UserPrompt {
                     entry.add_css_class("blue-entry");
                     prompt.imp().confirm_button.set_sensitive(true);
                 }
+                prompt.imp().error_text.set_label(&String::new());
             }));
     }
 
@@ -120,6 +126,7 @@ impl UserPrompt {
                     entry.remove_css_class("error");
                     entry.add_css_class("blue-entry");
                 }
+                prompt.imp().error_text.set_label(&String::new());
             }));
     }
 
@@ -128,6 +135,27 @@ impl UserPrompt {
         self.bind_int();
         self.set_transient_for(Some(window));
         self.set_modal(true);
+
+        let user_data = window.get_chatting_from();
+        let obj_clone = self.clone();
+        user_data.connect_closure(
+            "user-exists",
+            false,
+            closure_local!(move |_from: UserObject, exists: bool| {
+                if !exists {
+                    error!("Inputted User ID does not exists");
+                    obj_clone.imp().loading_spinner.set_spinning(false);
+                    obj_clone.set_buttons_sensitive();
+                    obj_clone
+                        .imp()
+                        .error_text
+                        .set_label(&format!("Error: User ID does not exist"));
+                } else {
+                    info!("Inputted User ID info found");
+                    obj_clone.destroy()
+                }
+            }),
+        );
 
         self.imp()
             .user_entry
@@ -141,8 +169,8 @@ impl UserPrompt {
             let entry_data = prompt.imp().user_entry.text();
             info!("Processing {} to add a new user", entry_data);
             window.get_chatting_from().add_to_queue(RequestType::GetUserData(entry_data.parse().unwrap()));
-            prompt.destroy()
-            // TODO start spinner => make everything insensitive => Setup a signal to confirm we received the user data to destroy
+            prompt.imp().loading_spinner.set_spinning(true);
+            prompt.set_buttons_insensitive();
         }));
 
         self
@@ -180,6 +208,34 @@ impl UserPrompt {
 
     /// Open prompt to take a new image link for the user
     pub fn edit_image_link(self, profile: &UserProfile, user_data: &UserObject) -> Self {
+        let is_owner = if user_data.user_id() == user_data.owner_id() {
+            true
+        } else {
+            false
+        };
+
+        if is_owner {
+            let obj_clone = self.clone();
+            user_data.connect_closure(
+                "image-modified",
+                false,
+                closure_local!(move |_from: UserObject, message: String| {
+                    if !message.is_empty() {
+                        error!("Failed to update image");
+                        obj_clone.imp().loading_spinner.set_spinning(false);
+                        obj_clone.set_buttons_sensitive();
+                        obj_clone
+                            .imp()
+                            .error_text
+                            .set_label(&format!("Error: {}", message));
+                    } else {
+                        info!("Image updated successfully");
+                        obj_clone.destroy()
+                    }
+                }),
+            );
+        }
+
         self.bind();
         self.set_transient_for(Some(profile));
         self.set_modal(true);
@@ -203,11 +259,21 @@ impl UserPrompt {
                     .build();
                 over_lay.add_toast(toast);
                 user_data.add_to_queue(RequestType::ImageUpdated(Some(entry_data.to_string())));
-                prompt.destroy()
-                // TODO start spinner => make everything insensitive => Setup a signal to confirm the image link is valid
+                prompt.imp().loading_spinner.set_spinning(true);
+                prompt.set_buttons_insensitive();
             }),
         );
 
         self
+    }
+
+    fn set_buttons_insensitive(&self) {
+        self.imp().confirm_button.set_sensitive(false);
+        self.imp().cancel_button.set_sensitive(false);
+    }
+
+    fn set_buttons_sensitive(&self) {
+        self.imp().confirm_button.set_sensitive(true);
+        self.imp().cancel_button.set_sensitive(true);
     }
 }
