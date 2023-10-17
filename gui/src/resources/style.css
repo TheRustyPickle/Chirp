@@ -152,6 +152,18 @@ https://github.com/paper-plane-developers/paper-plane */
   padding: 0px;
 }
 
+.cancel-button {
+  border-radius: 0px;
+  color: @destructive_color;
+  padding: 10px;
+}
+
+.confirm-button {
+  border-radius: 0px;
+  color: @accent_color;
+  padding: 10px;
+}
+
 .sender-blue-1 {
   color: @blue_2;
   font-weight: bold;

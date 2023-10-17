@@ -1,12 +1,75 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <interface>
-	<template class="UserPrompt" parent="AdwMessageDialog">
-		<property name="close-response">close</property>
-		<property name="default-response">accept</property>
-		<property name="extra-child">
-			<object class="GtkEntry" id="prompt_entry">
-				<property name="css-classes">prompt-entry</property>
-			</object>
-		</property>
-	</template>
+  <template class="UserPrompt" parent="AdwWindow">
+    <property name="default_width">310</property>
+    <property name="default_height">160</property>
+    <property name="resizable">false</property>
+    <property name="content">
+      <object class="GtkBox">
+        <property name="orientation">vertical</property>
+        <child>
+          <object class="GtkLabel" id="prompt_text">
+            <property name="label">Enter your input</property>
+            <property name="margin-top">30</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <child>
+              <object class="GtkEntry" id="user_entry">
+                <property name="hexpand">true</property>
+                <property name="margin-top">20</property>
+                <property name="margin-bottom">20</property>
+                <property name="margin-start">30</property>
+                <property name="margin-end">5</property>
+                <property name="css-classes">prompt-entry</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSpinner">
+                <property name="margin-bottom">10</property>
+                <property name="margin-end">15</property>
+              </object>
+            </child>
+          </object>
+        </child>
+        <child>
+          <object class="GtkSeparator">
+            <property name="valign">end</property>
+          </object>
+        </child>
+        <child>
+          <object class="GtkBox">
+            <property name="vexpand">true</property>
+            <property name="orientation">horizontal</property>
+            <child>
+              <object class="GtkButton" id="cancel_button">
+                <property name="can-focus">false</property>
+                <property name="css-classes">cancel-button</property>
+                <property name="has-frame">false</property>
+                <property name="label">Cancel</property>
+                <property name="hexpand">true</property>
+                <property name="vexpand">true</property>
+                <property name="valign">end</property>
+              </object>
+            </child>
+            <child>
+              <object class="GtkSeparator"></object>
+            </child>
+            <child>
+              <object class="GtkButton" id="confirm_button">
+                <property name="can-focus">false</property>
+                <property name="css-classes">confirm-button</property>
+                <property name="has-frame">false</property>
+                <property name="label">Confirm</property>
+                <property name="hexpand">true</property>
+                <property name="vexpand">true</property>
+                <property name="valign">end</property>
+              </object>
+            </child>
+          </object>
+        </child>
+      </object>
+    </property>
+  </template>
 </interface>
