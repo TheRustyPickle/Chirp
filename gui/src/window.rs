@@ -343,7 +343,7 @@ impl Window {
         user_list.bind_model(
             Some(user_store),
             clone!(@weak self as window => @default-panic, move |obj| {
-                let user_object = obj.downcast_ref().expect("No UserObject here");
+                let user_object = obj.downcast_ref().unwrap();
                 let row = window.get_user_row(user_object, "user-inactive");
                 row.upcast()
             }),
@@ -354,7 +354,6 @@ impl Window {
         let data: UserObject = self.create_owner(saved_user_id.clone());
 
         self.imp().own_profile.replace(Some(data.clone()));
-        self.set_chatting_with(data.clone());
 
         // Select the first row we just added
         self.get_user_list().row_at_index(0).unwrap().activate();
@@ -388,11 +387,7 @@ impl Window {
 
     /// Get the UserObject that is currently selected/chatting with
     pub fn get_chatting_with(&self) -> UserObject {
-        self.imp()
-            .chatting_with
-            .borrow()
-            .clone()
-            .expect("Expected an UserObject")
+        self.imp().chatting_with.borrow().clone().unwrap()
     }
 
     /// Set chatting with the given user
@@ -406,7 +401,7 @@ impl Window {
         self.imp().message_list.bind_model(
             Some(&message_list),
             clone!(@weak self as window => @default-panic, move |obj| {
-                let message_data = obj.downcast_ref().expect("No MessageObject here");
+                let message_data = obj.downcast_ref().unwrap();
                 let row = window.get_message_row(message_data);
                 window.grab_focus();
                 row.upcast()
@@ -417,11 +412,7 @@ impl Window {
 
     /// Get the UserObject of the owner/chatting from
     pub fn get_chatting_from(&self) -> UserObject {
-        self.imp()
-            .own_profile
-            .borrow()
-            .clone()
-            .expect("Expected an UserObject")
+        self.imp().own_profile.borrow().clone().unwrap()
     }
 
     /// Get the owner user id
@@ -604,7 +595,6 @@ impl Window {
                         chatting_from.set_owner_id(id_data.user_id);
                         window.save_user_data();
                     }
-                    chatting_from.add_to_queue(RequestType::UpdateIDs);
                 }
                 _ => {}
             }
@@ -698,6 +688,7 @@ impl Window {
 
     /// Iters through every UserObject and tries to reconnect to the WebSocket server
     pub fn reload_user_ws(&self) {
+        info!("Reloading websocket connection");
         let user_list = self.get_users_liststore();
 
         for user_data in user_list.iter() {

@@ -200,6 +200,7 @@ impl UserObject {
 
     /// Adds stuff to queue and start the process to process them
     pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
+        debug!("adding to queue: {:#?}", request_type);
         {
             let locked_queue = self.imp().request_queue.lock().unwrap();
             let mut queue = locked_queue.borrow_mut();
@@ -215,6 +216,7 @@ impl UserObject {
     }
 
     pub fn add_queue_to_first(&self, request_type: RequestType) {
+        debug!("adding to queue: {:#?}", request_type);
         {
             let locked_queue = self.imp().request_queue.lock().unwrap();
             let mut queue = locked_queue.borrow_mut();
@@ -237,15 +239,11 @@ impl UserObject {
 
         for task in queue_list {
             if user_ws.ws_conn().is_some() {
-                debug!("starting processing {task:?}");
+                debug!("starting processing {task:#?}");
                 match task {
                     RequestType::ReconnectUser => {
                         let id_data = UserIDs::new_json(self.user_id(), self.user_token());
                         user_ws.reconnect_user(id_data);
-                    }
-                    RequestType::UpdateIDs => {
-                        let id_data = UserIDs::new_json(self.user_id(), self.user_token());
-                        user_ws.update_ids(id_data)
                     }
                     RequestType::CreateNewUser => {
                         let user_data = FullUserData::new(self).to_json();
@@ -365,7 +363,7 @@ impl UserObject {
     pub fn handle_ws(&self, window: Window) {
         let user_object = self.clone();
         let user_ws = self.user_ws();
-        
+
         user_ws.connect_closure(
             "ws-success",
             false,

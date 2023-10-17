@@ -56,8 +56,8 @@ impl Handler<Disconnect> for ChatServer {
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
         let id_data = &self.sessions.get(&msg.id).unwrap().0;
         info!(
-            "WS Session {} disconnected. Removing session data related to user {}",
-            msg.id, id_data.user_id
+            "WS Session {} disconnected. Removing session data related to user {} belonging to owner {}",
+            msg.id, id_data.user_id, id_data.owner_id
         );
 
         if let Some(sessions) = self.user_session.get_mut(&id_data.owner_id) {
@@ -84,10 +84,6 @@ impl Handler<HandleRequest> for ChatServer {
                 self.send_user_data(msg.ws_id, user_data)
             }
             CommunicationType::CreateNewUser => self.create_new_user(msg.ws_id, msg.data),
-            CommunicationType::UpdateUserIDs => {
-                let id_data = IDInfo::new_from_json(msg.data);
-                self.update_ids(msg.ws_id, id_data);
-            }
             CommunicationType::UpdateName => {
                 let update_data = NameUpdate::new_from_json(&msg.data);
                 self.user_name_update(update_data)

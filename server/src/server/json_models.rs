@@ -9,8 +9,6 @@ pub enum CommunicationType {
     SendUserData,
     // Create a new user
     CreateNewUser,
-    // Update some data to keep track of sessions
-    UpdateUserIDs,
     // Broadcast name updates to relevant sessions
     UpdateName,
     // Broadcast image updates to relevant sessions
