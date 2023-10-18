@@ -31,6 +31,8 @@ mod imp {
         pub receiver_avatar_button: TemplateChild<Button>,
         #[template_child]
         pub message_menu: TemplateChild<PopoverMenu>,
+        #[template_child]
+        pub message_time: TemplateChild<Label>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
     }
@@ -114,6 +116,8 @@ impl MessageRow {
                 .add_css_class("message-row-received");
             revealer.set_transition_type(RevealerTransitionType::SlideRight)
         }
+
+        row.imp().message_time.set_label(&object.created_at());
 
         row.imp().message_data.set(object).unwrap();
         row.bind();

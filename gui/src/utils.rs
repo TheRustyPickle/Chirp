@@ -1,3 +1,4 @@
+use chrono::{Local, NaiveDateTime};
 use gio::Cancellable;
 use gtk::glib::Bytes;
 use rand::Rng;
@@ -90,4 +91,22 @@ pub fn get_random_color(to_ignore: Option<&str>) -> &str {
 
     let selected_index = rand::thread_rng().gen_range(0..colors_vector.len());
     colors_vector[selected_index]
+}
+
+/// Compare the current date with the given date to determine how the time should be shown in the UI
+// target_date is always in Local time
+pub fn get_created_at_timing(target_date: &NaiveDateTime) -> String {
+    let now = Local::now().naive_local().date();
+
+    let naive_date = target_date.date();
+
+    let naive_time = target_date.time().format("%I:%M %p").to_string();
+
+    if now == naive_date {
+        format!("Today at {}", naive_time)
+    } else if now == naive_date.pred_opt().unwrap() {
+        format!("Yesterday at {}", naive_time)
+    } else {
+        format!("{} {}", naive_date, naive_time)
+    }
 }

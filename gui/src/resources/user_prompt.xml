@@ -34,7 +34,7 @@
         </child>
         <child>
           <object class="GtkLabel" id="error_text">
-            <property name="css-classes">small-label</property>
+            <property name="css-classes">small-red-label</property>
             <property name="margin-bottom">10</property>
             <property name="margin-start">30</property>
             <property name="halign">start</property>
