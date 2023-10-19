@@ -3,7 +3,7 @@ mod imp {
     use adw::subclass::prelude::*;
     use glib::{derived_properties, object_subclass, Properties};
     use gtk::glib;
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::{Cell, OnceCell, RefCell};
 
     use super::MessageData;
     use crate::message::MessageRow;
@@ -25,6 +25,8 @@ mod imp {
         pub message_number: OnceCell<u64>,
         #[property(get, set)]
         pub target_row: RefCell<Option<MessageRow>>,
+        #[property(get, set)]
+        pub must_process: Cell<bool>,
     }
 
     #[object_subclass]
@@ -61,6 +63,7 @@ impl MessageObject {
             .property("sent-from", sent_from)
             .property("sent-to", sent_to)
             .property("message-timing", message_timing)
+            .property("must-process", false)
             .build();
 
         if let Some(num) = message_number {
@@ -68,6 +71,13 @@ impl MessageObject {
         }
 
         obj
+    }
+
+    /// Sets the status of whether this needs to be processed. Utilized
+    /// by MessageRow to determine whether to show the spinner
+    pub fn to_process(self, state: bool) -> Self {
+        self.set_must_process(state);
+        self
     }
 }
 
