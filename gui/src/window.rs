@@ -379,6 +379,9 @@ impl Window {
             data.set_image_link(owner_data.image_link.clone());
             data.check_image_link(owner_data.image_link);
 
+            // Just in case outdated data is saved locally, fetch the profile data
+            data.add_to_queue(RequestType::GetUserData(data.user_id()));
+
             for user_data in saved_users {
                 self.create_user(user_data)
             }

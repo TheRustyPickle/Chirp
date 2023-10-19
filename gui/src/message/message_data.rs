@@ -20,7 +20,7 @@ mod imp {
         #[property(get, set)]
         pub sent_to: OnceCell<UserObject>,
         #[property(get, set)]
-        pub created_at: OnceCell<String>,
+        pub message_timing: OnceCell<String>,
         #[property(get, set)]
         pub message_number: OnceCell<u64>,
         #[property(get, set)]
@@ -52,7 +52,7 @@ impl MessageObject {
         is_send: bool,
         sent_from: UserObject,
         sent_to: UserObject,
-        created_at: String,
+        message_timing: String,
         message_number: Option<u64>,
     ) -> Self {
         let obj: MessageObject = Object::builder()
@@ -60,7 +60,7 @@ impl MessageObject {
             .property("message", message)
             .property("sent-from", sent_from)
             .property("sent-to", sent_to)
-            .property("created-at", created_at)
+            .property("message-timing", message_timing)
             .build();
 
         if let Some(num) = message_number {
