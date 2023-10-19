@@ -10,6 +10,7 @@ const COLORS: [&str; 10] = [
 ];
 const CHARSET: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
+/// Try to fetch image bytes from a given URL
 pub fn get_avatar(link: String) -> Result<(String, Bytes), String> {
     let session = Session::new();
     let cancel = Cancellable::new();
@@ -22,6 +23,7 @@ pub fn get_avatar(link: String) -> Result<(String, Bytes), String> {
     Ok((link, image_data))
 }
 
+/// Generates a random string
 fn generate_random_string(length: usize) -> String {
     let mut rng = rand::thread_rng();
     let result: String = (0..length)
@@ -33,12 +35,14 @@ fn generate_random_string(length: usize) -> String {
     result
 }
 
+/// Generates a robohash api link with a random string
 pub fn generate_robohash_link() -> String {
     let random_num = generate_random_string(10);
     let set_num = rand::thread_rng().gen_range(1..5);
     format!("https://robohash.org/{random_num}.svg?set=set{set_num}")
 }
 
+/// Generates a dicebear api link with a random string
 pub fn generate_dicebear_link() -> String {
     let choices = [
         "avataaars",
@@ -62,12 +66,14 @@ pub fn generate_dicebear_link() -> String {
     format!("https://api.dicebear.com/7.x/{selected_choice}/svg?seed={random_num}")
 }
 
+/// Generates a multiavatar api link with a random string
 pub fn generate_multiavatar_link() -> String {
     let random_num = generate_random_string(10);
     format!("https://api.multiavatar.com/{random_num}.svg")
 }
 
 // TODO: Perhaps we can add other types of image here
+/// Generates a random supported image api link
 pub fn generate_random_avatar_link() -> String {
     let choices = ["dicebear", "robohash", "multiavatar"];
 
@@ -82,6 +88,7 @@ pub fn generate_random_avatar_link() -> String {
     }
 }
 
+/// Selects a random css color class name. Used for created owner UserObject
 pub fn get_random_color(to_ignore: Option<&str>) -> &str {
     let mut colors_vector: Vec<&str> = COLORS.to_vec();
 

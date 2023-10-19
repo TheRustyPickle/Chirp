@@ -221,6 +221,7 @@ impl UserObject {
         self
     }
 
+    /// Adds stuff to queue at the index 0 and call to process only the first queue request
     pub fn add_queue_to_first(&self, request_type: RequestType) {
         debug!("adding to queue: {:#?}", request_type);
         {
@@ -232,7 +233,7 @@ impl UserObject {
         self.process_queue(Some(1));
     }
 
-    /// Processes queued stuff if ws conn is available
+    /// Processes queued stuff if websocket is available
     fn process_queue(&self, process_limit: Option<u8>) {
         self.set_request_processing(true);
 
@@ -370,6 +371,8 @@ impl UserObject {
         let user_object = self.clone();
         let user_ws = self.user_ws();
 
+        // Wait for the websocket to emit that a connect was established
+        // before starting listening for incoming messages
         user_ws.connect_closure(
             "ws-success",
             false,

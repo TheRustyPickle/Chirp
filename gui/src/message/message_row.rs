@@ -117,7 +117,7 @@ impl MessageRow {
             revealer.set_transition_type(RevealerTransitionType::SlideRight)
         }
 
-        row.imp().message_time.set_label(&object.created_at());
+        row.imp().message_time.set_label(&object.message_timing());
 
         row.imp().message_data.set(object).unwrap();
         row.bind();
