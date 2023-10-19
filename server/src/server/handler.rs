@@ -64,7 +64,7 @@ impl ChatServer {
         }
 
         let send_message_data = message_data.to_json();
-        let user_message = message_data.message.to_owned();
+        let user_message = message_data.message.to_owned().unwrap();
         let to_user_id = message_data.to_user;
         let mut conn_found = false;
         let message_group = create_message_group(from_user_id, to_user_id);
@@ -362,7 +362,7 @@ impl ChatServer {
                 created_at: msg.created_at.to_string(),
                 from_user: msg.message_sender as usize,
                 to_user: msg.message_receiver as usize,
-                message: msg.message_text.unwrap(),
+                message: msg.message_text,
                 message_number: msg.message_number as usize,
                 user_token: String::new(),
             })

@@ -70,7 +70,7 @@ pub struct MessageData {
     pub created_at: String,
     pub from_user: usize,
     pub to_user: usize,
-    pub message: String,
+    pub message: Option<String>,
     pub message_number: usize,
     #[serde(skip_serializing)]
     pub user_token: String,

@@ -95,7 +95,7 @@ pub struct MessageData {
     pub created_at: String,
     pub from_user: u64,
     pub to_user: u64,
-    pub message: String,
+    pub message: Option<String>,
     pub message_number: u64,
     #[serde(skip_deserializing)]
     pub user_token: String,
@@ -112,7 +112,7 @@ impl MessageData {
             created_at,
             from_user,
             to_user,
-            message,
+            message: Some(message),
             message_number: 0,
             user_token: String::new(),
         }
@@ -206,7 +206,7 @@ impl MessageSyncRequest {
     }
 }
 
-#[derive(Deserialize)]
+#[derive(Deserialize, Debug)]
 pub struct MessageSyncData {
     pub message_data: Vec<MessageData>,
 }

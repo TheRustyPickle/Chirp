@@ -3,7 +3,7 @@ mod imp {
     use adw::Avatar;
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
-    use gtk::{glib, Box, Button, CompositeTemplate, Label, PopoverMenu, Revealer};
+    use gtk::{glib, Box, Button, CompositeTemplate, Label, PopoverMenu, Revealer, Spinner};
     use std::cell::{OnceCell, RefCell};
 
     use crate::message::MessageObject;
@@ -33,6 +33,8 @@ mod imp {
         pub message_menu: TemplateChild<PopoverMenu>,
         #[template_child]
         pub message_time: TemplateChild<Label>,
+        #[template_child]
+        pub processing_spinner: TemplateChild<Spinner>,
         pub bindings: RefCell<Vec<Binding>>,
         pub message_data: OnceCell<MessageObject>,
     }
@@ -103,7 +105,7 @@ impl MessageRow {
             row.imp().message.set_xalign(1.0);
             row.imp().message_content.add_css_class("message-row-sent");
             row.imp().placeholder.set_visible(true);
-            revealer.set_transition_type(RevealerTransitionType::SlideLeft)
+            revealer.set_transition_type(RevealerTransitionType::SlideLeft);
         } else {
             let receiver = row.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
@@ -115,6 +117,11 @@ impl MessageRow {
                 .message_content
                 .add_css_class("message-row-received");
             revealer.set_transition_type(RevealerTransitionType::SlideRight)
+        }
+
+        if object.must_process() {
+            row.imp().processing_spinner.set_visible(true);
+            row.imp().processing_spinner.set_spinning(true);
         }
 
         row.imp().message_time.set_label(&object.message_timing());
@@ -222,7 +229,14 @@ impl MessageRow {
             other_user.user_id(),
             message_number,
         ));
-        other_user.remove_message(message_number);
+        self.imp().processing_spinner.set_visible(true);
+        self.imp().processing_spinner.set_spinning(true);
+        self.imp()
+            .message_data
+            .get()
+            .unwrap()
+            .clone()
+            .to_process(true);
     }
 
     fn copy_message(&self) {

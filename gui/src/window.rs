@@ -462,7 +462,10 @@ impl Window {
             receiver.clone(),
             message_timing,
             None,
-        );
+        )
+        .to_process(true);
+        self.chatting_with_messages().append(&message);
+        buffer.set_text("");
 
         let send_message_data =
             MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id, content);
@@ -470,10 +473,6 @@ impl Window {
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
         receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
-
-        buffer.set_text("");
-
-        self.chatting_with_messages().append(&message);
     }
 
     /// Gets called when a message is received or when syncing previous message data
@@ -508,7 +507,7 @@ impl Window {
         let message_timing = get_created_at_timing(&created_at);
 
         let message = MessageObject::new(
-            message_data.message,
+            message_data.message.unwrap(),
             is_send,
             sender.clone(),
             receiver.clone(),
@@ -516,9 +515,60 @@ impl Window {
             Some(message_data.message_number),
         );
 
-        // Sync messages are gotten in reverse order so they are pushed to the start
-        if current_message_number > message_data.message_number {
-            other_user.messages().insert(0, &message);
+        // Will always proceed to this block if syncing messages
+        if current_message_number >= message_data.message_number {
+            // If 0 element, no checks to be done. Append it to the list
+            let element_num = other_user.messages().n_items();
+            if element_num < 1 {
+                other_user.messages().append(&message);
+            } else {
+                let mut added_to_list = false;
+
+                for (index, msg) in other_user.messages().iter().enumerate() {
+                    let message_content: MessageObject = msg.unwrap();
+                    let msg_num = message_content.imp().message_number.get();
+
+                    // If Some this message exist and was processed by the websocket.
+                    // existing UI example
+                    //
+                    // message number 30
+                    // message number 33
+                    // message number 34
+                    //
+                    // if incoming message number is 32 our goal is to place it after 30 and before 33
+                    // as soon as ongoing message number > incoming message, insert it to the ongoing message's index
+                    // So 33 would get pushed to the next index
+                    if let Some(number) = msg_num {
+                        if number > &message_data.message_number {
+                            other_user.messages().insert(index as u32, &message);
+                            added_to_list = true;
+                            break;
+                        } else if number == &message_data.message_number {
+                            // This case would mean the message already exists
+                            added_to_list = true;
+                            break;
+                        }
+                    } else {
+                        // Example incoming message 38
+                        //
+                        // message number 30
+                        // message number 33
+                        // message number 34
+                        // message number none, awaiting processing
+                        //
+                        // If None number is encountered it means that's the final processed message in the UI
+                        // and no more Some(_) message number ahead
+                        // So make the message 38 the latest message number by inserting and increase the None message index by 1
+                        other_user.messages().insert(index as u32, &message);
+                        added_to_list = true;
+                        break;
+                    }
+                }
+
+                if !added_to_list {
+                    other_user.messages().append(&message);
+                }
+            }
         } else {
             other_user.messages().append(&message);
         }
