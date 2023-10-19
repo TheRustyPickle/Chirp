@@ -164,10 +164,14 @@ https://github.com/paper-plane-developers/paper-plane */
   padding: 10px;
 }
 
-.small-label {
+.small-red-label {
   font-size: 12px;
   font-weight: bold;
   color: @destructive_color;
+}
+
+.small-label {
+  font-size: 11px;
 }
 
 .sender-blue-1 {

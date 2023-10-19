@@ -91,7 +91,7 @@ mod imp {
 
 use adw::subclass::prelude::*;
 use adw::{prelude::*, Application};
-use chrono::{Local, NaiveDateTime};
+use chrono::{Local, NaiveDateTime, TimeZone};
 use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
@@ -106,7 +106,7 @@ use tracing::{debug, error, info};
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
-use crate::utils::generate_random_avatar_link;
+use crate::utils::{generate_random_avatar_link, get_created_at_timing};
 use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
 use crate::APP_ID;
 
@@ -448,23 +448,23 @@ impl Window {
 
         let receiver_id = receiver.user_id();
         let current_time = Local::now();
-        let created_at_naive = current_time.naive_local().to_string();
-
         let created_at = current_time.to_string();
+
+        let message_timing = get_created_at_timing(&current_time.naive_local());
 
         let message = MessageObject::new(
             content.to_owned(),
             true,
             sender,
             receiver.clone(),
-            created_at_naive,
+            message_timing,
             None,
         );
 
         let send_message_data =
             MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id, content);
 
-        // Receiver gets the queue because the receiver itself saves the message number variable
+        // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
         receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
 
@@ -493,19 +493,23 @@ impl Window {
                 (other_user.clone(), self.get_chatting_from(), false)
             };
 
-        // NOTE temporary solution. Later when user timezone is saved on the server side, it should
-        // send the correct time instead of UTC time
-        let parsed_date_time =
+        // The server sends the time in UTC
+        let parsed_naive =
             NaiveDateTime::parse_from_str(&message_data.created_at, "%Y-%m-%d %H:%M:%S%.3f")
                 .unwrap()
-                .to_string();
+                .and_utc()
+                .naive_utc();
+
+        let created_at = Local.from_utc_datetime(&parsed_naive).naive_local();
+
+        let message_timing = get_created_at_timing(&created_at);
 
         let message = MessageObject::new(
             message_data.message,
             is_send,
             sender.clone(),
             receiver.clone(),
-            parsed_date_time,
+            message_timing,
             Some(message_data.message_number),
         );
 

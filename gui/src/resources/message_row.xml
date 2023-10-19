@@ -62,7 +62,7 @@
                         <property name="lines">1</property>
                         <property name="max-width-chars">25</property>
                         <property name="margin-start">6</property>
-                        <property name="margin-end">6</property>
+                        <property name="margin-end">4</property>
                         <property name="margin-top">2</property>
                         <property name="margin-bottom">5</property>
                       </object>
@@ -72,10 +72,22 @@
                       <object class="GtkLabel" id="message">
                         <property name="margin-start">6</property>
                         <property name="margin-end">6</property>
-                        <property name="margin-top">2</property>
-                        <property name="margin-bottom">5</property>
                         <property name="wrap">true</property>
                         <property name="wrap-mode">word-char</property>
+                      </object>
+                    </child>
+                    <child>
+                      <object class="GtkLabel" id="message_time">
+                        <style>
+                          <class name="dim-label" />
+                        </style>
+                        <property name="margin-end">6</property>
+                        <property name="margin-top">2</property>
+                        <property name="margin-start">6</property>
+                        <property name="margin-end">6</property>
+                        <property name="margin-bottom">5</property>
+                        <property name="css-classes">small-label</property>
+                        <property name="halign">end</property>
                       </object>
                     </child>
                     <!-- The menu that will open on right click-->
