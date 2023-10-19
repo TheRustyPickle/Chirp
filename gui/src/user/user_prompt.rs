@@ -84,13 +84,14 @@ impl UserPrompt {
                     confirm_button.emit_clicked()
                 }
             }));
+        // Add the blue-entry initially so when this gets opened, the entry remains blue colored
         obj.imp().user_entry.add_css_class("blue-entry");
 
         obj
     }
 
-    /// Bind the GtkEntry to work with normal string
-    fn bind(&self) {
+    /// Bind the GtkEntry to work with an image link
+    fn bind_image_link(&self) {
         self.imp()
             .user_entry
             .connect_changed(clone!(@weak self as prompt => move |entry| {
@@ -110,7 +111,7 @@ impl UserPrompt {
     }
 
     /// Bind the GtkEntry to ensure input is u64 parsable
-    fn bind_int(&self) {
+    fn bind_number(&self) {
         self.imp()
             .user_entry
             .connect_changed(clone!(@weak self as prompt => move |entry| {
@@ -130,9 +131,35 @@ impl UserPrompt {
             }));
     }
 
+    /// Bind the GtkEntry to ensure input length is below 250 chars
+    fn bind_name(&self) {
+        self.imp()
+            .user_entry
+            .connect_changed(clone!(@weak self as prompt => move |entry| {
+                let entry_text = entry.text();
+
+                if entry_text.is_empty() {
+                    entry.remove_css_class("blue-entry");
+                    entry.add_css_class("error");
+                    prompt.imp().confirm_button.set_sensitive(false);
+                } else if entry_text.len() > 250 {
+                    entry.remove_css_class("blue-entry");
+                    entry.add_css_class("error");
+                    prompt.imp().confirm_button.set_sensitive(false);
+                    prompt.imp().error_text.set_label(&String::from("Error: Name length must be below 250 letters"));
+                    return;
+                } else {
+                    entry.remove_css_class("error");
+                    entry.add_css_class("blue-entry");
+                    prompt.imp().confirm_button.set_sensitive(true);
+                }
+                prompt.imp().error_text.set_label(&String::new());
+            }));
+    }
+
     /// Open prompt to handle number input for adding users
     pub fn add_user(self, window: &window::Window) -> Self {
-        self.bind_int();
+        self.bind_number();
         self.set_transient_for(Some(window));
         self.set_modal(true);
 
@@ -178,7 +205,7 @@ impl UserPrompt {
 
     /// Open prompt to take a new name for the user
     pub fn edit_name(self, profile: &UserProfile, user_data: &UserObject) -> Self {
-        self.bind();
+        self.bind_name();
         self.set_transient_for(Some(profile));
         self.set_modal(true);
 
@@ -236,7 +263,7 @@ impl UserPrompt {
             );
         }
 
-        self.bind();
+        self.bind_image_link();
         self.set_transient_for(Some(profile));
         self.set_modal(true);
 
@@ -267,11 +294,13 @@ impl UserPrompt {
         self
     }
 
+    /// Disable prompt buttons
     fn set_buttons_insensitive(&self) {
         self.imp().confirm_button.set_sensitive(false);
         self.imp().cancel_button.set_sensitive(false);
     }
 
+    /// Enable prompt buttons
     fn set_buttons_sensitive(&self) {
         self.imp().confirm_button.set_sensitive(true);
         self.imp().cancel_button.set_sensitive(true);
