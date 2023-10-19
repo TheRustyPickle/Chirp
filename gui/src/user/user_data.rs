@@ -265,6 +265,11 @@ impl UserObject {
                             .update_message_number(self.message_number())
                             .to_json();
                         user_ws.send_text_message(&data);
+
+                        let message_row = msg_obj.target_row().unwrap();
+                        msg_obj.to_process(false);
+                        message_row.imp().processing_spinner.set_visible(false);
+                        message_row.imp().processing_spinner.set_spinning(false);
                     }
                     RequestType::ImageUpdated(link) => {
                         self.check_image_link(link.clone());
@@ -294,6 +299,7 @@ impl UserObject {
                         user_ws.sync_message(data)
                     }
                     RequestType::DeleteMessage(user_id, number) => {
+                        self.remove_message(number, false);
                         let data = DeleteMessage::new_json(user_id, number, self.user_token());
                         user_ws.delete_message(data)
                     }
@@ -342,27 +348,46 @@ impl UserObject {
         self.set_small_image(None::<Paintable>);
     }
 
-    pub fn remove_message(&self, target_number: u64) {
+    pub fn remove_message(&self, target_number: u64, is_recursive: bool) {
+        let total_len = self.messages().n_items();
         for (index, message_data) in self.messages().iter().enumerate() {
             let message_content: MessageObject = message_data.unwrap();
-            if message_content.message_number() == target_number {
-                let revealer = message_content
-                    .target_row()
-                    .unwrap()
-                    .imp()
-                    .message_revealer
-                    .get();
 
-                // Remove the transition time before it gets remove for smoother animation
-                revealer.set_transition_duration(4000);
-                revealer.set_reveal_child(false);
+            if let Some(msg_num) = message_content.imp().message_number.get() {
+                if msg_num == &target_number {
+                    debug!("Target number exists for deletion");
+                    if !is_recursive {
+                        let revealer = message_content
+                            .target_row()
+                            .unwrap()
+                            .imp()
+                            .message_revealer
+                            .get();
 
-                let user_object = self.clone();
-                timeout_add_local_once(Duration::from_millis(500), move || {
-                    user_object.messages().remove(index as u32);
-                });
+                        // Remove the transition time before it gets remove for smoother animation
+                        revealer.set_transition_duration(4000);
+                        revealer.set_reveal_child(false);
+                    }
 
-                break;
+                    let user_object = self.clone();
+                    if is_recursive {
+                        user_object.messages().remove(index as u32);
+                        debug!("Removal happened inside recursion");
+                    } else {
+                        timeout_add_local_once(Duration::from_millis(500), move || {
+                            // Ideally it would remove the object in first attempt however if the 
+                            // length is changed it would mean the index 500 millis ago is potentially no longer valid 
+                            // call the function again and the next time it would skip any timeout
+                            if user_object.messages().n_items() == total_len {
+                                user_object.messages().remove(index as u32);
+                            } else {
+                                debug!("Length changed. Starting recursion for deleting");
+                                user_object.remove_message(target_number, true);
+                            }
+                        });
+                    }
+                    break;
+                }
             }
         }
     }
@@ -412,6 +437,12 @@ impl UserObject {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             user_object.check_image_link(user_data.image_link);
+                            // It must be set to zero to ensure the server sends every single message from the server
+                            // If from the other side a message gets deleted
+                            // while this client is on but not connected it would mean this client would not receive
+                            // the deletion event. So we have to check every single message the server has to ensure
+                            // nothing is missed
+                            user_object.set_message_number(0);
                             user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()))
                         }
                         "/update-user-id" => {
@@ -434,24 +465,33 @@ impl UserObject {
                                 message_number
                             );
                             if message_number > user_object.message_number() {
-                                user_object.add_to_queue(RequestType::SyncMessage(
+                                // Syncing must happen before any pending message sent or deletion is performed
+                                user_object.add_queue_to_first(RequestType::SyncMessage(
                                     user_object.message_number(),
                                     message_number,
                                 ));
                                 user_object.set_message_number(message_number);
+                            } else {
+                                user_object.process_queue(None);
                             }
-                            user_object.process_queue(None);
                         }
                         "/sync-message" => {
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
                             for message in chat_data.message_data.into_iter() {
+                                // if content is None, this message was deleted.
+                                // We will check if this message exists in the UI. If yes, remove it
+                                if message.message.is_none() {
+                                    user_object.remove_message(message.message_number, false);
+                                    continue;
+                                }
                                 window.receive_message(message, user_object.clone(), false)
                             }
+                            user_object.process_queue(None);
                         }
                         "/delete-message" => {
                             let deletion_data = DeleteMessage::from_json(splitted_data[1]);
-                            user_object.remove_message(deletion_data.message_number)
+                            user_object.remove_message(deletion_data.message_number, false)
                         }
                         "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
                         _ => {}

@@ -38,7 +38,6 @@ pub fn get_messages_from_number(
 
     messages
         .filter(message_group.eq(group))
-        .filter(message_text.is_not_null())
         .filter(message_number.gt(start_at as i32))
         .filter(message_number.le(end_at as i32))
         .order(message_number.desc())
