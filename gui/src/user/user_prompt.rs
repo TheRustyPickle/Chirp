@@ -1,9 +1,12 @@
 mod imp {
     use adw::subclass::prelude::*;
     use adw::Window;
-    use glib::object_subclass;
     use glib::subclass::InitializingObject;
+    use glib::{object_subclass, Propagation, SignalHandlerId};
     use gtk::{glib, Button, CompositeTemplate, Entry, Label, Spinner};
+    use std::cell::RefCell;
+
+    use crate::user::UserObject;
 
     #[derive(Default, CompositeTemplate)]
     #[template(resource = "/com/github/therustypickle/chirp/user_prompt.xml")]
@@ -20,6 +23,8 @@ mod imp {
         pub loading_spinner: TemplateChild<Spinner>,
         #[template_child]
         pub error_text: TemplateChild<Label>,
+        pub signal_ids: RefCell<Vec<SignalHandlerId>>,
+        pub user_data: RefCell<Option<UserObject>>,
     }
 
     #[object_subclass]
@@ -41,7 +46,12 @@ mod imp {
 
     impl WidgetImpl for UserPrompt {}
 
-    impl WindowImpl for UserPrompt {}
+    impl WindowImpl for UserPrompt {
+        fn close_request(&self) -> Propagation {
+            self.obj().stop_signals();
+            Propagation::Proceed
+        }
+    }
 
     impl AdwWindowImpl for UserPrompt {}
 }
@@ -49,12 +59,11 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Toast;
-use gio::glib::closure_local;
-use glib::{clone, wrapper, Object};
+use glib::{clone, closure_local, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 use crate::user::{UserObject, UserProfile};
 use crate::window;
@@ -73,7 +82,7 @@ impl UserPrompt {
         obj.imp()
             .cancel_button
             .connect_clicked(clone!(@weak obj as prompt => move |_| {
-                prompt.destroy()
+                prompt.close()
             }));
         obj.imp()
             .user_entry
@@ -88,6 +97,16 @@ impl UserPrompt {
         obj.imp().user_entry.add_css_class("blue-entry");
 
         obj
+    }
+
+    pub fn stop_signals(&self) {
+        let user_data = self.imp().user_data.take();
+        if let Some(user_object) = user_data {
+            for signal in self.imp().signal_ids.take() {
+                user_object.disconnect(signal);
+                debug!("A signal in UserPrompt was disconnected");
+            }
+        }
     }
 
     /// Bind the GtkEntry to work with an image link
@@ -164,8 +183,10 @@ impl UserPrompt {
         self.set_modal(true);
 
         let user_data = window.get_chatting_from();
+        self.imp().user_data.replace(Some(user_data.clone()));
+
         let obj_clone = self.clone();
-        user_data.connect_closure(
+        let user_exist_signal = user_data.connect_closure(
             "user-exists",
             false,
             closure_local!(move |_from: UserObject, exists: bool| {
@@ -179,10 +200,11 @@ impl UserPrompt {
                         .set_label(&format!("Error: User ID does not exist"));
                 } else {
                     info!("Inputted User ID info found");
-                    obj_clone.destroy()
+                    obj_clone.close()
                 }
             }),
         );
+        self.imp().signal_ids.borrow_mut().push(user_exist_signal);
 
         self.imp()
             .user_entry
@@ -226,7 +248,7 @@ impl UserPrompt {
                     .build();
                 over_lay.add_toast(toast);
                 user_data.add_to_queue(RequestType::NameUpdated(entry_data.to_string()));
-                prompt.destroy()
+                prompt.close()
             }),
         );
 
@@ -236,6 +258,7 @@ impl UserPrompt {
     /// Open prompt to take a new image link for the user
     pub fn edit_image_link(self, profile: &UserProfile, user_data: &UserObject) -> Self {
         let is_owner = if user_data.user_id() == user_data.owner_id() {
+            self.imp().user_data.replace(Some(user_data.clone()));
             true
         } else {
             false
@@ -243,7 +266,7 @@ impl UserPrompt {
 
         if is_owner {
             let obj_clone = self.clone();
-            user_data.connect_closure(
+            let image_modified_signal = user_data.connect_closure(
                 "image-modified",
                 false,
                 closure_local!(move |_from: UserObject,
@@ -259,10 +282,14 @@ impl UserPrompt {
                             .set_label(&format!("Error: {}", error_message));
                     } else {
                         info!("Image updated successfully");
-                        obj_clone.destroy()
+                        obj_clone.close()
                     }
                 }),
             );
+            self.imp()
+                .signal_ids
+                .borrow_mut()
+                .push(image_modified_signal);
         }
 
         self.bind_image_link();

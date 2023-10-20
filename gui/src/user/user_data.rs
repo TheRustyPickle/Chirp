@@ -2,10 +2,10 @@ mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use gdk::Paintable;
-    use gio::glib::subclass::Signal;
     use gio::ListStore;
     use glib::once_cell::sync::Lazy;
-    use glib::{derived_properties, object_subclass, Properties};
+    use glib::subclass::Signal;
+    use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
     use gtk::{gdk, glib};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
@@ -37,6 +37,7 @@ mod imp {
         pub user_token: OnceCell<String>,
         #[property(get, set)]
         pub message_number: Cell<u64>,
+        pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
     #[object_subclass]
@@ -121,10 +122,15 @@ impl UserObject {
 
         obj.set_user_ws(ws);
         obj.set_message_number(0);
-        let user_object = obj.clone();
+        obj.start_signals();
 
+        obj
+    }
+
+    fn start_signals(&self) {
+        let user_object = self.clone();
         // This signal gets emitted when the connection is once lost but reconnected again
-        obj.user_ws().connect_closure(
+        let websocket_signal_id = self.user_ws().connect_closure(
             "ws-reconnect",
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
@@ -133,25 +139,39 @@ impl UserObject {
             }),
         );
 
-        obj.connect_closure(
+        // Is only processed when the image update needs to be processed by the websocket
+        // Not processed when image link is received from the websocket
+        let image_signal_id = self.connect_closure(
             "image-modified",
             false,
             closure_local!(
                 move |from: UserObject, error_message: String, image_link: String| {
                     if error_message.is_empty() && !image_link.is_empty() {
-                        info!("Got something for the queue");
                         let image_data = ImageUpdate::new_json(Some(image_link), from.user_token());
                         from.user_ws().image_link_updated(&image_data);
-                    } else {
-                        info!("Not for the queue. Potentially updating image");
                     }
                 }
             ),
         );
-        obj
+
+        let mut signal_ids = self.imp().signal_ids.borrow_mut();
+        self.user_ws()
+            .imp()
+            .signal_ids
+            .borrow_mut()
+            .push(websocket_signal_id);
+        signal_ids.push(image_signal_id);
+    }
+
+    pub fn stop_signals(&self) {
+        for signal in self.imp().signal_ids.take() {
+            self.disconnect(signal);
+            debug!("A signal in UserObject was disconnected");
+        }
     }
 
     pub fn check_image_link(&self, new_link: Option<String>, from_queue: bool) {
+        info!("Starting checking image link {:?}", new_link);
         if let Some(link) = new_link {
             let (sender, receiver) = MainContext::channel(Priority::default());
             self.set_user_image(receiver, from_queue);
@@ -230,7 +250,7 @@ impl UserObject {
 
     /// Adds stuff to queue and start the process to process them
     pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
-        debug!("adding to queue: {:#?}", request_type);
+        debug!("Adding to queue: {:#?}", request_type);
         {
             let locked_queue = self.imp().request_queue.lock().unwrap();
             let mut queue = locked_queue.borrow_mut();
@@ -247,7 +267,7 @@ impl UserObject {
 
     /// Adds stuff to queue at the index 0 and call to process only the first queue request
     pub fn add_queue_to_first(&self, request_type: RequestType) {
-        debug!("adding to queue: {:#?}", request_type);
+        debug!("Adding to queue: {:#?}", request_type);
         {
             let locked_queue = self.imp().request_queue.lock().unwrap();
             let mut queue = locked_queue.borrow_mut();
@@ -382,14 +402,10 @@ impl UserObject {
             if let Some(msg_num) = message_content.imp().message_number.get() {
                 if msg_num == &target_number {
                     debug!("Target number exists for deletion");
+                    let target_row = message_content.target_row().unwrap();
                     if !is_recursive {
-                        let revealer = message_content
-                            .target_row()
-                            .unwrap()
-                            .imp()
-                            .message_revealer
-                            .get();
-
+                        let revealer = target_row.imp().message_revealer.get();
+                        target_row.stop_signals();
                         // Remove the transition time before it gets remove for smoother animation
                         revealer.set_transition_duration(4000);
                         revealer.set_reveal_child(false);
@@ -424,7 +440,7 @@ impl UserObject {
 
         // Wait for the websocket to emit that a connect was established
         // before starting listening for incoming messages
-        user_ws.connect_closure(
+        let ws_signal_id = user_ws.connect_closure(
             "ws-success",
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
@@ -433,6 +449,7 @@ impl UserObject {
                 window.handle_ws_message(&user_object, receiver);
             }),
         );
+        user_ws.imp().signal_ids.borrow_mut().push(ws_signal_id);
     }
 
     fn start_listening(&self, sender: Sender<String>, window: Window) {

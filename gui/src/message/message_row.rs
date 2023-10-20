@@ -76,7 +76,7 @@ use gtk::{
     RevealerTransitionType, Widget,
 };
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::message::MessageObject;
 use crate::user::UserProfile;
@@ -138,6 +138,13 @@ impl MessageRow {
         row
     }
 
+    pub fn stop_signals(&self) {
+        for binding in self.imp().bindings.take() {
+            binding.unbind();
+            debug!("A binding in MessageRow was unbind");
+        }
+    }
+
     fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
 
@@ -167,20 +174,19 @@ impl MessageRow {
             .sync_create()
             .build();
 
-        bindings.push(sent_by_binding);
-        bindings.push(avatar_fallback_binding);
-
         let image_binding = sender
             .bind_property("small-image", &sender_avatar, "custom-image")
             .sync_create()
             .build();
-        bindings.push(image_binding);
 
         let message_binding = message_object
             .bind_property("message", &message, "label")
             .sync_create()
             .build();
 
+        bindings.push(sent_by_binding);
+        bindings.push(avatar_fallback_binding);
+        bindings.push(image_binding);
         bindings.push(message_binding);
     }
 
