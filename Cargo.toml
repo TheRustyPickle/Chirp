@@ -1,7 +1,4 @@
 [workspace]
-members = [
-    "gui",
-    "server"
-]
+members = ["gui", "server"]
 
 resolver = "2"

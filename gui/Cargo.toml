@@ -13,7 +13,7 @@ rand = "0.8.5"
 soup3 = "0.5.0"
 tracing = "0.1.37"
 tracing-subscriber = "0.3.17"
-serde = { version = "1.0.188", features = ["derive"]}
+serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 chrono = "0.4.31"
 dotenvy = "0.15.7"
