@@ -1,5 +1,6 @@
 mod imp {
-    use adw::{subclass::prelude::*, Avatar};
+    use adw::subclass::prelude::*;
+    use adw::Avatar;
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{glib, Box, CompositeTemplate, Label, Popover, PopoverMenu, Revealer};
@@ -60,7 +61,7 @@ use gtk::{
     Orientable, Widget,
 };
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::user::{UserObject, UserProfile};
 use crate::window::Window;
@@ -146,6 +147,13 @@ impl UserRow {
         row
     }
 
+    pub fn stop_signals(&self) {
+        for binding in self.imp().bindings.take() {
+            binding.unbind();
+            debug!("A binding in UserRow was unbind");
+        }
+    }
+
     pub fn bind(&self) {
         let mut bindings = self.imp().bindings.borrow_mut();
         let user_avatar = self.imp().user_avatar.get();
@@ -161,8 +169,8 @@ impl UserRow {
             .bind_property("small-image", &user_avatar, "custom-image")
             .sync_create()
             .build();
-        bindings.push(avatar_image_binding);
 
+        bindings.push(avatar_image_binding);
         bindings.push(avatar_text_binding);
     }
 

@@ -89,8 +89,9 @@ mod imp {
     impl AdwApplicationWindowImpl for Window {}
 }
 
+use adw::prelude::*;
 use adw::subclass::prelude::*;
-use adw::{prelude::*, Application};
+use adw::Application;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
@@ -378,9 +379,6 @@ impl Window {
             // after this and the image is not loaded it would save None image link
             data.set_image_link(owner_data.image_link.clone());
             data.check_image_link(owner_data.image_link, false);
-
-            // Just in case outdated data is saved locally, fetch the profile data
-            data.add_to_queue(RequestType::GetUserData(data.user_id()));
 
             for user_data in saved_users {
                 self.create_user(user_data)
@@ -786,6 +784,7 @@ impl Window {
                     // If selected user is removed, select the owner user
                     self.get_user_list().row_at_index(0).unwrap().activate();
                 }
+                user_data.stop_signals();
                 self.get_users_liststore().remove(index as u32);
                 user_data
                     .user_ws()

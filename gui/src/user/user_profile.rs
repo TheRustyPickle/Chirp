@@ -1,7 +1,8 @@
 mod imp {
-    use adw::{subclass::prelude::*, ActionRow, Avatar, ToastOverlay, Window};
+    use adw::subclass::prelude::*;
+    use adw::{ActionRow, Avatar, ToastOverlay, Window};
     use glib::subclass::InitializingObject;
-    use glib::{object_subclass, Binding};
+    use glib::{object_subclass, Binding, Propagation, SignalHandlerId};
     use gtk::{glib, Button, CompositeTemplate, Image, Label, Switch};
     use std::cell::{OnceCell, RefCell};
 
@@ -46,6 +47,7 @@ mod imp {
         pub conn_reload: TemplateChild<Button>,
         pub user_data: OnceCell<UserObject>,
         pub bindings: RefCell<Vec<Binding>>,
+        pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
     #[object_subclass]
@@ -67,23 +69,26 @@ mod imp {
 
     impl WidgetImpl for UserProfile {}
 
-    impl WindowImpl for UserProfile {}
+    impl WindowImpl for UserProfile {
+        fn close_request(&self) -> Propagation {
+            self.obj().stop_signals();
+            Propagation::Proceed
+        }
+    }
 
     impl AdwWindowImpl for UserProfile {}
 }
 
-use std::env;
-
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use adw::Toast;
-use glib::closure_local;
-use glib::{clone, timeout_add_seconds_local_once, wrapper, Object};
+use glib::{clone, closure_local, timeout_add_seconds_local_once, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
 use soup::WebsocketConnection;
-use tracing::info;
+use std::env;
+use tracing::{debug, info};
 
 use crate::user::{UserObject, UserPrompt};
 use crate::window;
@@ -107,7 +112,7 @@ impl UserProfile {
 
         if is_owner {
             let obj_clone = obj.clone();
-            user_data.connect_closure(
+            let image_modified_signal_id = user_data.connect_closure(
                 "image-modified",
                 false,
                 closure_local!(move |_from: UserObject,
@@ -123,6 +128,10 @@ impl UserProfile {
                     }
                 }),
             );
+            obj.imp()
+                .signal_ids
+                .borrow_mut()
+                .push(image_modified_signal_id);
         }
 
         obj.imp().user_data.set(user_data).unwrap();
@@ -140,6 +149,19 @@ impl UserProfile {
 
         obj.connect_button_signals(window);
         obj
+    }
+
+    pub fn stop_signals(&self) {
+        let user_data = self.imp().user_data.get().unwrap();
+        for signal in self.imp().signal_ids.take() {
+            user_data.disconnect(signal);
+            debug!("A signal in UserProfile was disconnected");
+        }
+
+        for binding in self.imp().bindings.take() {
+            binding.unbind();
+            debug!("A binding in UserProfile was unbind");
+        }
     }
 
     fn bind(&self) {
@@ -284,11 +306,14 @@ impl UserProfile {
         self.imp().conn_row.set_visible(false);
 
         let user_data = self.imp().user_data.get().unwrap();
-        user_data
+
+        let title_binding = user_data
             .bind_property("name", self, "title")
             .transform_to(|_, name: String| Some(format!("Profile - {}", name)))
             .sync_create()
             .build();
+
+        self.imp().bindings.borrow_mut().push(title_binding);
     }
 
     fn connect_button_signals(&self, window: &window::Window) {
