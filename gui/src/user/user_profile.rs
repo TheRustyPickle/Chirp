@@ -110,11 +110,13 @@ impl UserProfile {
             user_data.connect_closure(
                 "image-modified",
                 false,
-                closure_local!(move |_from: UserObject, message: String| {
-                    if !message.is_empty() {
+                closure_local!(move |_from: UserObject,
+                                     error_message: String,
+                                     _image_link: String| {
+                    if !error_message.is_empty() {
                         let toast_overlay = obj_clone.imp().toast_overlay.get();
                         let toast = Toast::builder()
-                            .title(format!("Error: {}", message))
+                            .title(format!("Error: {}", error_message))
                             .timeout(2)
                             .build();
                         toast_overlay.add_toast(toast);

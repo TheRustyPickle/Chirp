@@ -246,15 +246,17 @@ impl UserPrompt {
             user_data.connect_closure(
                 "image-modified",
                 false,
-                closure_local!(move |_from: UserObject, message: String| {
-                    if !message.is_empty() {
+                closure_local!(move |_from: UserObject,
+                                     error_message: String,
+                                     _image_link: String| {
+                    if !error_message.is_empty() {
                         error!("Failed to update image");
                         obj_clone.imp().loading_spinner.set_spinning(false);
                         obj_clone.set_buttons_sensitive();
                         obj_clone
                             .imp()
                             .error_text
-                            .set_label(&format!("Error: {}", message));
+                            .set_label(&format!("Error: {}", error_message));
                     } else {
                         info!("Image updated successfully");
                         obj_clone.destroy()

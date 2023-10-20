@@ -53,7 +53,7 @@ mod imp {
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
                 vec![
                     Signal::builder("image-modified")
-                        .param_types([String::static_type()])
+                        .param_types([String::static_type(), String::static_type()])
                         .build(),
                     Signal::builder("user-exists")
                         .param_types([bool::static_type()])
@@ -117,7 +117,7 @@ impl UserObject {
         }
 
         let ws = WSObject::new();
-        obj.check_image_link(image_link);
+        obj.check_image_link(image_link, false);
 
         obj.set_user_ws(ws);
         obj.set_message_number(0);
@@ -132,13 +132,29 @@ impl UserObject {
                 user_object.add_queue_to_first(RequestType::ReconnectUser);
             }),
         );
+
+        obj.connect_closure(
+            "image-modified",
+            false,
+            closure_local!(
+                move |from: UserObject, error_message: String, image_link: String| {
+                    if error_message.is_empty() && !image_link.is_empty() {
+                        info!("Got something for the queue");
+                        let image_data = ImageUpdate::new_json(Some(image_link), from.user_token());
+                        from.user_ws().image_link_updated(&image_data);
+                    } else {
+                        info!("Not for the queue. Potentially updating image");
+                    }
+                }
+            ),
+        );
         obj
     }
 
-    pub fn check_image_link(&self, new_link: Option<String>) {
+    pub fn check_image_link(&self, new_link: Option<String>, from_queue: bool) {
         if let Some(link) = new_link {
             let (sender, receiver) = MainContext::channel(Priority::default());
-            self.set_user_image(receiver);
+            self.set_user_image(receiver, from_queue);
             spawn_blocking(move || {
                 let avatar = get_avatar(link);
                 sender.send(avatar).unwrap();
@@ -148,7 +164,11 @@ impl UserObject {
         }
     }
 
-    fn set_user_image(&self, receiver: Receiver<Result<(String, Bytes), String>>) {
+    fn set_user_image(
+        &self,
+        receiver: Receiver<Result<(String, Bytes), String>>,
+        from_queue: bool,
+    ) {
         let working_link = self.image_link();
         receiver.attach(
             None,
@@ -158,19 +178,19 @@ impl UserObject {
                         Ok((image_link, image_data)) => {
                             let pixbuf_loader = PixbufLoader::new();
                             if let Err(_) = pixbuf_loader.write(&image_data) {
-                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image"), &image_link]);
                                 return ControlFlow::Break
                             };
 
                             if let Err(_) = pixbuf_loader.close() {
-                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image"), &image_link]);
                                 return ControlFlow::Break
                             };
 
                             let pixbuf = if let Some(data) = pixbuf_loader.pixbuf() {
                                 data
                             } else {
-                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image")]);
+                                user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image"), &image_link]);
                                 return ControlFlow::Break
                             };
                             // Gtk handles some scaling by itself but the quality is terrible for smaller size.
@@ -187,15 +207,19 @@ impl UserObject {
                             if user_object.image_link() == working_link {
                                 user_object.set_big_image(Some(big_paintable));
                                 user_object.set_small_image(Some(small_paintable));
-                                user_object.set_image_link(Some(image_link));
+                                user_object.set_image_link(Some(image_link.to_owned()));
                             } else {
                                 info!("Image link was updated. Abandoning {}", image_link)
                             }
-                            user_object.emit_by_name::<()>("image-modified", &[&String::new()]);
+                            if !from_queue {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::new(), &String::new()]);
+                            } else {
+                                user_object.emit_by_name::<()>("image-modified", &[&String::new(), &image_link]);
+                            }
                         }
                         Err(msg) => {
                             // Emit the signal to the user profile to show a toast with the error
-                            user_object.emit_by_name::<()>("image-modified", &[&msg]);
+                            user_object.emit_by_name::<()>("image-modified", &[&msg, &String::new()]);
                         }
                     }
                     ControlFlow::Break
@@ -272,9 +296,11 @@ impl UserObject {
                         message_row.imp().processing_spinner.set_spinning(false);
                     }
                     RequestType::ImageUpdated(link) => {
-                        self.check_image_link(link.clone());
-                        let image_data = ImageUpdate::new_json(link, self.user_token());
-                        user_ws.image_link_updated(&image_data);
+                        self.check_image_link(link.to_owned(), true);
+                        if link.is_none() {
+                            let image_data = ImageUpdate::new_json(link, self.user_token());
+                            user_ws.image_link_updated(&image_data);
+                        }
                     }
                     RequestType::NameUpdated(name) => {
                         self.set_name(name.to_owned());
@@ -339,7 +365,7 @@ impl UserObject {
     pub fn set_random_image(&self) {
         let new_link = generate_random_avatar_link();
         info!("Generated random image link: {}", new_link);
-        self.add_to_queue(RequestType::ImageUpdated(Some(new_link.to_owned())));
+        self.add_to_queue(RequestType::ImageUpdated(Some(new_link)));
     }
 
     pub fn remove_image(&self) {
@@ -375,8 +401,8 @@ impl UserObject {
                         debug!("Removal happened inside recursion");
                     } else {
                         timeout_add_local_once(Duration::from_millis(500), move || {
-                            // Ideally it would remove the object in first attempt however if the 
-                            // length is changed it would mean the index 500 millis ago is potentially no longer valid 
+                            // Ideally it would remove the object in first attempt however if the
+                            // length is changed it would mean the index 500 millis ago is potentially no longer valid
                             // call the function again and the next time it would skip any timeout
                             if user_object.messages().n_items() == total_len {
                                 user_object.messages().remove(index as u32);
@@ -436,7 +462,7 @@ impl UserObject {
                         "/reconnect-success" => {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
-                            user_object.check_image_link(user_data.image_link);
+                            user_object.check_image_link(user_data.image_link, false);
                             // It must be set to zero to ensure the server sends every single message from the server
                             // If from the other side a message gets deleted
                             // while this client is on but not connected it would mean this client would not receive
@@ -454,7 +480,7 @@ impl UserObject {
                         }
                         "/image-updated" => {
                             let image_data = ImageUpdate::new_from_json(splitted_data[1]);
-                            user_object.check_image_link(image_data.image_link);
+                            user_object.check_image_link(image_data.image_link, false);
                         }
                         "/name-updated" => user_object.set_name(splitted_data[1]),
                         "/message-number" => {

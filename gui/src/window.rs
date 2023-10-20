@@ -377,7 +377,7 @@ impl Window {
             // Have to set the image link manually otherwise if new users are added
             // after this and the image is not loaded it would save None image link
             data.set_image_link(owner_data.image_link.clone());
-            data.check_image_link(owner_data.image_link);
+            data.check_image_link(owner_data.image_link, false);
 
             // Just in case outdated data is saved locally, fetch the profile data
             data.add_to_queue(RequestType::GetUserData(data.user_id()));
@@ -644,6 +644,7 @@ impl Window {
                     }
 
                     if window.find_user(user_data.user_id).is_some() {
+                        user_object.check_image_link(user_data.image_link, false);
                         info!("User {} has already been added. Dismissing the request", user_data.user_id);
                         return ControlFlow::Continue;
                     }
