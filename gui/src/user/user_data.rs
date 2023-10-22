@@ -476,6 +476,7 @@ impl UserObject {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             user_object.check_image_link(user_data.image_link, false);
+                            window.save_user_list();
                             // It must be set to zero to ensure the server sends every single message from the server
                             // If from the other side a message gets deleted
                             // while this client is on but not connected it would mean this client would not receive

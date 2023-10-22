@@ -295,7 +295,7 @@ impl Window {
     }
 
     // Save added UserObject data to gschema for later retrieval
-    fn save_user_list(&self) {
+    pub fn save_user_list(&self) {
         info!("Starting saving user list");
         let mut save_list = Vec::new();
 
