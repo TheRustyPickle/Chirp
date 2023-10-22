@@ -234,6 +234,7 @@ impl WSObject {
     /// Pings and follows if the connection was closed
     pub fn start_pinging(&self) {
         let conn = self.ws_conn().unwrap();
+        conn.set_max_incoming_payload_size(0);
         conn.set_keepalive_interval(5);
 
         let conn_close_signal =

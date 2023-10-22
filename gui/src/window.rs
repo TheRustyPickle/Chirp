@@ -5,7 +5,7 @@ mod imp {
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding, Propagation};
     use gtk::{
-        gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, Revealer,
+        gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, ListView, Revealer,
         ScrolledWindow, Stack, TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
@@ -21,7 +21,7 @@ mod imp {
         #[template_child]
         pub message_entry: TemplateChild<TextView>,
         #[template_child]
-        pub message_list: TemplateChild<ListBox>,
+        pub message_list: TemplateChild<ListView>,
         #[template_child]
         pub send_button: TemplateChild<Button>,
         #[template_child]
@@ -97,7 +97,8 @@ use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    Native, PositionType, Root, ShortcutManager, Widget,
+    ListItem, Native, NoSelection, PositionType, Root, ShortcutManager, SignalListItemFactory,
+    Widget,
 };
 use std::fs;
 use std::fs::File;
@@ -178,11 +179,14 @@ impl Window {
 
         // If the scrollbar size is changed, scroll to the bottom
         let scroller_bar = self.imp().message_scroller.get();
-        let vadjust = scroller_bar.vadjustment();
+        /*let vadjust = scroller_bar.vadjustment();
         vadjust.connect_changed(clone!(@weak vadjust => move |adjust| {
             let upper = adjust.upper();
             vadjust.set_value(upper);
-        }));
+            if upper > 100.0 {
+                vadjust.set_value(upper - 100.0);
+            }
+        }));*/
 
         // If the message typing space is empty, show the background text + disable the send button
         // else remove the text and enable the send button
@@ -291,7 +295,7 @@ impl Window {
     }
 
     // Save added UserObject data to gschema for later retrieval
-    fn save_user_list(&self) {
+    pub fn save_user_list(&self) {
         info!("Starting saving user list");
         let mut save_list = Vec::new();
 
@@ -395,19 +399,51 @@ impl Window {
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
         user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
-
-        // Bind the model to a specific ListStore so if any new message gets added there
-        // new message row creation also starts
         let message_list = user.messages();
-        self.imp().message_list.bind_model(
-            Some(&message_list),
-            clone!(@weak self as window => @default-panic, move |obj| {
-                let message_data = obj.downcast_ref().unwrap();
-                let row = window.get_message_row(message_data);
-                window.grab_focus();
-                row.upcast()
-            }),
-        );
+        let selection_model = NoSelection::new(Some(message_list));
+        self.imp().message_list.set_model(Some(&selection_model));
+
+        // Bind user chatting with liststore with the factory so if any new message gets added there
+        // new message row creation also starts
+        let factory = SignalListItemFactory::new();
+
+        factory.connect_setup(move |_, list_item| {
+            let message_row = MessageRow::new_empty();
+            list_item
+                .downcast_ref::<ListItem>()
+                .unwrap()
+                .set_child(Some(&message_row));
+        });
+
+        factory.connect_bind(clone!(@weak self as window => move |_, item| {
+            let list_item = item
+            .downcast_ref::<ListItem>()
+            .unwrap();
+
+            let message_object = list_item
+                .item()
+                .and_downcast::<MessageObject>()
+                .unwrap();
+
+            let message_row = list_item
+                .child()
+                .and_downcast::<MessageRow>()
+                .unwrap();
+            message_row.update(&message_object, &window);
+        }));
+
+        factory.connect_unbind(move |_, list_item| {
+            let message_row = list_item
+                .downcast_ref::<ListItem>()
+                .unwrap()
+                .child()
+                .and_downcast::<MessageRow>()
+                .unwrap();
+
+            message_row.stop_signals();
+        });
+
+        self.imp().message_list.set_factory(Some(&factory));
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -579,21 +615,6 @@ impl Window {
                 self.add_pending_avatar_css(target_user)
             }
         }
-    }
-
-    /// Create a row using a MessageObject for the ListBox
-    fn get_message_row(&self, data: &MessageObject) -> ListBoxRow {
-        let message_row = MessageRow::new(data.clone(), self);
-        let list_row = ListBoxRow::builder()
-            .child(&message_row)
-            .selectable(false)
-            .activatable(false)
-            .can_focus(false)
-            .build();
-
-        data.set_target_row(message_row);
-
-        list_row
     }
 
     /// Create a row using a UserObject for the ListBox

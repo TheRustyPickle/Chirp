@@ -4,7 +4,7 @@ mod imp {
     use glib::subclass::InitializingObject;
     use glib::{object_subclass, Binding};
     use gtk::{glib, Box, Button, CompositeTemplate, Label, PopoverMenu, Revealer, Spinner};
-    use std::cell::{OnceCell, RefCell};
+    use std::cell::RefCell;
 
     use crate::message::MessageObject;
 
@@ -36,7 +36,7 @@ mod imp {
         #[template_child]
         pub processing_spinner: TemplateChild<Spinner>,
         pub bindings: RefCell<Vec<Binding>>,
-        pub message_data: OnceCell<MessageObject>,
+        pub message_data: RefCell<Option<MessageObject>>,
     }
 
     #[object_subclass]
@@ -76,7 +76,7 @@ use gtk::{
     RevealerTransitionType, Widget,
 };
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::message::MessageObject;
 use crate::user::UserProfile;
@@ -90,58 +90,53 @@ wrapper! {
 }
 
 impl MessageRow {
-    pub fn new(object: MessageObject, window: &Window) -> Self {
-        let row: MessageRow = Object::builder().build();
-        let revealer = row.imp().message_revealer.get();
+    pub fn update(&self, object: &MessageObject, window: &Window) {
+        object.set_target_row(self.clone());
+        let revealer = self.imp().message_revealer.get();
 
         let new_cursor = Cursor::builder().name("pointer").build();
 
         if object.is_send() {
-            let sender = row.imp().sender.get();
+            let sender = self.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
             sender.set_visible(true);
-            row.imp().receiver_avatar_button.set_visible(false);
-            row.imp().sent_by.set_xalign(1.0);
-            row.imp().message.set_xalign(1.0);
-            row.imp().message_content.add_css_class("message-row-sent");
-            row.imp().placeholder.set_visible(true);
+            self.imp().receiver_avatar_button.set_visible(false);
+            self.imp().sent_by.set_xalign(1.0);
+            self.imp().message.set_xalign(1.0);
+            self.imp().message_content.add_css_class("message-row-sent");
+            self.imp().placeholder.set_visible(true);
             revealer.set_transition_type(RevealerTransitionType::SlideLeft);
         } else {
-            let receiver = row.imp().receiver.get();
+            let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
             receiver.set_visible(true);
-            row.imp().sender_avatar_button.set_visible(false);
-            row.imp().sent_by.set_xalign(0.0);
-            row.imp().message.set_xalign(0.0);
-            row.imp()
+            self.imp().sender_avatar_button.set_visible(false);
+            self.imp().sent_by.set_xalign(0.0);
+            self.imp().message.set_xalign(0.0);
+            self.imp()
                 .message_content
                 .add_css_class("message-row-received");
             revealer.set_transition_type(RevealerTransitionType::SlideRight)
         }
 
-        if object.must_process() {
-            row.imp().processing_spinner.set_visible(true);
-            row.imp().processing_spinner.set_spinning(true);
-        }
+        self.imp().message_data.replace(Some(object.clone()));
 
-        row.imp().message_time.set_label(&object.message_timing());
-
-        row.imp().message_data.set(object).unwrap();
-        row.bind();
-        row.connect_button_signals(window);
+        self.bind();
+        self.connect_button_signals(window);
 
         // The transition must start after it gets added to the ListBox thus a small timer
         timeout_add_local_once(Duration::from_millis(50), move || {
             revealer.set_reveal_child(true);
         });
+    }
 
-        row
+    pub fn new_empty() -> Self {
+        Object::builder().build()
     }
 
     pub fn stop_signals(&self) {
         for binding in self.imp().bindings.take() {
             binding.unbind();
-            debug!("A binding in MessageRow was unbind");
         }
     }
 
@@ -150,11 +145,11 @@ impl MessageRow {
 
         let sent_by = self.imp().sent_by.get();
         let message = self.imp().message.get();
-
-        let message_object = self.imp().message_data.get().unwrap();
+        let message_time = self.imp().message_time.get();
+        let spinner = self.imp().processing_spinner.get();
+        let message_object = self.imp().message_data.borrow().clone().unwrap();
         let is_sent = message_object.is_send();
-
-        let sender = self.imp().message_data.get().unwrap().sent_from();
+        let sender = message_object.sent_from();
 
         sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 
@@ -184,17 +179,41 @@ impl MessageRow {
             .sync_create()
             .build();
 
+        let spinner_visible_binding = message_object
+            .bind_property("must-process", &spinner, "visible")
+            .sync_create()
+            .build();
+
+        let spinner_spinning_binding = message_object
+            .bind_property("must-process", &spinner, "spinning")
+            .sync_create()
+            .build();
+
+        let message_timing_binding = message_object
+            .bind_property("message-timing", &message_time, "label")
+            .sync_create()
+            .build();
+
         bindings.push(sent_by_binding);
         bindings.push(avatar_fallback_binding);
         bindings.push(image_binding);
         bindings.push(message_binding);
+        bindings.push(spinner_visible_binding);
+        bindings.push(spinner_spinning_binding);
+        bindings.push(message_timing_binding);
     }
 
     fn connect_button_signals(&self, window: &Window) {
         let sender_button = self.imp().sender_avatar_button.get();
         let receiver_button = self.imp().receiver_avatar_button.get();
 
-        let sent_from = self.imp().message_data.get().unwrap().sent_from();
+        let sent_from = self
+            .imp()
+            .message_data
+            .borrow()
+            .clone()
+            .unwrap()
+            .sent_from();
 
         sender_button.connect_clicked(clone!(@weak window, @weak sent_from => move |_| {
             UserProfile::new(sent_from, &window);
@@ -220,7 +239,7 @@ impl MessageRow {
 
     fn delete_message(&self) {
         info!("Deleting a message from the UI");
-        let message_data = self.imp().message_data.get().unwrap();
+        let message_data = self.imp().message_data.borrow().clone().unwrap();
 
         let other_user =
             if message_data.sent_from().user_id() == message_data.sent_from().owner_id() {
@@ -235,19 +254,17 @@ impl MessageRow {
             other_user.user_id(),
             message_number,
         ));
-        self.imp().processing_spinner.set_visible(true);
-        self.imp().processing_spinner.set_spinning(true);
         self.imp()
             .message_data
-            .get()
-            .unwrap()
+            .borrow()
             .clone()
+            .unwrap()
             .to_process(true);
     }
 
     fn copy_message(&self) {
         info!("Copying message text to clipboard");
-        let text = self.imp().message_data.get().unwrap().message();
+        let text = self.imp().message_data.borrow().clone().unwrap().message();
         self.clipboard().set(&text);
     }
 }

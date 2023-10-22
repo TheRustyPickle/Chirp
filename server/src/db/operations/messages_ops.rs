@@ -40,7 +40,7 @@ pub fn get_messages_from_number(
         .filter(message_group.eq(group))
         .filter(message_number.gt(start_at as i32))
         .filter(message_number.le(end_at as i32))
-        .order(message_number.desc())
+        .order(message_number.asc())
         .select(Message::as_select())
         .load(conn)
         .unwrap()

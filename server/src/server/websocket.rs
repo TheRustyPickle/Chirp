@@ -54,19 +54,21 @@ impl Handler<Disconnect> for ChatServer {
     type Result = ();
 
     fn handle(&mut self, msg: Disconnect, _: &mut Context<Self>) {
-        let id_data = &self.sessions.get(&msg.id).unwrap().0;
-        info!(
-            "WS Session {} disconnected. Removing session data related to user {} belonging to owner {}",
-            msg.id, id_data.user_id, id_data.owner_id
-        );
+        if let Some(id_data) = self.sessions.get(&msg.id) {
+            let id_data = &id_data.0;
+            info!(
+                "WS Session {} disconnected. Removing session data related to user {} belonging to owner {}",
+                msg.id, id_data.user_id, id_data.owner_id
+            );
 
-        if let Some(sessions) = self.user_session.get_mut(&id_data.owner_id) {
-            sessions.retain(|i| i.ws_id != msg.id);
-            if self.user_session[&id_data.owner_id].is_empty() {
-                self.user_session.remove(&id_data.owner_id);
+            if let Some(sessions) = self.user_session.get_mut(&id_data.owner_id) {
+                sessions.retain(|i| i.ws_id != msg.id);
+                if self.user_session[&id_data.owner_id].is_empty() {
+                    self.user_session.remove(&id_data.owner_id);
+                }
             }
+            self.sessions.remove(&msg.id);
         }
-        self.sessions.remove(&msg.id);
     }
 }
 

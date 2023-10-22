@@ -278,14 +278,14 @@ impl UserObject {
     }
 
     /// Processes queued stuff if websocket is available
-    fn process_queue(&self, process_limit: Option<u8>) {
+    fn process_queue(&self, process_limit: Option<u64>) {
         self.set_request_processing(true);
 
         let user_ws = self.user_ws();
 
         let queue_list = { self.imp().request_queue.lock().unwrap().borrow().clone() };
 
-        let mut highest_index = 0;
+        let mut highest_index: u64 = 0;
         let mut connection_lost = false;
 
         for task in queue_list {
@@ -309,11 +309,7 @@ impl UserObject {
                             .update_message_number(self.message_number())
                             .to_json();
                         user_ws.send_text_message(&data);
-
-                        let message_row = msg_obj.target_row().unwrap();
                         msg_obj.to_process(false);
-                        message_row.imp().processing_spinner.set_visible(false);
-                        message_row.imp().processing_spinner.set_spinning(false);
                     }
                     RequestType::ImageUpdated(link) => {
                         self.check_image_link(link.to_owned(), true);
@@ -480,6 +476,7 @@ impl UserObject {
                             let user_data = FullUserData::from_json(splitted_data[1]);
                             user_object.set_name(user_data.user_name);
                             user_object.check_image_link(user_data.image_link, false);
+                            window.save_user_list();
                             // It must be set to zero to ensure the server sends every single message from the server
                             // If from the other side a message gets deleted
                             // while this client is on but not connected it would mean this client would not receive
