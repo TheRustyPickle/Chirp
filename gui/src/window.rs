@@ -417,6 +417,10 @@ impl Window {
                 .downcast_ref::<ListItem>()
                 .unwrap()
                 .set_child(Some(&message_row));
+            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
+            list_item.set_activatable(false);
+            list_item.set_selectable(false);
+            list_item.set_focusable(false);
         });
 
         factory.connect_bind(clone!(@weak self as window => move |_, item| {
