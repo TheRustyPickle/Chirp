@@ -308,6 +308,7 @@ impl UserObject {
                         let new_number = self.message_number() + 1;
                         self.set_message_number(new_number);
                         msg_obj.set_message_number(new_number);
+
                         let data = message_data
                             .update_token(self.user_token())
                             .update_message_number(self.message_number())
@@ -538,6 +539,7 @@ impl UserObject {
                             let id_data = UserIDs::from_json(splitted_data[1]);
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
+                            user_object.set_owner_id(id_data.user_id);
                             sender.send(text).unwrap();
                             user_object.process_queue(None);
                         }

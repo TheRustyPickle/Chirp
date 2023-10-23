@@ -198,7 +198,13 @@ impl Window {
             clone!(@weak self as window => move |buffer| {
                 let char_count = buffer.char_count();
                 let should_be_enabled = char_count != 0;
-                window.imp().send_button.set_sensitive(should_be_enabled);
+
+                if window.get_chatting_with().user_id() == 0 {
+                    window.imp().send_button.set_sensitive(false);
+                } else {
+                    window.imp().send_button.set_sensitive(should_be_enabled);
+                }
+
                 if should_be_enabled {
                     window.imp().placeholder.set_visible(false);
                 } else {
@@ -417,6 +423,10 @@ impl Window {
                 .downcast_ref::<ListItem>()
                 .unwrap()
                 .set_child(Some(&message_row));
+            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
+            list_item.set_activatable(false);
+            list_item.set_selectable(false);
+            list_item.set_focusable(false);
         });
 
         factory.connect_bind(clone!(@weak self as window => move |_, item| {
@@ -473,6 +483,9 @@ impl Window {
 
     /// Send the text on the Textview as a message
     fn send_message(&self) {
+        if self.get_chatting_with().user_id() == 0 {
+            return;
+        }
         let buffer = self.imp().message_entry.buffer();
         let content = buffer
             .text(&buffer.start_iter(), &buffer.end_iter(), true)
@@ -675,9 +688,7 @@ impl Window {
                     window.receive_message(message_data, user_object, true)
                 },
                 "/update-user-id" => {
-                    let chatting_from = window.get_chatting_from();
                     let id_data = UserIDs::from_json(response_data[1]);
-                    chatting_from.set_owner_id(id_data.user_id);
                     window.save_user_data();
                     window.imp()
                         .message_numbers
