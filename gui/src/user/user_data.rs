@@ -404,42 +404,79 @@ impl UserObject {
 
     pub fn remove_message(&self, target_number: u64, is_recursive: bool) {
         let total_len = self.messages().n_items();
-        for (index, message_data) in self.messages().iter().enumerate() {
-            let message_content: MessageObject = message_data.unwrap();
 
-            if let Some(msg_num) = message_content.imp().message_number.get() {
-                if msg_num == &target_number {
-                    debug!("Target number exists for deletion");
-                    let target_row = message_content.target_row().unwrap();
-                    if !is_recursive {
-                        let revealer = target_row.imp().message_revealer.get();
-                        target_row.stop_signals();
-                        // Remove the transition time before it gets remove for smoother animation
-                        revealer.set_transition_duration(4000);
-                        revealer.set_reveal_child(false);
-                    }
-
-                    let user_object = self.clone();
-                    if is_recursive {
-                        user_object.messages().remove(index as u32);
-                        debug!("Removal happened inside recursion");
-                    } else {
-                        timeout_add_local_once(Duration::from_millis(500), move || {
-                            // Ideally it would remove the object in first attempt however if the
-                            // length is changed it would mean the index 500 millis ago is potentially no longer valid
-                            // call the function again and the next time it would skip any timeout
-                            if user_object.messages().n_items() == total_len {
-                                user_object.messages().remove(index as u32);
-                            } else {
-                                debug!("Length changed. Starting recursion for deleting");
-                                user_object.remove_message(target_number, true);
-                            }
-                        });
-                    }
+        if target_number > total_len as u64 / 2 {
+            for (index, message_data) in self.messages().iter().rev().enumerate() {
+                let message_content: MessageObject = message_data.unwrap();
+                let rev_index = total_len as usize - index - 1;
+                let success = self.check_for_removal(
+                    message_content,
+                    target_number,
+                    is_recursive,
+                    total_len,
+                    rev_index,
+                );
+                if success {
+                    break;
+                }
+            }
+        } else {
+            for (index, message_data) in self.messages().iter().enumerate() {
+                let message_content: MessageObject = message_data.unwrap();
+                let success = self.check_for_removal(
+                    message_content,
+                    target_number,
+                    is_recursive,
+                    total_len,
+                    index,
+                );
+                if success {
                     break;
                 }
             }
         }
+    }
+
+    fn check_for_removal(
+        &self,
+        message_content: MessageObject,
+        target_number: u64,
+        is_recursive: bool,
+        total_len: u32,
+        index: usize,
+    ) -> bool {
+        if let Some(msg_num) = message_content.imp().message_number.get() {
+            if msg_num == &target_number {
+                let target_row = message_content.target_row().unwrap();
+                if !is_recursive {
+                    let revealer = target_row.imp().message_revealer.get();
+                    target_row.stop_signals();
+                    // Remove the transition time before it gets remove for smoother animation
+                    revealer.set_transition_duration(4000);
+                    revealer.set_reveal_child(false);
+                }
+
+                let user_object = self.clone();
+                if is_recursive {
+                    user_object.messages().remove(index as u32);
+                    debug!("Removal happened inside recursion");
+                } else {
+                    timeout_add_local_once(Duration::from_millis(500), move || {
+                        // Ideally it would remove the object in first attempt however if the
+                        // length is changed it would mean the index 500 millis ago is potentially no longer valid
+                        // call the function again and the next time it would skip any timeout
+                        if user_object.messages().n_items() == total_len {
+                            user_object.messages().remove(index as u32);
+                        } else {
+                            debug!("Length changed. Starting recursion for deleting");
+                            user_object.remove_message(target_number, true);
+                        }
+                    });
+                }
+                return true;
+            }
+        }
+        false
     }
 
     pub fn handle_ws(&self, window: Window) {
@@ -542,7 +579,17 @@ impl UserObject {
                                         clone!(@weak window, @weak user_object => move || {
                                             for message in new_chunk {
                                                 if message.message.is_none() {
-                                                    user_object.remove_message(message.message_number, false);
+                                                    let message_exists = window
+                                                        .imp()
+                                                        .message_numbers
+                                                        .borrow_mut()
+                                                        .get_mut(&user_object.user_id())
+                                                        .unwrap()
+                                                        .remove(&message.message_number);
+
+                                                    if message_exists {
+                                                        user_object.remove_message(message.message_number, false);
+                                                    }
                                                     continue;
                                                 }
                                                 window.receive_message(message, user_object.clone(), false);
