@@ -10,20 +10,24 @@ mod imp {
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
 
-    use super::UserData;
     use crate::ws::RequestType;
     use crate::ws::WSObject;
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::UserObject)]
     pub struct UserObject {
-        #[property(name = "user-id", get, set, type = u64, member = user_id)]
-        #[property(name = "big-image", get, set, nullable, type = Option<Paintable>, member = big_image)]
-        #[property(name = "small-image", get, set, nullable, type = Option<Paintable>, member = small_image)]
-        #[property(name = "name", get, set, type = String, member = name)]
-        #[property(name = "name-color", get, set, type = String, member = name_color)]
-        #[property(name = "image-link", get, set, nullable, type = Option<String>, member = image_link)]
-        pub data: RefCell<UserData>,
+        #[property(get, set)]
+        pub user_id: Cell<u64>,
+        #[property(get, set, nullable)]
+        pub big_image: RefCell<Option<Paintable>>,
+        #[property(get, set, nullable)]
+        pub small_image: RefCell<Option<Paintable>>,
+        #[property(get, set)]
+        pub name: RefCell<String>,
+        #[property(get, set)]
+        pub name_color: RefCell<String>,
+        #[property(get, set, nullable)]
+        pub image_link: RefCell<Option<String>>,
         #[property(get, set)]
         pub messages: OnceCell<ListStore>,
         #[property(get, set)]
@@ -526,15 +530,39 @@ impl UserObject {
                         "/sync-message" => {
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
-                            for message in chat_data.message_data.into_iter() {
-                                // if content is None, this message was deleted.
-                                // We will check if this message exists in the UI. If yes, remove it
-                                if message.message.is_none() {
-                                    user_object.remove_message(message.message_number, false);
-                                    continue;
+                            let chunk_size = chat_data.message_data.len() / 10;
+
+                            if chunk_size > 100 {
+                                let mut last_timeout = 2;
+                                // Process larger amounts of messages in chunks to prevent the UI from freezing up
+                                for chunk in chat_data.message_data.chunks(chunk_size) {
+                                    let new_chunk = chunk.to_owned();
+                                    timeout_add_local_once(
+                                        Duration::from_secs(last_timeout),
+                                        clone!(@weak window, @weak user_object => move || {
+                                            for message in new_chunk {
+                                                if message.message.is_none() {
+                                                    user_object.remove_message(message.message_number, false);
+                                                    continue;
+                                                }
+                                                window.receive_message(message, user_object.clone(), false);
+                                            }
+                                        }),
+                                    );
+                                    last_timeout += 2;
                                 }
-                                window.receive_message(message, user_object.clone(), false)
+                            } else {
+                                for message in chat_data.message_data.into_iter() {
+                                    // if content is None, this message was deleted.
+                                    // We will check if this message exists in the UI. If yes, remove it
+                                    if message.message.is_none() {
+                                        user_object.remove_message(message.message_number, false);
+                                        continue;
+                                    }
+                                    window.receive_message(message, user_object.clone(), false);
+                                }
                             }
+
                             user_object.process_queue(None);
                         }
                         "/delete-message" => {
@@ -549,14 +577,4 @@ impl UserObject {
         );
         self.user_ws().set_signal_id(id);
     }
-}
-
-#[derive(Default, Clone)]
-pub struct UserData {
-    pub user_id: u64,
-    pub name: String,
-    pub name_color: String,
-    pub big_image: Option<Paintable>,
-    pub small_image: Option<Paintable>,
-    pub image_link: Option<String>,
 }

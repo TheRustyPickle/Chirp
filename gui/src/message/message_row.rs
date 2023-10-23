@@ -99,20 +99,11 @@ impl MessageRow {
         if object.is_send() {
             let sender = self.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
-            sender.set_visible(true);
-            self.imp().receiver_avatar_button.set_visible(false);
-            self.imp().sent_by.set_xalign(1.0);
-            self.imp().message.set_xalign(1.0);
             self.imp().message_content.add_css_class("message-row-sent");
-            self.imp().placeholder.set_visible(true);
             revealer.set_transition_type(RevealerTransitionType::SlideLeft);
         } else {
             let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
-            receiver.set_visible(true);
-            self.imp().sender_avatar_button.set_visible(false);
-            self.imp().sent_by.set_xalign(0.0);
-            self.imp().message.set_xalign(0.0);
             self.imp()
                 .message_content
                 .add_css_class("message-row-received");
@@ -138,6 +129,21 @@ impl MessageRow {
         for binding in self.imp().bindings.take() {
             binding.unbind();
         }
+        let sent_by = self.imp().sent_by.get();
+        let sender = self
+            .imp()
+            .message_data
+            .borrow()
+            .clone()
+            .unwrap()
+            .sent_from();
+        sent_by.remove_css_class(&format!("sender-{}", sender.name_color()));
+        self.imp()
+            .message_content
+            .remove_css_class("message-row-sent");
+        self.imp()
+            .message_content
+            .remove_css_class("message-row-received");
     }
 
     fn bind(&self) {
@@ -150,6 +156,11 @@ impl MessageRow {
         let message_object = self.imp().message_data.borrow().clone().unwrap();
         let is_sent = message_object.is_send();
         let sender = message_object.sent_from();
+        let placeholder = self.imp().placeholder.get();
+        let send_avatar = self.imp().sender_avatar_button.get();
+        let receiver_avatar = self.imp().receiver.get();
+        let send_avatar_button = self.imp().sender.get();
+        let receiver_avatar_button = self.imp().receiver_avatar_button.get();
 
         sent_by.add_css_class(&format!("sender-{}", sender.name_color()));
 
@@ -194,6 +205,98 @@ impl MessageRow {
             .sync_create()
             .build();
 
+        let placeholder_binding = message_object
+            .bind_property("is-send", &placeholder, "visible")
+            .sync_create()
+            .build();
+
+        let sent_by_xalign_binding = message_object
+            .bind_property("is-send", &sent_by, "xalign")
+            .transform_to(move |_, is_send: bool| {
+                if is_send {
+                    Some(1.0 as f32)
+                } else {
+                    Some(0.0 as f32)
+                }
+            })
+            .sync_create()
+            .build();
+
+        let message_xalign_binding = message_object
+            .bind_property("is-send", &message, "xalign")
+            .transform_to(move |_, is_send: bool| {
+                if is_send {
+                    Some(1.0 as f32)
+                } else {
+                    Some(0.0 as f32)
+                }
+            })
+            .sync_create()
+            .build();
+
+        let sender_avatar_button_binding = message_object
+            .bind_property("is-send", &send_avatar_button, "visible")
+            .transform_to(
+                move |_, is_send: bool| {
+                    if is_send {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                },
+            )
+            .sync_create()
+            .build();
+
+        let receiver_avatar_button_binding = message_object
+            .bind_property("is-send", &receiver_avatar_button, "visible")
+            .transform_to(
+                move |_, is_send: bool| {
+                    if is_send {
+                        Some(false)
+                    } else {
+                        Some(true)
+                    }
+                },
+            )
+            .sync_create()
+            .build();
+
+        let sender_avatar_binding = message_object
+            .bind_property("is-send", &send_avatar, "visible")
+            .transform_to(
+                move |_, is_send: bool| {
+                    if is_send {
+                        Some(true)
+                    } else {
+                        Some(false)
+                    }
+                },
+            )
+            .sync_create()
+            .build();
+
+        let receiver_avatar_binding = message_object
+            .bind_property("is-send", &receiver_avatar, "visible")
+            .transform_to(
+                move |_, is_send: bool| {
+                    if is_send {
+                        Some(false)
+                    } else {
+                        Some(true)
+                    }
+                },
+            )
+            .sync_create()
+            .build();
+
+        bindings.push(sender_avatar_binding);
+        bindings.push(receiver_avatar_binding);
+        bindings.push(sender_avatar_button_binding);
+        bindings.push(receiver_avatar_button_binding);
+        bindings.push(placeholder_binding);
+        bindings.push(message_xalign_binding);
+        bindings.push(sent_by_xalign_binding);
         bindings.push(sent_by_binding);
         bindings.push(avatar_fallback_binding);
         bindings.push(image_binding);

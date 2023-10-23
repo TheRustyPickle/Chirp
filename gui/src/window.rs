@@ -586,10 +586,10 @@ impl Window {
                 other_user
                     .messages()
                     .insert_sorted(&message, |obj_1, obj_2| {
-                        let message_content_a: MessageObject = obj_1.clone().downcast().unwrap();
-                        let message_content_b: MessageObject = obj_2.clone().downcast().unwrap();
-                        let msg_num_1 = message_content_a.imp().message_number.get();
-                        let msg_num_2 = message_content_b.imp().message_number.get();
+                        let message_content_1: MessageObject = obj_1.clone().downcast().unwrap();
+                        let message_content_2: MessageObject = obj_2.clone().downcast().unwrap();
+                        let msg_num_1 = message_content_1.imp().message_number.get();
+                        let msg_num_2 = message_content_2.imp().message_number.get();
 
                         match (msg_num_1, msg_num_2) {
                             (Some(num_a), Some(num_b)) => num_a.cmp(&num_b),
