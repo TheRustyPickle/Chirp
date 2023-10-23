@@ -300,16 +300,24 @@ impl UserObject {
                         let user_data = FullUserData::new(self).to_json();
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage(message_data, msg_obj) => {
-                        self.set_message_number(self.message_number() + 1);
-                        msg_obj.set_message_number(self.message_number());
-
+                    RequestType::SendMessage(message_data, msg_obj, window) => {
+                        let new_number = self.message_number() + 1;
+                        self.set_message_number(new_number);
+                        msg_obj.set_message_number(new_number);
                         let data = message_data
                             .update_token(self.user_token())
                             .update_message_number(self.message_number())
                             .to_json();
                         user_ws.send_text_message(&data);
                         msg_obj.to_process(false);
+
+                        window
+                            .imp()
+                            .message_numbers
+                            .borrow_mut()
+                            .get_mut(&self.user_id())
+                            .unwrap()
+                            .insert(new_number);
                     }
                     RequestType::ImageUpdated(link) => {
                         self.check_image_link(link.to_owned(), true);

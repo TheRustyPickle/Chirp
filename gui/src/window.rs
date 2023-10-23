@@ -9,6 +9,7 @@ mod imp {
         ScrolledWindow, Stack, TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
+    use std::collections::{HashMap, HashSet};
     use std::rc::Rc;
 
     use crate::user::UserObject;
@@ -46,6 +47,7 @@ mod imp {
         pub last_selected_user: Cell<i32>,
         pub bindings: RefCell<Vec<Binding>>,
         pub settings: OnceCell<Settings>,
+        pub message_numbers: RefCell<HashMap<u64, HashSet<u64>>>,
     }
 
     #[object_subclass]
@@ -100,6 +102,8 @@ use gtk::{
     ListItem, Native, NoSelection, PositionType, Root, ShortcutManager, SignalListItemFactory,
     Widget,
 };
+use std::cmp::Ordering;
+use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
 use std::io::{Read, Write};
@@ -506,7 +510,11 @@ impl Window {
 
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
-        receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
+        receiver.add_to_queue(RequestType::SendMessage(
+            send_message_data,
+            message.clone(),
+            self.clone(),
+        ));
     }
 
     /// Gets called when a message is received or when syncing previous message data
@@ -516,6 +524,25 @@ impl Window {
         other_user: UserObject,
         add_css: bool,
     ) {
+        // No need to receive an already existing message
+        if self
+            .imp()
+            .message_numbers
+            .borrow()
+            .get(&other_user.user_id())
+            .unwrap()
+            .contains(&message_data.message_number)
+        {
+            return;
+        }
+
+        self.imp()
+            .message_numbers
+            .borrow_mut()
+            .get_mut(&other_user.user_id())
+            .unwrap()
+            .insert(message_data.message_number);
+
         let current_message_number = other_user.message_number();
         if current_message_number < message_data.message_number {
             // Less than current number means it's an old message
@@ -556,52 +583,21 @@ impl Window {
             if element_num < 1 {
                 other_user.messages().append(&message);
             } else {
-                let mut added_to_list = false;
+                other_user
+                    .messages()
+                    .insert_sorted(&message, |obj_1, obj_2| {
+                        let message_content_a: MessageObject = obj_1.clone().downcast().unwrap();
+                        let message_content_b: MessageObject = obj_2.clone().downcast().unwrap();
+                        let msg_num_1 = message_content_a.imp().message_number.get();
+                        let msg_num_2 = message_content_b.imp().message_number.get();
 
-                for (index, msg) in other_user.messages().iter().enumerate() {
-                    let message_content: MessageObject = msg.unwrap();
-                    let msg_num = message_content.imp().message_number.get();
-
-                    // If Some this message exist and was processed by the websocket.
-                    // existing UI example
-                    //
-                    // message number 30
-                    // message number 33
-                    // message number 34
-                    //
-                    // if incoming message number is 32 our goal is to place it after 30 and before 33
-                    // as soon as ongoing message number > incoming message, insert it to the ongoing message's index
-                    // So 33 would get pushed to the next index
-                    if let Some(number) = msg_num {
-                        if number > &message_data.message_number {
-                            other_user.messages().insert(index as u32, &message);
-                            added_to_list = true;
-                            break;
-                        } else if number == &message_data.message_number {
-                            // This case would mean the message already exists
-                            added_to_list = true;
-                            break;
+                        match (msg_num_1, msg_num_2) {
+                            (Some(num_a), Some(num_b)) => num_a.cmp(&num_b),
+                            (Some(_), None) => Ordering::Less,
+                            (None, Some(_)) => Ordering::Greater,
+                            (None, None) => Ordering::Equal,
                         }
-                    } else {
-                        // Example incoming message 38
-                        //
-                        // message number 30
-                        // message number 33
-                        // message number 34
-                        // message number none, awaiting processing
-                        //
-                        // If None number is encountered it means that's the final processed message in the UI
-                        // and no more Some(_) message number ahead
-                        // So make the message 38 the latest message number by inserting and increase the None message index by 1
-                        other_user.messages().insert(index as u32, &message);
-                        added_to_list = true;
-                        break;
-                    }
-                }
-
-                if !added_to_list {
-                    other_user.messages().append(&message);
-                }
+                    });
             }
         } else {
             other_user.messages().append(&message);
@@ -633,6 +629,10 @@ impl Window {
     fn create_owner(&self, id_data: Option<UserIDs>) -> UserObject {
         let user_data = if let Some(data) = id_data {
             info!("Saved user data found");
+            self.imp()
+                .message_numbers
+                .borrow_mut()
+                .insert(data.user_id, HashSet::new());
             UserObject::new("Me", None, None, Some(data.user_id), Some(data.user_token))
         } else {
             UserObject::new("Me", Some(generate_random_avatar_link()), None, None, None)
@@ -676,11 +676,13 @@ impl Window {
                 },
                 "/update-user-id" => {
                     let chatting_from = window.get_chatting_from();
-                    if user_object == chatting_from {
-                        let id_data = UserIDs::from_json(response_data[1]);
-                        chatting_from.set_owner_id(id_data.user_id);
-                        window.save_user_data();
-                    }
+                    let id_data = UserIDs::from_json(response_data[1]);
+                    chatting_from.set_owner_id(id_data.user_id);
+                    window.save_user_data();
+                    window.imp()
+                        .message_numbers
+                        .borrow_mut()
+                        .insert(id_data.user_id, HashSet::new());
                 }
                 _ => {}
             }
@@ -720,6 +722,10 @@ impl Window {
         new_user_data.handle_ws(self.clone());
         self.get_users_liststore().append(&new_user_data);
         self.save_user_list();
+        self.imp()
+            .message_numbers
+            .borrow_mut()
+            .insert(new_user_data.user_id(), HashSet::new());
     }
 
     /// Get the users ListBox
