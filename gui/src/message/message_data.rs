@@ -5,16 +5,16 @@ mod imp {
     use gtk::glib;
     use std::cell::{Cell, OnceCell, RefCell};
 
-    use super::MessageData;
     use crate::message::MessageRow;
     use crate::user::UserObject;
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::MessageObject)]
     pub struct MessageObject {
-        #[property(name = "message", get, set, type = String, member = message)]
-        #[property(name = "is-send", get, set, type = bool, member = is_send)]
-        pub data: RefCell<MessageData>,
+        #[property(get, set)]
+        pub message: OnceCell<String>,
+        #[property(get, set)]
+        pub is_send: OnceCell<bool>,
         #[property(get, set)]
         pub sent_from: OnceCell<UserObject>,
         #[property(get, set)]
@@ -79,10 +79,4 @@ impl MessageObject {
         self.set_must_process(state);
         self
     }
-}
-
-#[derive(Default, Clone)]
-pub struct MessageData {
-    pub message: String,
-    pub is_send: bool,
 }
