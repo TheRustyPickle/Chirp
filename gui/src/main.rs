@@ -4,12 +4,13 @@ mod utils;
 mod window;
 mod ws;
 
+use adw::prelude::*;
 use adw::Application;
 use dotenvy::dotenv;
 use gdk::Display;
 use gio::resources_register_include;
 use glib::ExitCode;
-use gtk::{gdk, gio, glib, prelude::*, CssProvider, STYLE_PROVIDER_PRIORITY_THEME};
+use gtk::{gdk, gio, glib, CssProvider, STYLE_PROVIDER_PRIORITY_THEME};
 use tracing::info;
 use window::Window;
 
@@ -31,6 +32,7 @@ fn main() -> ExitCode {
 
 fn build_ui(app: &Application) {
     let window = Window::new(app);
+    window.set_icon_name(Some("chirp"));
     window.present();
 }
 
