@@ -3,7 +3,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::message::MessageObject;
 use crate::user::UserObject;
-use crate::window::Window;
 
 /// Types of request that are processed by the GUI to WS currently
 #[derive(Debug, Clone)]
@@ -17,7 +16,7 @@ pub enum RequestType {
     // Try to reconnect with the WS again
     ReconnectUser,
     // Send a message to another user
-    SendMessage(MessageData, MessageObject, Window),
+    SendMessage(MessageData, MessageObject),
     // Ask the WS for a specific user info
     GetUserData(u64),
     // Broadcast new user selection to the WS
@@ -208,7 +207,7 @@ impl MessageSyncRequest {
     }
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct MessageSyncData {
     pub message_data: Vec<MessageData>,
 }

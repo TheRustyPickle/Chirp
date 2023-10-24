@@ -10,8 +10,8 @@ mod imp {
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
 
-    use crate::ws::RequestType;
-    use crate::ws::WSObject;
+    use crate::window::Window;
+    use crate::ws::{RequestType, WSObject};
 
     #[derive(Properties, Default)]
     #[properties(wrapper_type = super::UserObject)]
@@ -41,6 +41,8 @@ mod imp {
         pub user_token: OnceCell<String>,
         #[property(get, set)]
         pub message_number: Cell<u64>,
+        #[property(get, set)]
+        pub main_window: OnceCell<Window>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
@@ -102,6 +104,7 @@ impl UserObject {
         color_to_ignore: Option<&str>,
         user_id: Option<u64>,
         user_token: Option<String>,
+        window: Window,
     ) -> Self {
         let messages = ListStore::new::<MessageObject>();
         let random_color = get_random_color(color_to_ignore);
@@ -113,6 +116,7 @@ impl UserObject {
             .property("image-link", image_link.to_owned())
             .property("messages", messages)
             .property("name-color", random_color)
+            .property("main-window", window)
             .build();
 
         // Will only be some in case of owner object and with some data saved
@@ -304,7 +308,7 @@ impl UserObject {
                         let user_data = FullUserData::new(self).to_json();
                         user_ws.create_new_user(user_data);
                     }
-                    RequestType::SendMessage(message_data, msg_obj, window) => {
+                    RequestType::SendMessage(message_data, msg_obj) => {
                         let new_number = self.message_number() + 1;
                         self.set_message_number(new_number);
                         msg_obj.set_message_number(new_number);
@@ -316,7 +320,7 @@ impl UserObject {
                         user_ws.send_text_message(&data);
                         msg_obj.to_process(false);
 
-                        window
+                        self.main_window()
                             .imp()
                             .message_numbers
                             .borrow_mut()
@@ -356,7 +360,15 @@ impl UserObject {
                     RequestType::DeleteMessage(user_id, number) => {
                         self.remove_message(number, false);
                         let data = DeleteMessage::new_json(user_id, number, self.user_token());
-                        user_ws.delete_message(data)
+                        user_ws.delete_message(data);
+
+                        self.main_window()
+                            .imp()
+                            .message_numbers
+                            .borrow_mut()
+                            .get_mut(&self.user_id())
+                            .unwrap()
+                            .remove(&number);
                     }
                 }
                 highest_index += 1;
@@ -480,7 +492,7 @@ impl UserObject {
         false
     }
 
-    pub fn handle_ws(&self, window: Window) {
+    pub fn handle_ws(&self) {
         let user_object = self.clone();
         let user_ws = self.user_ws();
 
@@ -491,14 +503,17 @@ impl UserObject {
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
                 let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-                user_object.start_listening(sender.clone(), window.clone());
-                window.handle_ws_message(&user_object, receiver);
+                user_object.start_listening(sender.clone());
+                user_object
+                    .main_window()
+                    .handle_ws_message(&user_object, receiver);
             }),
         );
         user_ws.imp().signal_ids.borrow_mut().push(ws_signal_id);
     }
 
-    fn start_listening(&self, sender: Sender<String>, window: Window) {
+    fn start_listening(&self, sender: Sender<String>) {
+        let window = self.main_window();
         let user_ws = self.user_ws();
         info!(
             "Starting listening for user {} with {}",
@@ -569,47 +584,37 @@ impl UserObject {
                         "/sync-message" => {
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
-                            let chunk_size = chat_data.message_data.len() / 10;
+                            let chunk_size = 2000;
+                            let chunks = chat_data.message_data.chunks(chunk_size);
+                            let mut last_timeout = 1;
+                            if chunks.len() == 1 { last_timeout = 0 };
+                            // Process messages in chunks to prevent the UI from freezing up
+                            for chunk in chunks {
+                                let new_chunk = chunk.to_owned();
+                                timeout_add_local_once(
+                                    Duration::from_secs(last_timeout),
+                                    clone!(@weak window, @weak user_object => move || {
+                                        for message in new_chunk {
+                                            if message.message.is_none() {
+                                                let message_exists = window
+                                                    .imp()
+                                                    .message_numbers
+                                                    .borrow_mut()
+                                                    .get_mut(&user_object.user_id())
+                                                    .unwrap()
+                                                    .remove(&message.message_number);
 
-                            if chunk_size > 100 {
-                                let mut last_timeout = 2;
-                                // Process larger amounts of messages in chunks to prevent the UI from freezing up
-                                for chunk in chat_data.message_data.chunks(chunk_size) {
-                                    let new_chunk = chunk.to_owned();
-                                    timeout_add_local_once(
-                                        Duration::from_secs(last_timeout),
-                                        clone!(@weak window, @weak user_object => move || {
-                                            for message in new_chunk {
-                                                if message.message.is_none() {
-                                                    let message_exists = window
-                                                        .imp()
-                                                        .message_numbers
-                                                        .borrow_mut()
-                                                        .get_mut(&user_object.user_id())
-                                                        .unwrap()
-                                                        .remove(&message.message_number);
-
-                                                    if message_exists {
-                                                        user_object.remove_message(message.message_number, false);
-                                                    }
-                                                    continue;
+                                                if message_exists {
+                                                    user_object.remove_message(message.message_number, false);
                                                 }
-                                                window.receive_message(message, user_object.clone(), false);
+                                                continue;
                                             }
-                                        }),
-                                    );
-                                    last_timeout += 2;
-                                }
-                            } else {
-                                for message in chat_data.message_data.into_iter() {
-                                    // if content is None, this message was deleted.
-                                    // We will check if this message exists in the UI. If yes, remove it
-                                    if message.message.is_none() {
-                                        user_object.remove_message(message.message_number, false);
-                                        continue;
-                                    }
-                                    window.receive_message(message, user_object.clone(), false);
-                                }
+                                            window.receive_message(message, user_object.clone(), false);
+                                        }
+                                        window.scroll_to_bottom(user_object);
+                                    }),
+                                );
+                                last_timeout += 1;
                             }
 
                             user_object.process_queue(None);
