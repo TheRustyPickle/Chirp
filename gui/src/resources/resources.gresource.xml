@@ -9,5 +9,7 @@
         
         <file compressed="true">style.css</file>
         <file compressed="true">style-dark.css</file>
+
+        <file preprocess="xml-stripblanks">icons/scalable/apps/chirp.svg</file>
     </gresource>
 </gresources>
