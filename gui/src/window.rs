@@ -6,7 +6,7 @@ mod imp {
     use glib::{object_subclass, Binding, Propagation};
     use gtk::{
         gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, ListView, Revealer,
-        ScrolledWindow, Stack, TextView,
+        Stack, TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::collections::{HashMap, HashSet};
@@ -17,8 +17,6 @@ mod imp {
     #[derive(CompositeTemplate, Default)]
     #[template(resource = "/com/github/therustypickle/chirp/window.xml")]
     pub struct Window {
-        #[template_child]
-        pub message_scroller: TemplateChild<ScrolledWindow>,
         #[template_child]
         pub message_entry: TemplateChild<TextView>,
         #[template_child]
@@ -99,8 +97,8 @@ use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    ListItem, Native, NoSelection, PositionType, Root, ShortcutManager, SignalListItemFactory,
-    Widget,
+    ListItem, ListScrollFlags, Native, NoSelection, PositionType, Root, ShortcutManager,
+    SignalListItemFactory, Widget,
 };
 use std::cmp::Ordering;
 use std::collections::HashSet;
@@ -180,17 +178,6 @@ impl Window {
                 window.send_message();
                 window.grab_focus();
             }));
-
-        // If the scrollbar size is changed, scroll to the bottom
-        let scroller_bar = self.imp().message_scroller.get();
-        /*let vadjust = scroller_bar.vadjustment();
-        vadjust.connect_changed(clone!(@weak vadjust => move |adjust| {
-            let upper = adjust.upper();
-            vadjust.set_value(upper);
-            if upper > 100.0 {
-                vadjust.set_value(upper - 100.0);
-            }
-        }));*/
 
         // If the message typing space is empty, show the background text + disable the send button
         // else remove the text and enable the send button
@@ -523,11 +510,7 @@ impl Window {
 
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
-        receiver.add_to_queue(RequestType::SendMessage(
-            send_message_data,
-            message.clone(),
-            self.clone(),
-        ));
+        receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
     }
 
     /// Gets called when a message is received or when syncing previous message data
@@ -646,12 +629,26 @@ impl Window {
                 .message_numbers
                 .borrow_mut()
                 .insert(data.user_id, HashSet::new());
-            UserObject::new("Me", None, None, Some(data.user_id), Some(data.user_token))
+            UserObject::new(
+                "Me",
+                None,
+                None,
+                Some(data.user_id),
+                Some(data.user_token),
+                self.clone(),
+            )
         } else {
-            UserObject::new("Me", Some(generate_random_avatar_link()), None, None, None)
+            UserObject::new(
+                "Me",
+                Some(generate_random_avatar_link()),
+                None,
+                None,
+                None,
+                self.clone(),
+            )
         };
 
-        user_data.handle_ws(self.clone());
+        user_data.handle_ws();
         self.get_users_liststore().append(&user_data);
 
         user_data
@@ -685,7 +682,8 @@ impl Window {
                 }
                 "/message" => {
                     let message_data = MessageData::from_json(response_data[1]);
-                    window.receive_message(message_data, user_object, true)
+                    window.receive_message(message_data, user_object.clone(), true);
+                    window.scroll_to_bottom(user_object);
                 },
                 "/update-user-id" => {
                     let id_data = UserIDs::from_json(response_data[1]);
@@ -715,6 +713,7 @@ impl Window {
             Some(&self.get_owner_name_color()),
             Some(user_data.user_id),
             None,
+            self.clone(),
         );
 
         // Every single user in the UserList of the client will have the owner User ID for reference
@@ -730,7 +729,7 @@ impl Window {
             .sync_create()
             .build();
 
-        new_user_data.handle_ws(self.clone());
+        new_user_data.handle_ws();
         self.get_users_liststore().append(&new_user_data);
         self.save_user_list();
         self.imp()
@@ -830,6 +829,19 @@ impl Window {
                 self.save_user_list();
                 break;
             }
+        }
+    }
+
+    /// Scroll to the bottom of the ListView if the given is selected
+    pub fn scroll_to_bottom(&self, current_user: UserObject) {
+        if current_user == self.get_chatting_with() {
+            let model = self.imp().message_list.model().unwrap();
+
+            let last_index = model.n_items() - 1;
+
+            self.imp()
+                .message_list
+                .scroll_to(last_index, ListScrollFlags::NONE, None);
         }
     }
 }
