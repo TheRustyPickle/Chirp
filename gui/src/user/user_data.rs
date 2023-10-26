@@ -79,9 +79,10 @@ use gio::subclass::prelude::ObjectSubclassIsExt;
 use gio::{spawn_blocking, ListStore};
 use glib::{
     clone, closure_local, timeout_add_local_once, Bytes, ControlFlow, MainContext, Object,
-    Priority, Receiver, Sender,
+    Priority, Receiver,
 };
 use gtk::{gdk, glib};
+use std::collections::HashSet;
 use std::time::Duration;
 use tracing::{debug, info};
 
@@ -89,8 +90,8 @@ use crate::message::MessageObject;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    DeleteMessage, FullUserData, ImageUpdate, MessageSyncData, MessageSyncRequest, NameUpdate,
-    RequestType, UserIDs, WSObject,
+    DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData, MessageSyncRequest,
+    NameUpdate, RequestType, UserIDs, WSObject,
 };
 
 glib::wrapper! {
@@ -502,17 +503,13 @@ impl UserObject {
             "ws-success",
             false,
             closure_local!(move |_from: WSObject, _success: bool| {
-                let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-                user_object.start_listening(sender.clone());
-                user_object
-                    .main_window()
-                    .handle_ws_message(&user_object, receiver);
+                user_object.start_listening();
             }),
         );
         user_ws.imp().signal_ids.borrow_mut().push(ws_signal_id);
     }
 
-    fn start_listening(&self, sender: Sender<String>) {
+    fn start_listening(&self) {
         let window = self.main_window();
         let user_ws = self.user_ws();
         info!(
@@ -555,7 +552,11 @@ impl UserObject {
                             user_object.set_user_id(id_data.user_id);
                             user_object.set_user_token(id_data.user_token);
                             user_object.set_owner_id(id_data.user_id);
-                            sender.send(text).unwrap();
+                            window.save_user_data();
+                            window.imp()
+                                .message_numbers
+                                .borrow_mut()
+                                .insert(id_data.user_id, HashSet::new());
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
@@ -623,7 +624,31 @@ impl UserObject {
                             let deletion_data = DeleteMessage::from_json(splitted_data[1]);
                             user_object.remove_message(deletion_data.message_number, false)
                         }
-                        "/message" | "/get-user-data" | "/new-user-message" => sender.send(text).unwrap(),
+                        "/message" => {
+                            let message_data = MessageData::from_json(splitted_data[1]);
+                            window.receive_message(message_data, user_object.clone(), true);
+                            window.scroll_to_bottom(user_object);
+                        }
+                        "/get-user-data" | "/new-user-message" => {
+                            let user_data = FullUserData::from_json(splitted_data[1]);
+
+                            if splitted_data[0] == "/get-user-data" {
+                                if user_data.user_id != 0 {
+                                    user_object.emit_by_name::<()>("user-exists", &[&true]);
+                                } else {
+                                    user_object.emit_by_name::<()>("user-exists", &[&false]);
+                                    return;
+                                }
+                            }
+
+                            if window.find_user(user_data.user_id).is_some() {
+                                user_object.check_image_link(user_data.image_link, false);
+                                info!("User {} has already been added. Dismissing the request", user_data.user_id);
+                                return;
+                            }
+
+                            window.create_user(user_data);
+                        },
                         _ => {}
                     }
                 }

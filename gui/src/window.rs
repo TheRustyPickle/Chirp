@@ -94,7 +94,7 @@ use adw::subclass::prelude::*;
 use adw::Application;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
-use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
     ListItem, ListScrollFlags, Native, NoSelection, PositionType, Root, ShortcutManager,
@@ -253,7 +253,7 @@ impl Window {
     }
 
     /// Save owner ID and Token in the predefined location in a json file
-    fn save_user_data(&self) {
+    pub fn save_user_data(&self) {
         let saving_location = self.settings().string("location");
         info!("Saving new user id info on {}", saving_location);
         let owner_id = self.get_chatting_from();
@@ -654,54 +654,9 @@ impl Window {
         user_data
     }
 
-    /// Function that handles some WS requests. Every added UserObject will have an instance of this to
-    /// process their requests.
-    pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
-        receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
-            let response_data: Vec<&str> = response.splitn(2, ' ').collect();
-            match response_data[0] {
-                "/get-user-data" | "/new-user-message" => {
-                    let user_data = FullUserData::from_json(response_data[1]);
-
-                    if response_data[0] == "/get-user-data" {
-                        if user_data.user_id != 0 {
-                            user_object.emit_by_name::<()>("user-exists", &[&true]);
-                        } else {
-                            user_object.emit_by_name::<()>("user-exists", &[&false]);
-                            return ControlFlow::Continue;
-                        }
-                    }
-
-                    if window.find_user(user_data.user_id).is_some() {
-                        user_object.check_image_link(user_data.image_link, false);
-                        info!("User {} has already been added. Dismissing the request", user_data.user_id);
-                        return ControlFlow::Continue;
-                    }
-
-                    window.create_user(user_data);
-                }
-                "/message" => {
-                    let message_data = MessageData::from_json(response_data[1]);
-                    window.receive_message(message_data, user_object.clone(), true);
-                    window.scroll_to_bottom(user_object);
-                },
-                "/update-user-id" => {
-                    let id_data = UserIDs::from_json(response_data[1]);
-                    window.save_user_data();
-                    window.imp()
-                        .message_numbers
-                        .borrow_mut()
-                        .insert(id_data.user_id, HashSet::new());
-                }
-                _ => {}
-            }
-            ControlFlow::Continue
-        }));
-    }
-
     /// Used to create all UserObject for the self's users ListStore except for the owner UserObject.
     /// Called when New Chat button is used or a message is received but the user was not added
-    fn create_user(&self, user_data: FullUserData) {
+    pub fn create_user(&self, user_data: FullUserData) {
         info!(
             "Creating new user with name: {}, id: {}",
             user_data.user_name, user_data.user_id
