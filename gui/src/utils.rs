@@ -1,8 +1,17 @@
 use chrono::{Local, NaiveDateTime};
 use gio::Cancellable;
 use gtk::glib::Bytes;
-use rand::Rng;
-use soup::{prelude::*, Message, Session};
+use pkcs1::{
+    DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPrivateKey, EncodeRsaPublicKey, Error,
+    LineEnding,
+};
+use rand::rngs::OsRng;
+use rand::{thread_rng, Rng, RngCore};
+use rsa::{pkcs1, RsaPrivateKey, RsaPublicKey};
+use soup::prelude::*;
+use soup::{Message, Session};
+use std::path::Path;
+use tracing::info;
 
 const COLORS: [&str; 10] = [
     "blue-1", "blue-2", "green-1", "green-2", "yellow-1", "orange-1", "red-1", "purple-1",
@@ -116,4 +125,44 @@ pub fn get_created_at_timing(target_date: &NaiveDateTime) -> String {
     } else {
         format!("{} {}", naive_date, naive_time)
     }
+}
+
+pub fn generate_new_rsa_keys() -> (RsaPublicKey, RsaPrivateKey) {
+    info!("Generating new RSA keys");
+    let private_key =
+        RsaPrivateKey::new(&mut thread_rng(), 2048).expect("failed to generate a key");
+    let public_key = RsaPublicKey::from(&private_key);
+
+    (public_key, private_key)
+}
+
+pub fn generate_new_aes_key() -> Vec<u8> {
+    info!("Generating a new AES key");
+    let mut aes_key = [0u8; 32];
+    OsRng.fill_bytes(&mut aes_key);
+    aes_key.to_vec()
+}
+
+pub fn read_rsa_keys(location: String) -> Result<(RsaPublicKey, RsaPrivateKey), Error> {
+    let public_location = format!("{}public_key.pem", location);
+    let private_location = format!("{}private_key.pem", location);
+
+    let public_path = Path::new(&public_location);
+    let private_path = Path::new(&private_location);
+
+    let public_key = DecodeRsaPublicKey::read_pkcs1_pem_file(public_path)?;
+    let private_key = DecodeRsaPrivateKey::read_pkcs1_pem_file(private_path)?;
+    Ok((public_key, private_key))
+}
+
+pub fn stringify_rsa_keys(
+    public_key: &RsaPublicKey,
+    private_key: &RsaPrivateKey,
+) -> (String, String) {
+    let public_string = public_key.to_pkcs1_pem(LineEnding::default()).unwrap();
+    let private_string = private_key
+        .to_pkcs1_pem(LineEnding::default())
+        .unwrap()
+        .to_string();
+    (public_string, private_string)
 }

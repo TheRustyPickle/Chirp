@@ -100,6 +100,7 @@ use gtk::{
     ListItem, ListScrollFlags, Native, NoSelection, PositionType, Root, ShortcutManager,
     SignalListItemFactory, Widget,
 };
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
@@ -110,7 +111,9 @@ use tracing::{debug, error, info};
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
-use crate::utils::{generate_random_avatar_link, get_created_at_timing};
+use crate::utils::{
+    generate_random_avatar_link, get_created_at_timing, read_rsa_keys, stringify_rsa_keys,
+};
 use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
 use crate::APP_ID;
 
@@ -246,6 +249,7 @@ impl Window {
     }
 
     // TODO use for when the app can take a location input
+    // NOTE when saving it must end with a /
     fn _update_setting(&self, new_location: &str) {
         self.settings()
             .set_string("location", new_location)
@@ -255,29 +259,50 @@ impl Window {
     /// Save owner ID and Token in the predefined location in a json file
     pub fn save_user_data(&self) {
         let saving_location = self.settings().string("location");
-        info!("Saving new user id info on {}", saving_location);
+        let user_data_path = format!("{}user_data.json", saving_location);
+
+        info!("Saving new user id info on {}", user_data_path);
         let owner_id = self.get_chatting_from();
         let id_data = UserIDs::new_json(owner_id.user_id(), owner_id.user_token());
 
-        let mut file = File::create(saving_location).unwrap();
+        let mut file = File::create(user_data_path).unwrap();
         file.write_all(id_data.as_bytes()).unwrap();
     }
 
     /// Check if any existing owner data is available
-    fn check_owner_id(&self) -> Option<UserIDs> {
+    fn check_saved_data(&self) -> Option<UserIDs> {
         let saving_location = self.settings().string("location");
-        if !saving_location.is_empty() {
-            if fs::metadata(saving_location.to_owned()).is_ok() {
-                let mut file = File::open(saving_location).unwrap();
-                let mut file_contents = String::new();
-                file.read_to_string(&mut file_contents)
-                    .expect("Failed to read file");
+        let user_data_path = format!("{}user_data.json", saving_location);
 
-                let id_data = UserIDs::from_json(&file_contents);
-                return Some(id_data);
+        if fs::metadata(user_data_path.to_owned()).is_ok() {
+            let mut file = File::open(user_data_path).unwrap();
+            let mut file_contents = String::new();
+
+            file.read_to_string(&mut file_contents)
+                .expect("Failed to read file");
+
+            let id_data = UserIDs::from_json(&file_contents);
+            return Some(id_data);
+        }
+
+        info!("Failed to find any previously saved user data");
+        None
+    }
+
+    fn check_saved_keys(&self) -> Option<(RsaPublicKey, RsaPrivateKey)> {
+        let saving_location = self.settings().string("location");
+        let public_location = format!("{}public_key.pem", saving_location);
+        let private_location = format!("{}private_key.pem", saving_location);
+
+        if fs::metadata(public_location.to_owned()).is_ok()
+            && fs::metadata(private_location.to_owned()).is_ok()
+        {
+            let existing_keys = read_rsa_keys(saving_location.to_string());
+            if let Ok((public, private)) = existing_keys {
+                return Some((public, private));
             }
         }
-        info!("Failed to find any previously saved user data");
+
         None
     }
 
@@ -311,6 +336,28 @@ impl Window {
 
         let to_save = serde_json::to_string(&save_list).unwrap();
         self.settings().set_string("users", &to_save).unwrap();
+    }
+
+    pub fn save_rsa_keys(&self) {
+        info!("Starting saving RSA keys");
+        let saving_location = self.settings().string("location").to_string();
+        let owner_data = self.get_chatting_from();
+
+        let public_key = owner_data.imp().rsa_public.get().unwrap();
+        let private_key = owner_data.imp().rsa_private.get().unwrap();
+
+        let (public_string, private_string) = stringify_rsa_keys(public_key, private_key);
+
+        if fs::metadata(saving_location.to_owned()).is_ok() {
+            let public_location = format!("{}public_key.pem", saving_location);
+            let private_location = format!("{}private_key.pem", saving_location);
+
+            let mut file = File::create(public_location).unwrap();
+            file.write_all(public_string.as_bytes()).unwrap();
+
+            let mut file = File::create(private_location).unwrap();
+            file.write_all(private_string.as_bytes()).unwrap();
+        }
     }
 
     /// Bind the main window header bar's title to the selected chat
@@ -352,8 +399,9 @@ impl Window {
         );
 
         info!("Setting own profile");
-        let saved_user_id = self.check_owner_id();
-        let data: UserObject = self.create_owner(saved_user_id.clone());
+        let saved_user_id = self.check_saved_data();
+        let saved_keys = self.check_saved_keys();
+        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys);
 
         self.imp().own_profile.replace(Some(data.clone()));
 
@@ -622,9 +670,16 @@ impl Window {
     }
 
     /// Used during the startup of the app. Called only once to create the owner profile
-    fn create_owner(&self, id_data: Option<UserIDs>) -> UserObject {
-        let user_data = if let Some(data) = id_data {
+    fn create_owner(
+        &self,
+        id_data: Option<UserIDs>,
+        key_data: Option<(RsaPublicKey, RsaPrivateKey)>,
+    ) -> UserObject {
+        let data_exists = id_data.is_some() && key_data.is_some();
+
+        let user_data = if data_exists {
             info!("Saved user data found");
+            let data = id_data.unwrap();
             self.imp()
                 .message_numbers
                 .borrow_mut()

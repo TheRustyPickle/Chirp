@@ -7,6 +7,7 @@ mod imp {
     use glib::subclass::Signal;
     use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
     use gtk::{gdk, glib};
+    use rsa::{RsaPrivateKey, RsaPublicKey};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
 
@@ -43,6 +44,9 @@ mod imp {
         pub message_number: Cell<u64>,
         #[property(get, set)]
         pub main_window: OnceCell<Window>,
+        pub rsa_public: OnceCell<RsaPublicKey>,
+        pub rsa_private: OnceCell<RsaPrivateKey>,
+        pub aes_key: RefCell<Option<Vec<u8>>>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
@@ -87,7 +91,10 @@ use std::time::Duration;
 use tracing::{debug, info};
 
 use crate::message::MessageObject;
-use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
+use crate::utils::{
+    generate_new_aes_key, generate_new_rsa_keys, generate_random_avatar_link, get_avatar,
+    get_random_color,
+};
 use crate::window::Window;
 use crate::ws::{
     DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData, MessageSyncRequest,
@@ -124,6 +131,8 @@ impl UserObject {
         if let Some(token) = user_token {
             obj.set_user_token(token);
             obj.set_owner_id(id);
+            let aes_key = generate_new_aes_key();
+            obj.imp().aes_key.replace(Some(aes_key));
         }
 
         let ws = WSObject::new();
@@ -416,9 +425,13 @@ impl UserObject {
         self.set_small_image(None::<Paintable>);
     }
 
+    /// Tries to find the given message ID and remove it from the message list.
+    /// If the list changed while the UI was being updated, does a recursive call to remove it
     pub fn remove_message(&self, target_number: u64, is_recursive: bool) {
         let total_len = self.messages().n_items();
 
+        // Try to reduce the number of iterations required. If bigger than total length then the message is likely to be
+        // on the right side/other half of the list
         if target_number > total_len as u64 / 2 {
             for (index, message_data) in self.messages().iter().rev().enumerate() {
                 let message_content: MessageObject = message_data.unwrap();
@@ -493,6 +506,7 @@ impl UserObject {
         false
     }
 
+    /// Waits for the websocket connection to be established and calls the function to start listening to messages
     pub fn handle_ws(&self) {
         let user_object = self.clone();
         let user_ws = self.user_ws();
@@ -509,6 +523,7 @@ impl UserObject {
         user_ws.imp().signal_ids.borrow_mut().push(ws_signal_id);
     }
 
+    /// Start listening for incoming messages from the websocket and handle accordingly
     fn start_listening(&self) {
         let window = self.main_window();
         let user_ws = self.user_ws();
@@ -557,6 +572,10 @@ impl UserObject {
                                 .message_numbers
                                 .borrow_mut()
                                 .insert(id_data.user_id, HashSet::new());
+                            let (public_key, private_key) = generate_new_rsa_keys();
+                            user_object.imp().rsa_public.set(public_key).unwrap();
+                            user_object.imp().rsa_private.set(private_key).unwrap();
+                            window.save_rsa_keys();
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
