@@ -16,9 +16,6 @@ mod imp {
         pub ws_signal_id: RefCell<Option<SignalHandlerId>>,
         pub conn_close_signal_id: RefCell<Option<SignalHandlerId>>,
         pub ws_sender: OnceCell<Sender<Option<WebsocketConnection>>>,
-        pub notifier: OnceCell<Sender<bool>>,
-        #[property(get, set)]
-        pub is_reconnecting: Cell<bool>,
         #[property(get, set)]
         pub reconnecting_timer: Cell<u32>,
         #[property(get, set)]
@@ -42,9 +39,6 @@ mod imp {
             static SIGNALS: Lazy<Vec<Signal>> = Lazy::new(|| {
                 vec![
                     Signal::builder("ws-success")
-                        .param_types([bool::static_type()])
-                        .build(),
-                    Signal::builder("ws-reconnect")
                         .param_types([bool::static_type()])
                         .build(),
                     Signal::builder("stop-processing")
@@ -114,9 +108,6 @@ impl WSObject {
 
         let cancel = Cancellable::new();
 
-        let is_reconnecting = self.is_reconnecting();
-        let notifier = self.imp().notifier.get().unwrap().clone();
-
         info!("Starting websocket connection with {}", websocket_url);
         session.websocket_connect_async(
             &message,
@@ -127,9 +118,6 @@ impl WSObject {
             move |result| match result {
                 Ok(connection) => {
                     sender.send(Some(connection)).unwrap();
-                    if is_reconnecting {
-                        notifier.send(true).unwrap()
-                    };
                 }
                 Err(error) => {
                     sender.send(None).unwrap();
@@ -141,12 +129,9 @@ impl WSObject {
 
     fn set_ws(&self) {
         let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
-        let (notifier_send, notifier_receive) = MainContext::channel(Priority::DEFAULT);
 
         self.imp().ws_sender.set(sender).unwrap();
-        self.imp().notifier.set(notifier_send).unwrap();
 
-        self.set_is_reconnecting(false);
         self.connect_to_ws();
 
         // If ws connection failed, try to reconnect
@@ -155,7 +140,7 @@ impl WSObject {
             None,
             clone!(@weak self as ws_object => @default-return ControlFlow::Break, move |conn| {
                 if ws_object.stop_processing() {
-                    debug!("Shutting down receiver 1");
+                    debug!("Shutting down receiver");
                     return ControlFlow::Break
                 }
                 if conn.is_some() {
@@ -194,18 +179,6 @@ impl WSObject {
             }),
         );
 
-        notifier_receive.attach(
-            None,
-            clone!(@weak self as ws => @default-return ControlFlow::Break, move |_| {
-                if ws.stop_processing() {
-                    debug!("Shutting down receiver 2");
-                    return ControlFlow::Break
-                }
-                ws.emit_by_name::<()>("ws-reconnect", &[&true]);
-                ControlFlow::Continue
-            }),
-        );
-
         let stop_processing_signal = self.connect_closure(
             "stop-processing",
             false,
@@ -218,9 +191,6 @@ impl WSObject {
                 // Send a message via the sender so the receiver can shut down
                 if let Some(sender) = from.imp().ws_sender.get() {
                     sender.send(None).unwrap();
-                }
-                if let Some(sender) = from.imp().notifier.get() {
-                    sender.send(true).unwrap();
                 }
                 from.stop_signals();
             }),
@@ -240,7 +210,6 @@ impl WSObject {
         let conn_close_signal =
             conn.connect_closed(clone!(@weak self as ws, @weak conn => move |_| {
                 info!("Connection closed. Starting again");
-                ws.set_is_reconnecting(true);
                 if let Some(id) = ws.imp().ws_signal_id.take() {
                     info!("disconnecting message connection");
                     conn.disconnect(id);

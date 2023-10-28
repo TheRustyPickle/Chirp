@@ -1,6 +1,7 @@
 use gio::subclass::prelude::ObjectSubclassIsExt;
 use serde::{Deserialize, Serialize};
 
+use crate::encryption::stringify_rsa_public;
 use crate::message::MessageObject;
 use crate::user::UserObject;
 
@@ -35,6 +36,7 @@ pub struct FullUserData {
     pub user_name: String,
     pub image_link: Option<String>,
     pub user_token: String,
+    pub rsa_public_key: String,
 }
 
 impl FullUserData {
@@ -45,11 +47,14 @@ impl FullUserData {
             String::new()
         };
 
+        let rsa_public_key = user_object.imp().rsa_public.get().unwrap();
+
         FullUserData {
             user_id: user_object.user_id(),
             user_name: user_object.name(),
             image_link: user_object.image_link(),
             user_token,
+            rsa_public_key: stringify_rsa_public(rsa_public_key),
         }
     }
 
@@ -63,6 +68,7 @@ impl FullUserData {
             user_name: self.user_name,
             image_link: self.image_link,
             user_token: String::new(),
+            rsa_public_key: self.rsa_public_key,
         }
     }
 
@@ -96,26 +102,55 @@ pub struct MessageData {
     pub created_at: String,
     pub from_user: u64,
     pub to_user: u64,
-    pub message: Option<String>,
+    pub sender_message: Option<Vec<u8>>,
+    pub receiver_message: Option<Vec<u8>>,
+    pub sender_key: Option<Vec<u8>>,
+    pub receiver_key: Option<Vec<u8>>,
+    pub sender_nonce: Option<Vec<u8>>,
+    pub receiver_nonce: Option<Vec<u8>>,
     pub message_number: u64,
     #[serde(skip_deserializing)]
     pub user_token: String,
 }
 
 impl MessageData {
-    pub fn new_incomplete(
-        created_at: String,
-        from_user: u64,
-        to_user: u64,
-        message: String,
-    ) -> Self {
+    pub fn new_incomplete(created_at: String, from_user: u64, to_user: u64) -> Self {
         MessageData {
             created_at,
             from_user,
             to_user,
-            message: Some(message),
+            sender_message: None,
+            receiver_message: None,
+            sender_key: None,
+            receiver_key: None,
+            sender_nonce: None,
+            receiver_nonce: None,
             message_number: 0,
             user_token: String::new(),
+        }
+    }
+
+    pub fn update_message(
+        self,
+        sender_message: Vec<u8>,
+        receiver_message: Vec<u8>,
+        sender_key: Vec<u8>,
+        receiver_key: Vec<u8>,
+        sender_nonce: Vec<u8>,
+        receiver_nonce: Vec<u8>,
+    ) -> Self {
+        MessageData {
+            created_at: self.created_at,
+            from_user: self.from_user,
+            to_user: self.to_user,
+            sender_message: Some(sender_message),
+            receiver_message: Some(receiver_message),
+            sender_key: Some(sender_key),
+            receiver_key: Some(receiver_key),
+            sender_nonce: Some(sender_nonce),
+            receiver_nonce: Some(receiver_nonce),
+            message_number: self.message_number,
+            user_token: self.user_token,
         }
     }
 
@@ -124,7 +159,12 @@ impl MessageData {
             created_at: self.created_at,
             from_user: self.from_user,
             to_user: self.to_user,
-            message: self.message,
+            sender_message: self.sender_message,
+            receiver_message: self.receiver_message,
+            sender_key: self.sender_key,
+            receiver_key: self.receiver_key,
+            sender_nonce: self.sender_nonce,
+            receiver_nonce: self.receiver_nonce,
             message_number: self.message_number,
             user_token,
         }
@@ -135,7 +175,12 @@ impl MessageData {
             created_at: self.created_at,
             from_user: self.from_user,
             to_user: self.to_user,
-            message: self.message,
+            sender_message: self.sender_message,
+            receiver_message: self.receiver_message,
+            sender_key: self.sender_key,
+            receiver_key: self.receiver_key,
+            sender_nonce: self.sender_nonce,
+            receiver_nonce: self.receiver_nonce,
             message_number,
             user_token: self.user_token,
         }
@@ -237,5 +282,31 @@ impl DeleteMessage {
     }
     pub fn from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
+    }
+}
+
+pub struct DecryptedMessageData {
+    pub created_at: String,
+    pub from_user: u64,
+    pub to_user: u64,
+    pub message: Option<String>,
+    pub message_number: u64,
+}
+
+impl DecryptedMessageData {
+    pub fn new(
+        created_at: String,
+        from_user: u64,
+        to_user: u64,
+        message: String,
+        message_number: u64,
+    ) -> Self {
+        DecryptedMessageData {
+            created_at,
+            from_user,
+            to_user,
+            message: Some(message),
+            message_number,
+        }
     }
 }

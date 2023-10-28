@@ -46,7 +46,9 @@ mod imp {
         pub main_window: OnceCell<Window>,
         pub rsa_public: OnceCell<RsaPublicKey>,
         pub rsa_private: OnceCell<RsaPrivateKey>,
-        pub aes_key: RefCell<Option<Vec<u8>>>,
+        pub receiver_rsa_public: OnceCell<RsaPublicKey>,
+        pub aes_key: OnceCell<Vec<u8>>,
+        pub receiver_aes_key: RefCell<Option<Vec<u8>>>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
@@ -86,15 +88,16 @@ use glib::{
     Priority, Receiver,
 };
 use gtk::{gdk, glib};
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::time::Duration;
 use tracing::{debug, info};
 
-use crate::message::MessageObject;
-use crate::utils::{
-    generate_new_aes_key, generate_new_rsa_keys, generate_random_avatar_link, get_avatar,
-    get_random_color,
+use crate::encryption::{
+    decrypt_message, encrypt_message, generate_new_aes_key, generate_new_rsa_keys,
 };
+use crate::message::MessageObject;
+use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
     DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData, MessageSyncRequest,
@@ -113,6 +116,8 @@ impl UserObject {
         user_id: Option<u64>,
         user_token: Option<String>,
         window: Window,
+        receiving_rsa_public_key: Option<RsaPublicKey>,
+        saved_keys: Option<(RsaPublicKey, RsaPrivateKey)>,
     ) -> Self {
         let messages = ListStore::new::<MessageObject>();
         let random_color = get_random_color(color_to_ignore);
@@ -124,16 +129,42 @@ impl UserObject {
             .property("image-link", image_link.to_owned())
             .property("messages", messages)
             .property("name-color", random_color)
-            .property("main-window", window)
+            .property("main-window", window.clone())
             .build();
 
         // Will only be some in case of owner object and with some data saved
         if let Some(token) = user_token {
             obj.set_user_token(token);
             obj.set_owner_id(id);
-            let aes_key = generate_new_aes_key();
-            obj.imp().aes_key.replace(Some(aes_key));
         }
+
+        // Will only be some in case of owner object and with some data saved
+        if let Some((public_key, private_key)) = saved_keys {
+            obj.imp().rsa_public.set(public_key).unwrap();
+            obj.imp().rsa_private.set(private_key).unwrap();
+        }
+
+        // Will always be when a new user is getting added
+        // Will only be Some for owner object when the data is saved
+        // In case not saved, creates a new RSA pair in thread
+        if let Some(key) = receiving_rsa_public_key {
+            obj.imp().receiver_rsa_public.set(key).unwrap();
+        } else {
+            let (sender, receiver) = MainContext::channel(Priority::default());
+
+            receiver.attach(None, clone!(@weak obj as user_object, @weak window => @default-return ControlFlow::Break, move |(public_key, private_key): (RsaPublicKey, RsaPrivateKey)| {
+                user_object.imp().rsa_public.set(public_key.clone()).unwrap();
+                user_object.imp().rsa_private.set(private_key).unwrap();
+                user_object.imp().receiver_rsa_public.set(public_key).unwrap();
+                window.save_rsa_keys();
+                user_object.add_queue_to_first(RequestType::CreateNewUser);
+                ControlFlow::Break
+            }));
+            spawn_blocking(move || sender.send(generate_new_rsa_keys()));
+        }
+
+        // Each object will have its own aes key for encrypting when sending messages
+        obj.imp().aes_key.set(generate_new_aes_key()).unwrap();
 
         let ws = WSObject::new();
         obj.check_image_link(image_link, false);
@@ -146,17 +177,6 @@ impl UserObject {
     }
 
     fn start_signals(&self) {
-        let user_object = self.clone();
-        // This signal gets emitted when the connection is once lost but reconnected again
-        let websocket_signal_id = self.user_ws().connect_closure(
-            "ws-reconnect",
-            false,
-            closure_local!(move |_from: WSObject, _success: bool| {
-                // Until reconnection success is received, all queue process is stopped
-                user_object.add_queue_to_first(RequestType::ReconnectUser);
-            }),
-        );
-
         // Is only processed when the image update needs to be processed by the websocket
         // Not processed when image link is received from the websocket
         let image_signal_id = self.connect_closure(
@@ -172,13 +192,7 @@ impl UserObject {
             ),
         );
 
-        let mut signal_ids = self.imp().signal_ids.borrow_mut();
-        self.user_ws()
-            .imp()
-            .signal_ids
-            .borrow_mut()
-            .push(websocket_signal_id);
-        signal_ids.push(image_signal_id);
+        self.imp().signal_ids.borrow_mut().push(image_signal_id);
     }
 
     pub fn stop_signals(&self) {
@@ -319,13 +333,37 @@ impl UserObject {
                         user_ws.create_new_user(user_data);
                     }
                     RequestType::SendMessage(message_data, msg_obj) => {
+                        let message_text = msg_obj.message();
                         let new_number = self.message_number() + 1;
+
                         self.set_message_number(new_number);
                         msg_obj.set_message_number(new_number);
 
+                        let aes_key = self.imp().aes_key.get().unwrap().clone();
+
+                        let rsa_public = self.imp().rsa_public.get().unwrap();
+                        let receiver_rsa_public = self.imp().receiver_rsa_public.get().unwrap();
+
+                        // This side's message encrypted with this side's rsa key
+                        let (sender_message, sender_key, sender_nonce) =
+                            encrypt_message(aes_key.clone(), rsa_public, &message_text);
+
+                        // The receiver side's is encrypted with the rsa key from the receiver's side
+                        // The receiver side is where this message is getting sent
+                        let (receiver_message, receiver_key, receiver_nonce) =
+                            encrypt_message(aes_key, receiver_rsa_public, &message_text);
+
                         let data = message_data
+                            .update_message(
+                                sender_message,
+                                receiver_message,
+                                sender_key,
+                                receiver_key,
+                                sender_nonce,
+                                receiver_nonce,
+                            )
                             .update_token(self.user_token())
-                            .update_message_number(self.message_number())
+                            .update_message_number(new_number)
                             .to_json();
                         user_ws.send_text_message(&data);
                         msg_obj.to_process(false);
@@ -513,6 +551,7 @@ impl UserObject {
 
         // Wait for the websocket to emit that a connect was established
         // before starting listening for incoming messages
+        // same signal is emitted when the conn is closed then connected again
         let ws_signal_id = user_ws.connect_closure(
             "ws-success",
             false,
@@ -532,12 +571,11 @@ impl UserObject {
             self.name(),
             self.user_id()
         );
-        if !user_ws.is_reconnecting() {
-            if self.user_id() == 0 {
-                self.add_queue_to_first(RequestType::CreateNewUser);
-            } else {
-                self.add_queue_to_first(RequestType::ReconnectUser);
-            }
+
+        // It will be 0 only in case where owner data is not saved. In this case creating new profile
+        // will be called when this object creates created at `new` function
+        if self.user_id() != 0 {
+            self.add_queue_to_first(RequestType::ReconnectUser);
         }
 
         let id = user_ws.ws_conn().unwrap().connect_message(
@@ -572,10 +610,7 @@ impl UserObject {
                                 .message_numbers
                                 .borrow_mut()
                                 .insert(id_data.user_id, HashSet::new());
-                            let (public_key, private_key) = generate_new_rsa_keys();
-                            user_object.imp().rsa_public.set(public_key).unwrap();
-                            user_object.imp().rsa_private.set(private_key).unwrap();
-                            window.save_rsa_keys();
+                            window.save_user_list();
                             user_object.process_queue(None);
                         }
                         "/image-updated" => {
@@ -615,6 +650,9 @@ impl UserObject {
                                     Duration::from_secs(last_timeout),
                                     clone!(@weak window, @weak user_object => move || {
                                         for message in new_chunk {
+                                            // TODO handle syncing
+                                            // TODO use the very last aes key as receiving aes key
+                                            /* 
                                             if message.message.is_none() {
                                                 let message_exists = window
                                                     .imp()
@@ -629,7 +667,7 @@ impl UserObject {
                                                 }
                                                 continue;
                                             }
-                                            window.receive_message(message, user_object.clone(), false);
+                                            window.receive_message(message, user_object.clone(), false);*/
                                         }
                                         window.scroll_to_bottom(user_object);
                                     }),
@@ -645,7 +683,16 @@ impl UserObject {
                         }
                         "/message" => {
                             let message_data = MessageData::from_json(splitted_data[1]);
-                            window.receive_message(message_data, user_object.clone(), true);
+                            let old_aes_key = user_object.imp().receiver_aes_key.borrow().clone();
+
+                            let rsa_private_key = user_object.imp().rsa_private.get().unwrap();
+                            let owner_id = user_object.owner_id();
+
+                            let (decrypted_data, new_aes_key) = decrypt_message(message_data, old_aes_key, rsa_private_key, owner_id);
+
+                            user_object.imp().receiver_aes_key.replace(Some(new_aes_key));
+
+                            window.receive_message(decrypted_data, user_object.clone(), true);
                             window.scroll_to_bottom(user_object);
                         }
                         "/get-user-data" | "/new-user-message" => {

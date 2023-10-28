@@ -10,6 +10,7 @@ pub struct User {
     pub user_name: String,
     pub image_link: Option<String>,
     pub user_token: String,
+    pub rsa_public_key: String,
 }
 
 impl User {
@@ -19,6 +20,7 @@ impl User {
             user_name: String::new(),
             image_link: None,
             user_token: String::new(),
+            rsa_public_key: String::new(),
         }
     }
 
@@ -32,6 +34,7 @@ impl User {
             user_name: self.user_name,
             image_link: self.image_link,
             user_token: self.user_token,
+            rsa_public_key: self.rsa_public_key,
         }
     }
 
@@ -41,6 +44,7 @@ impl User {
             user_name: self.user_name,
             image_link: self.image_link,
             user_token: token,
+            rsa_public_key: self.rsa_public_key,
         }
     }
 

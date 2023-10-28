@@ -109,12 +109,11 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use tracing::{debug, error, info};
 
+use crate::encryption::{read_rsa_keys_from_file, read_rsa_public_from_string, stringify_rsa_keys};
 use crate::message::{MessageObject, MessageRow};
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
-use crate::utils::{
-    generate_random_avatar_link, get_created_at_timing, read_rsa_keys, stringify_rsa_keys,
-};
-use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
+use crate::utils::{generate_random_avatar_link, get_created_at_timing};
+use crate::ws::{DecryptedMessageData, FullUserData, MessageData, RequestType, UserIDs};
 use crate::APP_ID;
 
 wrapper! {
@@ -289,6 +288,7 @@ impl Window {
         None
     }
 
+    /// Check if any existing rsa keys are available
     fn check_saved_keys(&self) -> Option<(RsaPublicKey, RsaPrivateKey)> {
         let saving_location = self.settings().string("location");
         let public_location = format!("{}public_key.pem", saving_location);
@@ -297,7 +297,7 @@ impl Window {
         if fs::metadata(public_location.to_owned()).is_ok()
             && fs::metadata(private_location.to_owned()).is_ok()
         {
-            let existing_keys = read_rsa_keys(saving_location.to_string());
+            let existing_keys = read_rsa_keys_from_file(saving_location.to_string());
             if let Ok((public, private)) = existing_keys {
                 return Some((public, private));
             }
@@ -338,6 +338,7 @@ impl Window {
         self.settings().set_string("users", &to_save).unwrap();
     }
 
+    /// Save the RSA keys to the saved location
     pub fn save_rsa_keys(&self) {
         info!("Starting saving RSA keys");
         let saving_location = self.settings().string("location").to_string();
@@ -401,14 +402,15 @@ impl Window {
         info!("Setting own profile");
         let saved_user_id = self.check_saved_data();
         let saved_keys = self.check_saved_keys();
-        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys);
+        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys.clone());
 
         self.imp().own_profile.replace(Some(data.clone()));
 
         // Select the first row we just added
         self.get_user_list().row_at_index(0).unwrap().activate();
 
-        if let Some(id_data) = saved_user_id {
+        if saved_user_id.is_some() && saved_keys.is_some() {
+            let id_data = saved_user_id.unwrap();
             let mut saved_users = self.get_saved_user_data();
             // If empty stop checking
             if saved_users.is_empty() {
@@ -418,6 +420,7 @@ impl Window {
             let owner_data = saved_users.remove(0);
             // If it's not the same then the saved data is outdated or invalid
             if owner_data.user_id != id_data.user_id {
+                // TODO empty the user list
                 error!("Invalid or outdated owner data found. Dismissing saved data");
                 return;
             }
@@ -432,6 +435,8 @@ impl Window {
             for user_data in saved_users {
                 self.create_user(user_data)
             }
+        } else {
+            // TODO empty everything
         }
     }
 
@@ -554,17 +559,18 @@ impl Window {
         buffer.set_text("");
 
         let send_message_data =
-            MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id, content);
+            MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id);
 
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
         receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
+        self.scroll_to_bottom(receiver);
     }
 
     /// Gets called when a message is received or when syncing previous message data
     pub fn receive_message(
         &self,
-        message_data: MessageData,
+        message_data: DecryptedMessageData,
         other_user: UserObject,
         add_css: bool,
     ) {
@@ -679,6 +685,8 @@ impl Window {
 
         let user_data = if data_exists {
             info!("Saved user data found");
+
+            let (public_key, private_key) = key_data.unwrap();
             let data = id_data.unwrap();
             self.imp()
                 .message_numbers
@@ -691,6 +699,8 @@ impl Window {
                 Some(data.user_id),
                 Some(data.user_token),
                 self.clone(),
+                Some(public_key.clone()),
+                Some((public_key, private_key)),
             )
         } else {
             UserObject::new(
@@ -700,6 +710,8 @@ impl Window {
                 None,
                 None,
                 self.clone(),
+                None,
+                None,
             )
         };
 
@@ -717,6 +729,7 @@ impl Window {
             user_data.user_name, user_data.user_id
         );
 
+        let rsa_public_key = read_rsa_public_from_string(user_data.rsa_public_key);
         let new_user_data = UserObject::new(
             &user_data.user_name,
             user_data.image_link,
@@ -724,6 +737,8 @@ impl Window {
             Some(user_data.user_id),
             None,
             self.clone(),
+            Some(rsa_public_key),
+            None,
         );
 
         // Every single user in the UserList of the client will have the owner User ID for reference
@@ -738,6 +753,12 @@ impl Window {
             .bind_property("user-token", &new_user_data, "user-token")
             .sync_create()
             .build();
+
+        let public_key = chatting_from.imp().rsa_public.get().unwrap().clone();
+        let private_key = chatting_from.imp().rsa_private.get().unwrap().clone();
+
+        new_user_data.imp().rsa_public.set(public_key).unwrap();
+        new_user_data.imp().rsa_private.set(private_key).unwrap();
 
         new_user_data.handle_ws();
         self.get_users_liststore().append(&new_user_data);

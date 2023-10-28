@@ -6,10 +6,15 @@ diesel::table! {
         #[max_length = 40]
         message_group -> Varchar,
         message_number -> Int4,
-        message_text -> Nullable<Text>,
         message_sender -> Int4,
         message_receiver -> Int4,
         created_at -> Timestamptz,
+        sender_message -> Nullable<Bytea>,
+        receiver_message -> Nullable<Bytea>,
+        sender_key -> Nullable<Bytea>,
+        receiver_key -> Nullable<Bytea>,
+        sender_nonce -> Nullable<Bytea>,
+        receiver_nonce -> Nullable<Bytea>,
     }
 }
 
@@ -21,6 +26,7 @@ diesel::table! {
         image_link -> Nullable<Text>,
         #[max_length = 70]
         user_token -> Varchar,
+        rsa_public_key -> Text,
     }
 }
 

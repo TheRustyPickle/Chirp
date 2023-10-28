@@ -70,7 +70,12 @@ pub struct MessageData {
     pub created_at: String,
     pub from_user: usize,
     pub to_user: usize,
-    pub message: Option<String>,
+    pub sender_message: Option<Vec<u8>>,
+    pub receiver_message: Option<Vec<u8>>,
+    pub sender_key: Option<Vec<u8>>,
+    pub receiver_key: Option<Vec<u8>>,
+    pub sender_nonce: Option<Vec<u8>>,
+    pub receiver_nonce: Option<Vec<u8>>,
     pub message_number: usize,
     #[serde(skip_serializing)]
     pub user_token: String,
@@ -93,6 +98,7 @@ impl MessageData {
     }
 }
 
+// TODO: Remove it and use IDInfo instead
 #[derive(Deserialize)]
 pub struct SendUserData {
     pub user_id: usize,
