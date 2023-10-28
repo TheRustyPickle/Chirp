@@ -1,3 +1,4 @@
+mod encryption;
 mod message;
 mod user;
 mod utils;
