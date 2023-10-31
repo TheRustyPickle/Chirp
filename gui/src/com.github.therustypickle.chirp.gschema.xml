@@ -3,7 +3,7 @@
   <schema id="com.github.therustypickle.chirp" path="/com/github/therustypickle/chirp/">
     <key name="location" type="s">
       <default>"./"</default>
-      <summary>Location of import owner data is saved</summary>
+      <summary>Location where owner data and keys are saved</summary>
     </key>
     <key name="users" type="s">
       <default>""</default>
