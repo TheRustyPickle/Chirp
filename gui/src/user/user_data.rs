@@ -48,6 +48,7 @@ mod imp {
         pub rsa_private: OnceCell<RsaPrivateKey>,
         pub receiver_rsa_public: OnceCell<RsaPublicKey>,
         pub aes_key: OnceCell<Vec<u8>>,
+        pub receiver_aes_key: RefCell<Option<Vec<u8>>>,
         pub message_factory: OnceCell<SignalListItemFactory>,
         pub selection_model: OnceCell<NoSelection>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
@@ -79,6 +80,17 @@ mod imp {
     }
 }
 
+use crate::encryption::{
+    decrypt_message, decrypt_message_chunk, encrypt_message, generate_new_aes_key,
+    generate_new_rsa_keys,
+};
+use crate::message::{MessageObject, MessageRow};
+use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
+use crate::window::Window;
+use crate::ws::{
+    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
+    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
+};
 use adw::prelude::*;
 use gdk::{gdk_pixbuf, Paintable, Texture};
 use gdk_pixbuf::{InterpType, PixbufLoader};
@@ -91,20 +103,9 @@ use glib::{
 use gtk::{gdk, glib, ListItem, NoSelection, SignalListItemFactory};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
+use std::thread;
 use std::time::Duration;
 use tracing::{debug, info};
-
-use crate::encryption::{
-    decrypt_message, decrypt_message_chunk, encrypt_message, generate_new_aes_key,
-    generate_new_rsa_keys,
-};
-use crate::message::{MessageObject, MessageRow};
-use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
-use crate::window::Window;
-use crate::ws::{
-    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
-    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
-};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -163,7 +164,7 @@ impl UserObject {
                 user_object.add_queue_to_first(RequestType::CreateNewUser);
                 ControlFlow::Break
             }));
-            spawn_blocking(move || sender.send(generate_new_rsa_keys()));
+            thread::spawn(move || sender.send(generate_new_rsa_keys()));
         }
 
         // Each object will have its own aes key for encrypting when sending messages
@@ -710,6 +711,10 @@ impl UserObject {
 
                             let (sender, receiver) = MainContext::channel(Priority::default());
 
+                            // We only want the GUI to scroll to the bottom if this is the very first sync message
+                            // or there is no existing message in the GUI yet
+                            let mut to_scroll_bottom = user_object.messages().n_items() == 0;
+
                             receiver.attach(None, clone!(
                                 @weak user_object, @weak window => @default-return ControlFlow::Break,
                                 move |(message_data, completed): (Vec<DecryptedMessageData>, bool)| {
@@ -730,7 +735,11 @@ impl UserObject {
                                     }
                                     window.receive_message(message, user_object.clone(), false);
                                 }
-                                window.scroll_to_bottom(user_object);
+
+                                if to_scroll_bottom {
+                                    window.scroll_to_bottom(user_object);
+                                    to_scroll_bottom = false;
+                                }
 
                                 if completed {
                                     return ControlFlow::Break
@@ -738,9 +747,11 @@ impl UserObject {
                                 ControlFlow::Continue
                             }));
 
-                            std::thread::spawn(move || {
+                            let old_aes_key = user_object.imp().receiver_aes_key.borrow().clone();
+                            thread::spawn(move || {
                                 decrypt_message_chunk(
                                     sender,
+                                    old_aes_key,
                                     chat_data.message_data,
                                     &rsa_private_key,
                                     owner_id,
@@ -758,9 +769,11 @@ impl UserObject {
                             let rsa_private_key = user_object.imp().rsa_private.get().unwrap();
                             let owner_id = user_object.owner_id();
 
+                            let old_aes_key = user_object.imp().receiver_aes_key.borrow().clone();
                             let decrypted_data =
-                                decrypt_message(message_data, rsa_private_key, owner_id);
+                                decrypt_message(message_data, &old_aes_key, rsa_private_key, owner_id);
 
+                            user_object.imp().receiver_aes_key.replace(Some(decrypted_data.used_aes_key.clone()));
                             window.receive_message(decrypted_data, user_object.clone(), true);
                             window.scroll_to_bottom(user_object);
                         }
