@@ -97,11 +97,9 @@ use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
 use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    ListItem, ListScrollFlags, Native, NoSelection, PositionType, Root, ShortcutManager,
-    SignalListItemFactory, Widget,
+    ListScrollFlags, Native, PositionType, Root, ShortcutManager, Widget,
 };
 use rsa::{RsaPrivateKey, RsaPublicKey};
-use std::cmp::Ordering;
 use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
@@ -110,7 +108,7 @@ use std::time::Duration;
 use tracing::{debug, error, info};
 
 use crate::encryption::{read_rsa_keys_from_file, read_rsa_public_from_string, stringify_rsa_keys};
-use crate::message::{MessageObject, MessageRow};
+use crate::message::MessageObject;
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::{generate_random_avatar_link, get_created_at_timing};
 use crate::ws::{DecryptedMessageData, FullUserData, MessageData, RequestType, UserIDs};
@@ -255,6 +253,10 @@ impl Window {
             .unwrap();
     }
 
+    fn empty_saved_user_list(&self) {
+        self.settings().set_string("users", "").unwrap();
+    }
+
     /// Save owner ID and Token in the predefined location in a json file
     pub fn save_user_data(&self) {
         let saving_location = self.settings().string("location");
@@ -270,6 +272,7 @@ impl Window {
 
     /// Check if any existing owner data is available
     fn check_saved_data(&self) -> Option<UserIDs> {
+        info!("Checking for saved user data");
         let saving_location = self.settings().string("location");
         let user_data_path = format!("{}user_data.json", saving_location);
 
@@ -281,6 +284,7 @@ impl Window {
                 .expect("Failed to read file");
 
             let id_data = UserIDs::from_json(&file_contents);
+            info!("Saved user data found");
             return Some(id_data);
         }
 
@@ -290,6 +294,7 @@ impl Window {
 
     /// Check if any existing rsa keys are available
     fn check_saved_keys(&self) -> Option<(RsaPublicKey, RsaPrivateKey)> {
+        info!("Checking for saved RSA keys");
         let saving_location = self.settings().string("location");
         let public_location = format!("{}public_key.pem", saving_location);
         let private_location = format!("{}private_key.pem", saving_location);
@@ -299,6 +304,7 @@ impl Window {
         {
             let existing_keys = read_rsa_keys_from_file(saving_location.to_string());
             if let Ok((public, private)) = existing_keys {
+                info!("Saved RSA Keys found");
                 return Some((public, private));
             }
         }
@@ -420,8 +426,8 @@ impl Window {
             let owner_data = saved_users.remove(0);
             // If it's not the same then the saved data is outdated or invalid
             if owner_data.user_id != id_data.user_id {
-                // TODO empty the user list
                 error!("Invalid or outdated owner data found. Dismissing saved data");
+                self.empty_saved_user_list();
                 return;
             }
 
@@ -436,7 +442,7 @@ impl Window {
                 self.create_user(user_data)
             }
         } else {
-            // TODO empty everything
+            self.empty_saved_user_list();
         }
     }
 
@@ -449,55 +455,11 @@ impl Window {
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
         user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
-        let message_list = user.messages();
-        let selection_model = NoSelection::new(Some(message_list));
-        self.imp().message_list.set_model(Some(&selection_model));
+        let message_factory = user.imp().message_factory.get().unwrap();
+        let selection_model = user.imp().selection_model.get().unwrap();
+        self.imp().message_list.set_model(Some(selection_model));
 
-        // Bind user chatting with liststore with the factory so if any new message gets added there
-        // new message row creation also starts
-        let factory = SignalListItemFactory::new();
-
-        factory.connect_setup(move |_, list_item| {
-            let message_row = MessageRow::new_empty();
-            list_item
-                .downcast_ref::<ListItem>()
-                .unwrap()
-                .set_child(Some(&message_row));
-            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
-            list_item.set_activatable(false);
-            list_item.set_selectable(false);
-            list_item.set_focusable(false);
-        });
-
-        factory.connect_bind(clone!(@weak self as window => move |_, item| {
-            let list_item = item
-            .downcast_ref::<ListItem>()
-            .unwrap();
-
-            let message_object = list_item
-                .item()
-                .and_downcast::<MessageObject>()
-                .unwrap();
-
-            let message_row = list_item
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-            message_row.update(&message_object, &window);
-        }));
-
-        factory.connect_unbind(move |_, list_item| {
-            let message_row = list_item
-                .downcast_ref::<ListItem>()
-                .unwrap()
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-
-            message_row.stop_signals();
-        });
-
-        self.imp().message_list.set_factory(Some(&factory));
+        self.imp().message_list.set_factory(Some(message_factory));
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -547,7 +509,7 @@ impl Window {
         let message_timing = get_created_at_timing(&current_time.naive_local());
 
         let message = MessageObject::new(
-            content.to_owned(),
+            content,
             true,
             sender,
             receiver.clone(),
@@ -625,30 +587,8 @@ impl Window {
             message_timing,
             Some(message_data.message_number),
         );
-
-        // Will always proceed to this block if syncing messages
         if current_message_number >= message_data.message_number {
-            // If 0 element, no checks to be done. Append it to the list
-            let element_num = other_user.messages().n_items();
-            if element_num < 1 {
-                other_user.messages().append(&message);
-            } else {
-                other_user
-                    .messages()
-                    .insert_sorted(&message, |obj_1, obj_2| {
-                        let message_content_1: MessageObject = obj_1.clone().downcast().unwrap();
-                        let message_content_2: MessageObject = obj_2.clone().downcast().unwrap();
-                        let msg_num_1 = message_content_1.imp().message_number.get();
-                        let msg_num_2 = message_content_2.imp().message_number.get();
-
-                        match (msg_num_1, msg_num_2) {
-                            (Some(num_a), Some(num_b)) => num_a.cmp(&num_b),
-                            (Some(_), None) => Ordering::Less,
-                            (None, Some(_)) => Ordering::Greater,
-                            (None, None) => Ordering::Equal,
-                        }
-                    });
-            }
+            other_user.messages().insert(0, &message);
         } else {
             other_user.messages().append(&message);
         }

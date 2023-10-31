@@ -354,6 +354,7 @@ impl ChatServer {
         }
 
         let group_name = create_message_group(owner_id, sync_data.user_id);
+        let last_message_number = get_last_message_number(&mut self.conn, group_name.to_owned());
 
         info!("Sending sync message data of group {}", group_name);
 
@@ -385,7 +386,12 @@ impl ChatServer {
             })
             .collect();
 
-        let to_send = SyncMessageData::new_json(message_data);
+        let to_send = SyncMessageData::new_json(
+            message_data,
+            last_message_number,
+            sync_data.start_at,
+            sync_data.end_at,
+        );
 
         if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
             receiver_ws.do_send(Message(format!("/sync-message {}", to_send)))

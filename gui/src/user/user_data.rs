@@ -6,7 +6,7 @@ mod imp {
     use glib::once_cell::sync::Lazy;
     use glib::subclass::Signal;
     use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
-    use gtk::{gdk, glib};
+    use gtk::{gdk, glib, NoSelection, SignalListItemFactory};
     use rsa::{RsaPrivateKey, RsaPublicKey};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
@@ -48,7 +48,8 @@ mod imp {
         pub rsa_private: OnceCell<RsaPrivateKey>,
         pub receiver_rsa_public: OnceCell<RsaPublicKey>,
         pub aes_key: OnceCell<Vec<u8>>,
-        pub receiver_aes_key: RefCell<Option<Vec<u8>>>,
+        pub message_factory: OnceCell<SignalListItemFactory>,
+        pub selection_model: OnceCell<NoSelection>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
@@ -87,21 +88,22 @@ use glib::{
     clone, closure_local, timeout_add_local_once, Bytes, ControlFlow, MainContext, Object,
     Priority, Receiver,
 };
-use gtk::{gdk, glib};
+use gtk::{gdk, glib, ListItem, NoSelection, SignalListItemFactory};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::time::Duration;
 use tracing::{debug, info};
 
 use crate::encryption::{
-    decrypt_message, encrypt_message, generate_new_aes_key, generate_new_rsa_keys,
+    decrypt_message, decrypt_message_chunk, encrypt_message, generate_new_aes_key,
+    generate_new_rsa_keys,
 };
-use crate::message::MessageObject;
+use crate::message::{MessageObject, MessageRow};
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData, MessageSyncRequest,
-    NameUpdate, RequestType, UserIDs, WSObject,
+    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
+    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
 };
 
 glib::wrapper! {
@@ -120,6 +122,7 @@ impl UserObject {
         saved_keys: Option<(RsaPublicKey, RsaPrivateKey)>,
     ) -> Self {
         let messages = ListStore::new::<MessageObject>();
+        let no_selection = NoSelection::new(Some(messages.clone()));
         let random_color = get_random_color(color_to_ignore);
         let id = if let Some(id) = user_id { id } else { 0 };
 
@@ -165,14 +168,18 @@ impl UserObject {
 
         // Each object will have its own aes key for encrypting when sending messages
         obj.imp().aes_key.set(generate_new_aes_key()).unwrap();
-
-        let ws = WSObject::new();
-        obj.check_image_link(image_link, false);
-
-        obj.set_user_ws(ws);
         obj.set_message_number(0);
+        obj.imp().selection_model.set(no_selection).unwrap();
+        obj.imp()
+            .message_factory
+            .set(SignalListItemFactory::new())
+            .unwrap();
+        obj.start_factory();
         obj.start_signals();
 
+        let ws = WSObject::new();
+        obj.set_user_ws(ws);
+        obj.check_image_link(image_link, false);
         obj
     }
 
@@ -193,6 +200,54 @@ impl UserObject {
         );
 
         self.imp().signal_ids.borrow_mut().push(image_signal_id);
+    }
+
+    fn start_factory(&self) {
+        let factory = self.imp().message_factory.get().unwrap();
+        let window = self.main_window();
+
+        let factory_setup_signal = factory.connect_setup(move |_, list_item| {
+            let message_row = MessageRow::new_empty();
+            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
+            list_item.set_child(Some(&message_row));
+            list_item.set_activatable(false);
+            list_item.set_selectable(false);
+            list_item.set_focusable(false);
+        });
+
+        let factory_bind_signal = factory.connect_bind(clone!(@weak window => move |_, item| {
+            let list_item = item
+            .downcast_ref::<ListItem>()
+            .unwrap();
+
+            let message_object = list_item
+                .item()
+                .and_downcast::<MessageObject>()
+                .unwrap();
+
+            let message_row = list_item
+                .child()
+                .and_downcast::<MessageRow>()
+                .unwrap();
+            message_row.update(&message_object, &window);
+        }));
+
+        let factory_unbind_signal = factory.connect_unbind(move |_, list_item| {
+            let message_row = list_item
+                .downcast_ref::<ListItem>()
+                .unwrap()
+                .child()
+                .and_downcast::<MessageRow>()
+                .unwrap();
+
+            message_row.stop_signals();
+        });
+
+        let mut signal_list = self.imp().signal_ids.borrow_mut();
+
+        signal_list.push(factory_setup_signal);
+        signal_list.push(factory_bind_signal);
+        signal_list.push(factory_unbind_signal);
     }
 
     pub fn stop_signals(&self) {
@@ -365,6 +420,7 @@ impl UserObject {
                             .update_token(self.user_token())
                             .update_message_number(new_number)
                             .to_json();
+
                         user_ws.send_text_message(&data);
                         msg_obj.to_process(false);
 
@@ -375,6 +431,8 @@ impl UserObject {
                             .get_mut(&self.user_id())
                             .unwrap()
                             .insert(new_number);
+
+                        //self.main_window().scroll_to_bottom(self.clone());
                     }
                     RequestType::ImageUpdated(link) => {
                         self.check_image_link(link.to_owned(), true);
@@ -397,6 +455,10 @@ impl UserObject {
                         user_ws.selection_update(data)
                     }
                     RequestType::SyncMessage(start_at, end_at) => {
+                        info!(
+                            "Sending request to sync message from {} {}",
+                            start_at, end_at
+                        );
                         let data = MessageSyncRequest::new_json(
                             self.user_id(),
                             start_at,
@@ -573,7 +635,7 @@ impl UserObject {
         );
 
         // It will be 0 only in case where owner data is not saved. In this case creating new profile
-        // will be called when this object creates created at `new` function
+        // will be called when this object is created at `new` function
         if self.user_id() != 0 {
             self.add_queue_to_first(RequestType::ReconnectUser);
         }
@@ -582,7 +644,6 @@ impl UserObject {
             clone!(@weak self as user_object => move |_ws, _s, bytes| {
                 let byte_slice = bytes.to_vec();
                 let text = String::from_utf8(byte_slice).unwrap();
-                debug!("{} {} Received from WS: {text}", user_object.name(), user_object.user_id());
 
                 if text.starts_with('/') {
                     let splitted_data: Vec<&str> = text.splitn(2, ' ').collect();
@@ -626,9 +687,14 @@ impl UserObject {
                                 message_number
                             );
                             if message_number > user_object.message_number() {
+                                let sync_target = if message_number > 500 {
+                                    message_number - 500
+                                } else {
+                                    0
+                                };
                                 // Syncing must happen before any pending message sent or deletion is performed
                                 user_object.add_queue_to_first(RequestType::SyncMessage(
-                                    user_object.message_number(),
+                                    sync_target,
                                     message_number,
                                 ));
                                 user_object.set_message_number(message_number);
@@ -637,44 +703,49 @@ impl UserObject {
                             }
                         }
                         "/sync-message" => {
+                            let owner_id = user_object.owner_id();
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
-                            let chunk_size = 2000;
-                            let chunks = chat_data.message_data.chunks(chunk_size);
-                            let mut last_timeout = 1;
-                            if chunks.len() == 1 { last_timeout = 0 };
-                            // Process messages in chunks to prevent the UI from freezing up
-                            for chunk in chunks {
-                                let new_chunk = chunk.to_owned();
-                                timeout_add_local_once(
-                                    Duration::from_secs(last_timeout),
-                                    clone!(@weak window, @weak user_object => move || {
-                                        for message in new_chunk {
-                                            // TODO handle syncing
-                                            // TODO use the very last aes key as receiving aes key
-                                            /* 
-                                            if message.message.is_none() {
-                                                let message_exists = window
-                                                    .imp()
-                                                    .message_numbers
-                                                    .borrow_mut()
-                                                    .get_mut(&user_object.user_id())
-                                                    .unwrap()
-                                                    .remove(&message.message_number);
+                            let rsa_private_key = user_object.imp().rsa_private.get().unwrap().clone();
 
-                                                if message_exists {
-                                                    user_object.remove_message(message.message_number, false);
-                                                }
-                                                continue;
-                                            }
-                                            window.receive_message(message, user_object.clone(), false);*/
+                            let (sender, receiver) = MainContext::channel(Priority::default());
+
+                            receiver.attach(None, clone!(
+                                @weak user_object, @weak window => @default-return ControlFlow::Break,
+                                move |(message_data, completed): (Vec<DecryptedMessageData>, bool)| {
+                                for message in message_data {
+                                    if message.message.is_none() {
+                                        let message_exists = window
+                                            .imp()
+                                            .message_numbers
+                                            .borrow_mut()
+                                            .get_mut(&user_object.user_id())
+                                            .unwrap()
+                                            .remove(&message.message_number);
+
+                                        if message_exists {
+                                            user_object.remove_message(message.message_number, false);
                                         }
-                                        window.scroll_to_bottom(user_object);
-                                    }),
-                                );
-                                last_timeout += 1;
-                            }
+                                        continue;
+                                    }
+                                    window.receive_message(message, user_object.clone(), false);
+                                }
+                                window.scroll_to_bottom(user_object);
 
+                                if completed {
+                                    return ControlFlow::Break
+                                }
+                                ControlFlow::Continue
+                            }));
+
+                            std::thread::spawn(move || {
+                                decrypt_message_chunk(
+                                    sender,
+                                    chat_data.message_data,
+                                    &rsa_private_key,
+                                    owner_id,
+                                )
+                            });
                             user_object.process_queue(None);
                         }
                         "/delete-message" => {
@@ -683,14 +754,12 @@ impl UserObject {
                         }
                         "/message" => {
                             let message_data = MessageData::from_json(splitted_data[1]);
-                            let old_aes_key = user_object.imp().receiver_aes_key.borrow().clone();
 
                             let rsa_private_key = user_object.imp().rsa_private.get().unwrap();
                             let owner_id = user_object.owner_id();
 
-                            let (decrypted_data, new_aes_key) = decrypt_message(message_data, old_aes_key, rsa_private_key, owner_id);
-
-                            user_object.imp().receiver_aes_key.replace(Some(new_aes_key));
+                            let decrypted_data =
+                                decrypt_message(message_data, rsa_private_key, owner_id);
 
                             window.receive_message(decrypted_data, user_object.clone(), true);
                             window.scroll_to_bottom(user_object);

@@ -255,6 +255,9 @@ impl MessageSyncRequest {
 #[derive(Deserialize)]
 pub struct MessageSyncData {
     pub message_data: Vec<MessageData>,
+    pub last_message_number: u64,
+    pub start_at: u64,
+    pub ends_at: u64,
 }
 
 impl MessageSyncData {
@@ -306,6 +309,21 @@ impl DecryptedMessageData {
             from_user,
             to_user,
             message: Some(message),
+            message_number,
+        }
+    }
+
+    pub fn new_empty_message(
+        created_at: String,
+        from_user: u64,
+        to_user: u64,
+        message_number: u64,
+    ) -> Self {
+        DecryptedMessageData {
+            created_at,
+            from_user,
+            to_user,
+            message: None,
             message_number,
         }
     }

@@ -157,11 +157,24 @@ impl SyncMessage {
 #[derive(Serialize)]
 pub struct SyncMessageData {
     message_data: Vec<MessageData>,
+    last_message_number: usize,
+    start_at: usize,
+    ends_at: usize,
 }
 
 impl SyncMessageData {
-    pub fn new_json(message_data: Vec<MessageData>) -> String {
-        let data = SyncMessageData { message_data };
+    pub fn new_json(
+        message_data: Vec<MessageData>,
+        last_message_number: usize,
+        start_at: usize,
+        ends_at: usize,
+    ) -> String {
+        let data = SyncMessageData {
+            message_data,
+            last_message_number,
+            start_at,
+            ends_at,
+        };
         serde_json::to_string(&data).unwrap()
     }
 }
