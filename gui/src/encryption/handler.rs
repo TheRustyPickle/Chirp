@@ -1,14 +1,17 @@
 use aes_gcm::aead::generic_array::GenericArray;
 use aes_gcm::aead::Aead;
 use aes_gcm::{AeadCore, Aes256Gcm, KeyInit};
+use gio::glib::Sender;
 use pkcs1::{
     DecodeRsaPrivateKey, DecodeRsaPublicKey, EncodeRsaPrivateKey, EncodeRsaPublicKey, Error,
     LineEnding,
 };
 use rand::rngs::OsRng;
 use rand::{thread_rng, RngCore};
+use rayon::prelude::*;
 use rsa::{pkcs1, Oaep, RsaPrivateKey, RsaPublicKey};
 use std::path::Path;
+use std::time::Duration;
 use tracing::info;
 
 use crate::ws::{DecryptedMessageData, MessageData};
@@ -81,10 +84,9 @@ pub fn encrypt_message(
 
 pub fn decrypt_message(
     message_data: MessageData,
-    old_aes_key: Option<Vec<u8>>,
     rsa_private_key: &RsaPrivateKey,
     owner_id: u64,
-) -> (DecryptedMessageData, Vec<u8>) {
+) -> DecryptedMessageData {
     let is_send = owner_id == message_data.from_user;
 
     let (text_data, aes_key, nonce) = if is_send {
@@ -102,41 +104,54 @@ pub fn decrypt_message(
     };
     let nonce = GenericArray::from_slice(nonce.as_slice());
 
-    // If an old aes key exists, try to decrypt the message
-    // If fails, decrypt the aes key using rsa and then decrypt the message
-    if let Some(key) = old_aes_key {
-        let old_cipher = Aes256Gcm::new(key.as_slice().into());
-        let result = old_cipher.decrypt(&nonce, text_data.as_ref());
-        if let Ok(message_bytes) = result {
-            let message_text = String::from_utf8(message_bytes).unwrap();
-            return (
-                DecryptedMessageData::new(
-                    message_data.created_at,
-                    message_data.from_user,
-                    message_data.to_user,
-                    message_text,
-                    message_data.message_number,
-                ),
-                key,
-            );
-        }
-    }
-
     let padding = Oaep::new::<sha2::Sha256>();
+
     let aes_key = rsa_private_key.decrypt(padding, &aes_key).unwrap();
 
     let cipher = Aes256Gcm::new(aes_key.as_slice().into());
     let message_bytes = cipher.decrypt(nonce, text_data.as_ref()).unwrap();
 
     let message_text = String::from_utf8(message_bytes).unwrap();
-    (
-        DecryptedMessageData::new(
-            message_data.created_at,
-            message_data.from_user,
-            message_data.to_user,
-            message_text,
-            message_data.message_number,
-        ),
-        aes_key,
+
+    DecryptedMessageData::new(
+        message_data.created_at,
+        message_data.from_user,
+        message_data.to_user,
+        message_text,
+        message_data.message_number,
     )
+}
+
+pub fn decrypt_message_chunk(
+    sender: Sender<(Vec<DecryptedMessageData>, bool)>,
+    message_data: Vec<MessageData>,
+    rsa_private_key: &RsaPrivateKey,
+    owner_id: u64,
+) {
+    let chunk_data = message_data.chunks(10);
+    let chunk_len = chunk_data.len() - 1;
+
+    for (index, chunk) in chunk_data.enumerate() {
+        let decrypted_chunk: Vec<DecryptedMessageData> = chunk
+            .to_vec()
+            .into_par_iter()
+            .map(|message| {
+                if message.sender_key.is_none() {
+                    return DecryptedMessageData::new_empty_message(
+                        message.created_at,
+                        message.from_user,
+                        message.to_user,
+                        message.message_number,
+                    );
+                }
+
+                let decrypted_message = decrypt_message(message, rsa_private_key, owner_id);
+
+                decrypted_message
+            })
+            .collect();
+        std::thread::sleep(Duration::from_secs(1));
+        let completed = index == chunk_len;
+        sender.send((decrypted_chunk, completed)).unwrap();
+    }
 }
