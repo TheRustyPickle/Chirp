@@ -737,7 +737,7 @@ impl UserObject {
                                 }
 
                                 if to_scroll_bottom {
-                                    window.scroll_to_bottom(user_object);
+                                    window.scroll_to_bottom(user_object, false);
                                     to_scroll_bottom = false;
                                 }
 
@@ -775,7 +775,7 @@ impl UserObject {
 
                             user_object.imp().receiver_aes_key.replace(Some(decrypted_data.used_aes_key.clone()));
                             window.receive_message(decrypted_data, user_object.clone(), true);
-                            window.scroll_to_bottom(user_object);
+                            window.scroll_to_bottom(user_object, true);
                         }
                         "/get-user-data" | "/new-user-message" => {
                             let user_data = FullUserData::from_json(splitted_data[1]);
@@ -795,7 +795,10 @@ impl UserObject {
                                 return;
                             }
 
-                            window.create_user(user_data);
+                            let new_user = window.create_user(user_data);
+                            if splitted_data[0] == "/new-user-message" {
+                                window.add_pending_avatar_css(new_user);
+                            }
                         },
                         _ => {}
                     }

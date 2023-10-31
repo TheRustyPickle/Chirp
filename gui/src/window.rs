@@ -154,7 +154,7 @@ impl Window {
                 window.remove_last_binding();
                 window.grab_focus();
                 window.bind();
-                window.scroll_to_bottom(window.get_chatting_with());
+                window.scroll_to_bottom(window.get_chatting_with(), false);
             }));
 
         // The event on New Chat button clicked
@@ -440,7 +440,7 @@ impl Window {
             data.check_image_link(owner_data.image_link, false);
 
             for user_data in saved_users {
-                self.create_user(user_data)
+                self.create_user(user_data);
             }
         } else {
             self.empty_saved_user_list();
@@ -527,7 +527,7 @@ impl Window {
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
         receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
-        self.scroll_to_bottom(receiver);
+        self.scroll_to_bottom(receiver, true);
     }
 
     /// Gets called when a message is received or when syncing previous message data
@@ -666,7 +666,7 @@ impl Window {
 
     /// Used to create all UserObject for the self's users ListStore except for the owner UserObject.
     /// Called when New Chat button is used or a message is received but the user was not added
-    pub fn create_user(&self, user_data: FullUserData) {
+    pub fn create_user(&self, user_data: FullUserData) -> UserObject {
         info!(
             "Creating new user with name: {}, id: {}",
             user_data.user_name, user_data.user_id
@@ -710,6 +710,7 @@ impl Window {
             .message_numbers
             .borrow_mut()
             .insert(new_user_data.user_id(), HashSet::new());
+        new_user_data
     }
 
     /// Get the users ListBox
@@ -745,7 +746,7 @@ impl Window {
         }
     }
 
-    fn add_pending_avatar_css(&self, target_user: UserObject) {
+    pub fn add_pending_avatar_css(&self, target_user: UserObject) {
         let listbox = self.get_user_list();
         let total_user = self.get_users_liststore().n_items() as i32;
 
@@ -807,7 +808,7 @@ impl Window {
     }
 
     /// Scroll to the bottom of the ListView if the given user is selected
-    pub fn scroll_to_bottom(&self, current_user: UserObject) {
+    pub fn scroll_to_bottom(&self, current_user: UserObject, reveal_message: bool) {
         if current_user == self.get_chatting_with() {
             let window = self.clone();
 
@@ -820,6 +821,21 @@ impl Window {
                     return;
                 }
                 let last_index = model.n_items() - 1;
+
+                // If true the message animation will be loaded separately
+                // The avatar is already pre-loaded
+                if reveal_message {
+                    let object: MessageObject = model.item(last_index).unwrap().downcast().unwrap();
+                    if let Some(row) = object.target_row() {
+                        row.imp().message_revealer.set_reveal_child(false);
+                        timeout_add_local_once(
+                            Duration::from_millis(200),
+                            clone!(@weak row => move || {
+                                row.imp().message_revealer.set_reveal_child(true);
+                            }),
+                        );
+                    }
+                }
 
                 window
                     .imp()

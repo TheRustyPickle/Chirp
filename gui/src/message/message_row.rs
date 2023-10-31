@@ -12,6 +12,10 @@ mod imp {
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
     pub struct MessageRow {
         #[template_child]
+        pub sender_revealer: TemplateChild<Revealer>,
+        #[template_child]
+        pub receiver_revealer: TemplateChild<Revealer>,
+        #[template_child]
         pub message_revealer: TemplateChild<Revealer>,
         #[template_child]
         pub message_content: TemplateChild<Box>,
@@ -92,7 +96,9 @@ wrapper! {
 impl MessageRow {
     pub fn update(&self, object: &MessageObject, window: &Window) {
         object.set_target_row(self.clone());
-        let revealer = self.imp().message_revealer.get();
+        let sender_revealer = self.imp().sender_revealer.get();
+        let message_revealer = self.imp().message_revealer.get();
+        let receiver_revealer = self.imp().receiver_revealer.get();
 
         let new_cursor = Cursor::builder().name("pointer").build();
 
@@ -100,14 +106,18 @@ impl MessageRow {
             let sender = self.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
             self.imp().message_content.add_css_class("message-row-sent");
-            revealer.set_transition_type(RevealerTransitionType::SlideLeft);
+            sender_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
+            message_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
+            sender_revealer.set_reveal_child(true);
         } else {
             let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
             self.imp()
                 .message_content
                 .add_css_class("message-row-received");
-            revealer.set_transition_type(RevealerTransitionType::SlideRight)
+            receiver_revealer.set_transition_type(RevealerTransitionType::SlideRight);
+            message_revealer.set_transition_type(RevealerTransitionType::SlideRight);
+            receiver_revealer.set_reveal_child(true);
         }
 
         self.imp().message_data.replace(Some(object.clone()));
@@ -117,7 +127,7 @@ impl MessageRow {
 
         // The transition must start after it gets added to the ListBox thus a small timer
         timeout_add_local_once(Duration::from_millis(50), move || {
-            revealer.set_reveal_child(true);
+            message_revealer.set_reveal_child(true);
         });
     }
 
