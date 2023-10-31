@@ -13,7 +13,7 @@ use rsa::{pkcs1, Oaep, RsaPrivateKey, RsaPublicKey};
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
-use tracing::info;
+use tracing::{debug, info};
 
 use crate::ws::{DecryptedMessageData, MessageData};
 
@@ -189,7 +189,7 @@ pub fn decrypt_message_chunk(
 
         // To prevent the GUI from freezing
         thread::sleep(Duration::from_secs(1));
-
+        debug!("Decryption chunk {} processed out of {}", index, chunk_len);
         let completed = index == chunk_len;
         let last_index = decrypted_chunk.len() - 1;
 
