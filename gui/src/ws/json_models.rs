@@ -294,6 +294,7 @@ pub struct DecryptedMessageData {
     pub to_user: u64,
     pub message: Option<String>,
     pub message_number: u64,
+    pub used_aes_key: Vec<u8>,
 }
 
 impl DecryptedMessageData {
@@ -303,6 +304,7 @@ impl DecryptedMessageData {
         to_user: u64,
         message: String,
         message_number: u64,
+        used_aes_key: Vec<u8>,
     ) -> Self {
         DecryptedMessageData {
             created_at,
@@ -310,6 +312,7 @@ impl DecryptedMessageData {
             to_user,
             message: Some(message),
             message_number,
+            used_aes_key,
         }
     }
 
@@ -325,6 +328,7 @@ impl DecryptedMessageData {
             to_user,
             message: None,
             message_number,
+            used_aes_key: Vec::new(),
         }
     }
 }

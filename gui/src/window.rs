@@ -154,6 +154,7 @@ impl Window {
                 window.remove_last_binding();
                 window.grab_focus();
                 window.bind();
+                window.scroll_to_bottom(window.get_chatting_with());
             }));
 
         // The event on New Chat button clicked
@@ -587,6 +588,8 @@ impl Window {
             message_timing,
             Some(message_data.message_number),
         );
+
+        // First case will only happen when syncing messages
         if current_message_number >= message_data.message_number {
             other_user.messages().insert(0, &message);
         } else {
@@ -803,16 +806,26 @@ impl Window {
         }
     }
 
-    /// Scroll to the bottom of the ListView if the given is selected
+    /// Scroll to the bottom of the ListView if the given user is selected
     pub fn scroll_to_bottom(&self, current_user: UserObject) {
         if current_user == self.get_chatting_with() {
-            let model = self.imp().message_list.model().unwrap();
+            let window = self.clone();
 
-            let last_index = model.n_items() - 1;
+            // Small timeout because the GUI needs some time to add the item to model
+            timeout_add_local_once(Duration::from_millis(200), move || {
+                let model = window.imp().message_list.model().unwrap();
 
-            self.imp()
-                .message_list
-                .scroll_to(last_index, ListScrollFlags::NONE, None);
+                let total_item = model.n_items();
+                if total_item == 0 {
+                    return;
+                }
+                let last_index = model.n_items() - 1;
+
+                window
+                    .imp()
+                    .message_list
+                    .scroll_to(last_index, ListScrollFlags::NONE, None);
+            });
         }
     }
 }
