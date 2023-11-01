@@ -720,10 +720,6 @@ impl UserObject {
 
                             let (sender, receiver) = MainContext::channel(Priority::default());
 
-                            // We only want the GUI to scroll to the bottom if this is the very first sync message
-                            // or there is no existing message in the GUI yet
-                            let mut to_scroll_bottom = user_object.messages().n_items() == 0;
-
                             receiver.attach(None, clone!(
                                 @weak user_object, @weak window => @default-return ControlFlow::Break,
                                 move |(message_data, completed): (Vec<DecryptedMessageData>, bool)| {
@@ -743,11 +739,6 @@ impl UserObject {
                                         continue;
                                     }
                                     window.receive_message(message, user_object.clone(), false);
-                                }
-
-                                if to_scroll_bottom {
-                                    window.scroll_to_bottom(user_object.clone(), false);
-                                    to_scroll_bottom = false;
                                 }
 
                                 if completed {
