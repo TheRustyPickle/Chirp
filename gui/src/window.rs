@@ -515,8 +515,9 @@ impl Window {
             None,
         )
         .to_process(true);
-        self.chatting_with_messages().append(&message);
         message.set_show_initial_message(false);
+        self.chatting_with_messages().append(&message);
+
         buffer.set_text("");
 
         let send_message_data =
@@ -812,7 +813,7 @@ impl Window {
             let window = self.clone();
 
             // Small timeout because the GUI needs some time to add the item to model
-            timeout_add_local_once(Duration::from_millis(200), move || {
+            timeout_add_local_once(Duration::from_millis(100), move || {
                 let model = window.imp().message_list.model().unwrap();
 
                 let total_item = model.n_items();
@@ -826,11 +827,12 @@ impl Window {
                 if reveal_message {
                     let object: MessageObject = model.item(last_index).unwrap().downcast().unwrap();
                     if let Some(row) = object.target_row() {
-                        row.imp().message_revealer.set_reveal_child(false);
                         timeout_add_local_once(
-                            Duration::from_millis(100),
-                            clone!(@weak row => move || {
+                            Duration::from_millis(50),
+                            clone!(@weak row, @weak window => move || {
+                                object.set_show_initial_message(true);
                                 row.imp().message_revealer.set_reveal_child(true);
+                                window.scroll_to_bottom(current_user, false);
                             }),
                         );
                     }
