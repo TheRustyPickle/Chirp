@@ -316,19 +316,25 @@ impl DecryptedMessageData {
         }
     }
 
-    pub fn new_empty_message(
-        created_at: String,
-        from_user: u64,
-        to_user: u64,
-        message_number: u64,
-    ) -> Self {
+    pub fn new_incomplete(message_data: MessageData) -> Self {
         DecryptedMessageData {
-            created_at,
-            from_user,
-            to_user,
+            created_at: message_data.created_at,
+            from_user: message_data.from_user,
+            to_user: message_data.to_user,
             message: None,
-            message_number,
+            message_number: message_data.message_number,
             used_aes_key: Vec::new(),
+        }
+    }
+
+    pub fn empty_message_number(self) -> Self {
+        DecryptedMessageData {
+            created_at: self.created_at,
+            from_user: self.from_user,
+            to_user: self.to_user,
+            message: self.message,
+            message_number: 0,
+            used_aes_key: self.used_aes_key,
         }
     }
 }

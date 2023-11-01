@@ -53,8 +53,8 @@ cp ./gui/src/com.github.therustypickle.chirp.gschema.xml $HOME/.local/share/glib
 glib-compile-schemas $HOME/.local/share/glib-2.0/schemas/
 ```
 
-- Start the server `cargo run --bin chirp-server`
-- Launch the GUI using the command `cargo run --bin chirp-gui`
+- Start the server `cargo run --bin chirp-server --release`
+- Launch the GUI using the command `cargo run --bin chirp-gui --release`
 
 ## Get Involved
 

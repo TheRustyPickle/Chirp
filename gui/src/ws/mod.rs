@@ -1,5 +1,5 @@
 mod json_models;
-pub mod ws_data;
+pub mod ws_object;
 
 pub use json_models::*;
-pub use ws_data::WSObject;
+pub use ws_object::WSObject;
