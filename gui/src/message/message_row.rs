@@ -74,12 +74,11 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gdk::{Cursor, Rectangle};
-use glib::{clone, timeout_add_local_once, wrapper, Object};
+use glib::{clone, wrapper, Object};
 use gtk::{
     gdk, glib, Accessible, Box, Buildable, ConstraintTarget, GestureClick, Orientable,
     RevealerTransitionType, Widget,
 };
-use std::time::Duration;
 use tracing::info;
 
 use crate::message::MessageObject;
@@ -100,6 +99,8 @@ impl MessageRow {
         let message_revealer = self.imp().message_revealer.get();
         let receiver_revealer = self.imp().receiver_revealer.get();
 
+        let to_show_message = object.show_initial_message();
+
         let new_cursor = Cursor::builder().name("pointer").build();
 
         if object.is_send() {
@@ -108,7 +109,9 @@ impl MessageRow {
             self.imp().message_content.add_css_class("message-row-sent");
             sender_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
             message_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
-            sender_revealer.set_reveal_child(true);
+            if !sender_revealer.reveals_child() {
+                sender_revealer.set_reveal_child(true);
+            }
         } else {
             let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
@@ -117,7 +120,9 @@ impl MessageRow {
                 .add_css_class("message-row-received");
             receiver_revealer.set_transition_type(RevealerTransitionType::SlideRight);
             message_revealer.set_transition_type(RevealerTransitionType::SlideRight);
-            receiver_revealer.set_reveal_child(true);
+            if !receiver_revealer.reveals_child() {
+                receiver_revealer.set_reveal_child(true);
+            }
         }
 
         self.imp().message_data.replace(Some(object.clone()));
@@ -126,9 +131,12 @@ impl MessageRow {
         self.connect_button_signals(window);
 
         // The transition must start after it gets added to the ListBox thus a small timer
-        timeout_add_local_once(Duration::from_millis(50), move || {
+        if !to_show_message {
+            message_revealer.set_reveal_child(false);
+            object.set_show_initial_message(true)
+        } else if !message_revealer.reveals_child() {
             message_revealer.set_reveal_child(true);
-        });
+        }
     }
 
     pub fn new_empty() -> Self {
@@ -224,9 +232,9 @@ impl MessageRow {
             .bind_property("is-send", &sent_by, "xalign")
             .transform_to(move |_, is_send: bool| {
                 if is_send {
-                    Some(1.0 as f32)
+                    Some(1.0_f32)
                 } else {
-                    Some(0.0 as f32)
+                    Some(0.0_f32)
                 }
             })
             .sync_create()
@@ -236,9 +244,9 @@ impl MessageRow {
             .bind_property("is-send", &message, "xalign")
             .transform_to(move |_, is_send: bool| {
                 if is_send {
-                    Some(1.0 as f32)
+                    Some(1.0_f32)
                 } else {
-                    Some(0.0 as f32)
+                    Some(0.0_f32)
                 }
             })
             .sync_create()

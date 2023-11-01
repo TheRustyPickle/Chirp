@@ -1,15 +1,18 @@
 use rand::rngs::OsRng;
 use rand::RngCore;
+use std::fmt::Write;
 
 /// Generate a random hex string to be used as a token
 pub fn generate_user_token() -> String {
     let mut random_bytes = [0u8; 32];
 
     OsRng.fill_bytes(&mut random_bytes);
-    let hex_string: String = random_bytes
+    let hex_string = random_bytes
         .iter()
-        .map(|byte| format!("{:02X}", byte))
-        .collect();
+        .fold(String::with_capacity(64), |mut acc, byte| {
+            write!(&mut acc, "{:02X}", byte).expect("Failed to write to string");
+            acc
+        });
 
     hex_string
 }

@@ -10,6 +10,7 @@ use rand::rngs::OsRng;
 use rand::{thread_rng, RngCore};
 use rayon::prelude::*;
 use rsa::{pkcs1, Oaep, RsaPrivateKey, RsaPublicKey};
+use std::collections::HashSet;
 use std::path::Path;
 use std::thread;
 use std::time::Duration;
@@ -158,6 +159,7 @@ pub fn decrypt_message_chunk(
     message_data: Vec<MessageData>,
     rsa_private_key: &RsaPrivateKey,
     owner_id: u64,
+    existing_message_numbers: HashSet<u64>,
 ) {
     let chunk_data = message_data.chunks(10);
     let chunk_len = chunk_data.len() - 1;
@@ -171,6 +173,7 @@ pub fn decrypt_message_chunk(
             .into_par_iter()
             .map(|message| {
                 // If None, it's a deleted message. To be passed empty data to the GUI for deletion if exists
+                // TODO handle if data already exists
                 if message.sender_key.is_none() {
                     return DecryptedMessageData::new_empty_message(
                         message.created_at,
@@ -179,11 +182,7 @@ pub fn decrypt_message_chunk(
                         message.message_number,
                     );
                 }
-
-                let decrypted_message =
-                    decrypt_message(message, &old_aes_key, rsa_private_key, owner_id);
-
-                decrypted_message
+                decrypt_message(message, &old_aes_key, rsa_private_key, owner_id)
             })
             .collect();
 

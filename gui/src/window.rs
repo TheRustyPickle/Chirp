@@ -136,7 +136,7 @@ impl Window {
                 let last_index = window.imp().last_selected_user.get();
                 let index = row.index();
 
-                if last_index != index || last_index == index {
+                if last_index != index || last_index == 0 {
                     window.remove_selected_avatar_css(last_index, listbox);
                     window.add_selected_avatar_css(index, listbox);
                 }
@@ -277,7 +277,7 @@ impl Window {
         let saving_location = self.settings().string("location");
         let user_data_path = format!("{}user_data.json", saving_location);
 
-        if fs::metadata(user_data_path.to_owned()).is_ok() {
+        if fs::metadata(&user_data_path).is_ok() {
             let mut file = File::open(user_data_path).unwrap();
             let mut file_contents = String::new();
 
@@ -300,9 +300,7 @@ impl Window {
         let public_location = format!("{}public_key.pem", saving_location);
         let private_location = format!("{}private_key.pem", saving_location);
 
-        if fs::metadata(public_location.to_owned()).is_ok()
-            && fs::metadata(private_location.to_owned()).is_ok()
-        {
+        if fs::metadata(public_location).is_ok() && fs::metadata(private_location).is_ok() {
             let existing_keys = read_rsa_keys_from_file(saving_location.to_string());
             if let Ok((public, private)) = existing_keys {
                 info!("Saved RSA Keys found");
@@ -356,7 +354,7 @@ impl Window {
 
         let (public_string, private_string) = stringify_rsa_keys(public_key, private_key);
 
-        if fs::metadata(saving_location.to_owned()).is_ok() {
+        if fs::metadata(&saving_location).is_ok() {
             let public_location = format!("{}public_key.pem", saving_location);
             let private_location = format!("{}private_key.pem", saving_location);
 
@@ -455,12 +453,11 @@ impl Window {
     /// Set chatting with the given user
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
-        user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
         let message_factory = user.imp().message_factory.get().unwrap();
         let selection_model = user.imp().selection_model.get().unwrap();
-        self.imp().message_list.set_model(Some(selection_model));
-
         self.imp().message_list.set_factory(Some(message_factory));
+        self.imp().message_list.set_model(Some(selection_model));
+        user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -519,6 +516,7 @@ impl Window {
         )
         .to_process(true);
         self.chatting_with_messages().append(&message);
+        message.set_show_initial_message(false);
         buffer.set_text("");
 
         let send_message_data =
@@ -536,7 +534,7 @@ impl Window {
         message_data: DecryptedMessageData,
         other_user: UserObject,
         add_css: bool,
-    ) {
+    ) -> Option<MessageObject> {
         // No need to receive an already existing message
         if self
             .imp()
@@ -546,7 +544,7 @@ impl Window {
             .unwrap()
             .contains(&message_data.message_number)
         {
-            return;
+            return None;
         }
 
         self.imp()
@@ -604,6 +602,7 @@ impl Window {
                 self.add_pending_avatar_css(target_user)
             }
         }
+        Some(message)
     }
 
     /// Create a row using a UserObject for the ListBox
@@ -829,7 +828,7 @@ impl Window {
                     if let Some(row) = object.target_row() {
                         row.imp().message_revealer.set_reveal_child(false);
                         timeout_add_local_once(
-                            Duration::from_millis(200),
+                            Duration::from_millis(100),
                             clone!(@weak row => move || {
                                 row.imp().message_revealer.set_reveal_child(true);
                             }),

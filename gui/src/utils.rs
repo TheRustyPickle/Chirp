@@ -16,10 +16,10 @@ pub fn get_avatar(link: String) -> Result<(String, Bytes), String> {
     let session = Session::new();
     let cancel = Cancellable::new();
 
-    let message = Message::new("GET", &link).map_err(|_| format!("Invalid link"))?;
+    let message = Message::new("GET", &link).map_err(|_| "Invalid link".to_string())?;
     let image_data = session
         .send_and_read(&message, Some(&cancel))
-        .map_err(|_| format!("Failed to get image data"))?;
+        .map_err(|_| "Failed to get image data".to_string())?;
 
     Ok((link, image_data))
 }

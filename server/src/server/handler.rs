@@ -179,10 +179,7 @@ impl ChatServer {
 
         let ws_data = WSData::new(user_id, ws_id);
 
-        self.user_session
-            .entry(user_id)
-            .or_insert(Vec::new())
-            .push(ws_data);
+        self.user_session.entry(user_id).or_default().push(ws_data);
 
         if let Some(entry) = self.sessions.get_mut(&ws_id) {
             let (id_info, receiver_ws) = entry;
@@ -213,7 +210,7 @@ impl ChatServer {
         if let Some(user_data) = get_user_with_id(&mut self.conn, user_id) {
             let ws_data = WSData::new(user_id, ws_id);
 
-            let session_data = self.user_session.entry(owner_id).or_insert(Vec::new());
+            let session_data = self.user_session.entry(owner_id).or_default();
             if !session_data.contains(&ws_data) {
                 session_data.push(ws_data);
             }

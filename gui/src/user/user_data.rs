@@ -44,6 +44,8 @@ mod imp {
         pub message_number: Cell<u64>,
         #[property(get, set)]
         pub main_window: OnceCell<Window>,
+        #[property(get, set)]
+        pub is_syncing: Cell<bool>,
         pub rsa_public: OnceCell<RsaPublicKey>,
         pub rsa_private: OnceCell<RsaPrivateKey>,
         pub receiver_rsa_public: OnceCell<RsaPublicKey>,
@@ -285,12 +287,12 @@ impl UserObject {
                     match image_result {
                         Ok((image_link, image_data)) => {
                             let pixbuf_loader = PixbufLoader::new();
-                            if let Err(_) = pixbuf_loader.write(&image_data) {
+                            if pixbuf_loader.write(&image_data).is_err() {
                                 user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image"), &image_link]);
                                 return ControlFlow::Break
                             };
 
-                            if let Err(_) = pixbuf_loader.close() {
+                            if pixbuf_loader.close().is_err() {
                                 user_object.emit_by_name::<()>("image-modified", &[&String::from("Failed to create the image"), &image_link]);
                                 return ControlFlow::Break
                             };
@@ -660,6 +662,7 @@ impl UserObject {
                             // the deletion event. So we have to check every single message the server has to ensure
                             // nothing is missed
                             user_object.set_message_number(0);
+                            user_object.set_is_syncing(false);
                             user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()))
                         }
                         "/update-user-id" => {
@@ -693,17 +696,23 @@ impl UserObject {
                                 } else {
                                     0
                                 };
+                                user_object.set_message_number(message_number);
                                 // Syncing must happen before any pending message sent or deletion is performed
                                 user_object.add_queue_to_first(RequestType::SyncMessage(
                                     sync_target,
                                     message_number,
                                 ));
-                                user_object.set_message_number(message_number);
+
                             } else {
                                 user_object.process_queue(None);
                             }
                         }
                         "/sync-message" => {
+                            if user_object.is_syncing() {
+                                return;
+                            }
+                            user_object.set_is_syncing(true);
+
                             let owner_id = user_object.owner_id();
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
 
@@ -737,17 +746,24 @@ impl UserObject {
                                 }
 
                                 if to_scroll_bottom {
-                                    window.scroll_to_bottom(user_object, false);
+                                    window.scroll_to_bottom(user_object.clone(), false);
                                     to_scroll_bottom = false;
                                 }
 
                                 if completed {
+                                    user_object.set_is_syncing(false);
                                     return ControlFlow::Break
                                 }
                                 ControlFlow::Continue
                             }));
 
                             let old_aes_key = user_object.imp().receiver_aes_key.borrow().clone();
+                            let existing_numbers = window
+                                .imp()
+                                .message_numbers
+                                .borrow_mut()
+                                .get(&user_object.user_id())
+                                .unwrap().clone();
                             thread::spawn(move || {
                                 decrypt_message_chunk(
                                     sender,
@@ -755,6 +771,7 @@ impl UserObject {
                                     chat_data.message_data,
                                     &rsa_private_key,
                                     owner_id,
+                                    existing_numbers
                                 )
                             });
                             user_object.process_queue(None);
@@ -774,7 +791,10 @@ impl UserObject {
                                 decrypt_message(message_data, &old_aes_key, rsa_private_key, owner_id);
 
                             user_object.imp().receiver_aes_key.replace(Some(decrypted_data.used_aes_key.clone()));
-                            window.receive_message(decrypted_data, user_object.clone(), true);
+                            let message_object = window.receive_message(decrypted_data, user_object.clone(), true);
+                            if let Some(object) = message_object {
+                                object.set_show_initial_message(false)
+                            }
                             window.scroll_to_bottom(user_object, true);
                         }
                         "/get-user-data" | "/new-user-message" => {
