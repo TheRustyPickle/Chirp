@@ -12,10 +12,6 @@ mod imp {
     #[template(resource = "/com/github/therustypickle/chirp/message_row.xml")]
     pub struct MessageRow {
         #[template_child]
-        pub sender_revealer: TemplateChild<Revealer>,
-        #[template_child]
-        pub receiver_revealer: TemplateChild<Revealer>,
-        #[template_child]
         pub message_revealer: TemplateChild<Revealer>,
         #[template_child]
         pub message_content: TemplateChild<Box>,
@@ -74,11 +70,12 @@ mod imp {
 use adw::prelude::*;
 use adw::subclass::prelude::*;
 use gdk::{Cursor, Rectangle};
-use glib::{clone, wrapper, Object};
+use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
     gdk, glib, Accessible, Box, Buildable, ConstraintTarget, GestureClick, Orientable,
     RevealerTransitionType, Widget,
 };
+use std::time::Duration;
 use tracing::info;
 
 use crate::message::MessageObject;
@@ -95,9 +92,7 @@ wrapper! {
 impl MessageRow {
     pub fn update(&self, object: &MessageObject, window: &Window) {
         object.set_target_row(self.clone());
-        let sender_revealer = self.imp().sender_revealer.get();
         let message_revealer = self.imp().message_revealer.get();
-        let receiver_revealer = self.imp().receiver_revealer.get();
 
         let to_show_message = object.show_initial_message();
 
@@ -107,22 +102,14 @@ impl MessageRow {
             let sender = self.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
             self.imp().message_content.add_css_class("message-row-sent");
-            sender_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
             message_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
-            if !sender_revealer.reveals_child() {
-                sender_revealer.set_reveal_child(true);
-            }
         } else {
             let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
             self.imp()
                 .message_content
                 .add_css_class("message-row-received");
-            receiver_revealer.set_transition_type(RevealerTransitionType::SlideRight);
             message_revealer.set_transition_type(RevealerTransitionType::SlideRight);
-            if !receiver_revealer.reveals_child() {
-                receiver_revealer.set_reveal_child(true);
-            }
         }
 
         self.imp().message_data.replace(Some(object.clone()));
@@ -135,7 +122,9 @@ impl MessageRow {
             message_revealer.set_reveal_child(false);
             object.set_show_initial_message(true)
         } else if !message_revealer.reveals_child() {
-            message_revealer.set_reveal_child(true);
+            timeout_add_local_once(Duration::from_millis(20), move || {
+                message_revealer.set_reveal_child(true);
+            });
         }
     }
 

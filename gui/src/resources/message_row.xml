@@ -15,25 +15,20 @@
   <template class="MessageRow" parent="GtkBox">
     <property name="orientation">horizontal</property>
     <child>
-      <object class="GtkRevealer" id="receiver_revealer">
-        <property name="transition-duration">400</property>
-        <child>
-          <!-- Receiver side image on the left most side
+      <!-- Receiver side image on the left most side
               button for the ability to click on it-->
-          <object class="GtkButton" id="receiver_avatar_button">
+      <object class="GtkButton" id="receiver_avatar_button">
+        <property name="valign">end</property>
+        <property name="css-classes">avatar-button</property>
+        <property name="can-focus">false</property>
+        <child>
+          <object class="AdwAvatar" id="receiver">
+            <property name="css-classes">avatar</property>
+            <property name="visible">false</property>
+            <property name="show-initials">true</property>
+            <property name="size">45</property>
             <property name="valign">end</property>
-            <property name="css-classes">avatar-button</property>
-            <property name="can-focus">false</property>
-            <child>
-              <object class="AdwAvatar" id="receiver">
-                <property name="css-classes">avatar</property>
-                <property name="visible">false</property>
-                <property name="show-initials">true</property>
-                <property name="size">45</property>
-                <property name="valign">end</property>
-                <property name="margin-bottom">5</property>
-              </object>
-            </child>
+            <property name="margin-bottom">5</property>
           </object>
         </child>
       </object>
@@ -120,28 +115,23 @@
       </object>
     </child>
     <child>
-      <object class="GtkRevealer" id="sender_revealer">
+      <!-- Sender side image on the right most side
+            button for the ability to click on it-->
+      <object class="GtkButton" id="sender_avatar_button">
+        <property name="css-classes">avatar-button</property>
+        <property name="valign">end</property>
+        <property name="can-focus">false</property>
         <child>
-          <!-- Sender side image on the right most side
-              button for the ability to click on it-->
-          <object class="GtkButton" id="sender_avatar_button">
-            <property name="css-classes">avatar-button</property>
+          <object class="AdwAvatar" id="sender">
+            <property name="css-classes">avatar</property>
+            <property name="visible">false</property>
+            <property name="show-initials">true</property>
+            <property name="size">45</property>
             <property name="valign">end</property>
-            <property name="can-focus">false</property>
-            <child>
-              <object class="AdwAvatar" id="sender">
-                <property name="css-classes">avatar</property>
-                <property name="visible">false</property>
-                <property name="show-initials">true</property>
-                <property name="size">45</property>
-                <property name="valign">end</property>
-                <property name="margin-bottom">5</property>
-              </object>
-            </child>
+            <property name="margin-bottom">5</property>
           </object>
         </child>
       </object>
-
     </child>
   </template>
 </interface>
