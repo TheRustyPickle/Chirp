@@ -581,8 +581,6 @@ impl UserObject {
                 if !is_recursive {
                     let revealer = target_row.imp().message_revealer.get();
                     target_row.stop_signals();
-                    // Remove the transition time before it gets remove for smoother animation
-                    revealer.set_transition_duration(4000);
                     revealer.set_reveal_child(false);
                 }
 

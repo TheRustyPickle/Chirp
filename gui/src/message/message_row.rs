@@ -117,11 +117,11 @@ impl MessageRow {
         self.bind();
         self.connect_button_signals(window);
 
-        // The transition must start after it gets added to the ListBox thus a small timer
+        // The transition must start after it gets added to the view
+        // Timeout for the animation to be visible
         if !to_show_message {
             message_revealer.set_reveal_child(false);
-            object.set_show_initial_message(true)
-        } else if !message_revealer.reveals_child() {
+        } else if !message_revealer.reveals_child() && to_show_message {
             timeout_add_local_once(Duration::from_millis(20), move || {
                 message_revealer.set_reveal_child(true);
             });
