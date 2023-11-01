@@ -1,5 +1,6 @@
 mod encryption;
 mod message;
+mod processor;
 mod user;
 mod utils;
 mod window;

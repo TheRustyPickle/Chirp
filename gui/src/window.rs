@@ -453,11 +453,36 @@ impl Window {
     /// Set chatting with the given user
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
-        let message_factory = user.imp().message_factory.get().unwrap();
-        let selection_model = user.imp().selection_model.get().unwrap();
-        self.imp().message_list.set_factory(Some(message_factory));
-        self.imp().message_list.set_model(Some(selection_model));
+        let previous_user = self.imp().chatting_with.borrow().clone();
+
+        let same_user = if let Some(user_object) = previous_user.clone() {
+            user_object == user
+        } else {
+            false
+        };
+
+        if same_user {
+            return;
+        }
+
+        if let Some(old_user) = previous_user {
+            old_user.renderer().user_inactive()
+        }
+
+        let message_factory = user.factory();
+        let selection_model = user.selection_model();
+        self.imp().message_list.set_factory(Some(&message_factory));
+        self.imp().message_list.set_model(Some(&selection_model));
+
+        timeout_add_local_once(
+            Duration::from_millis(100),
+            clone!(@weak user => move || {
+                user.renderer().user_active();
+            }),
+        );
+
         user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
+
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -558,7 +583,9 @@ impl Window {
         let current_message_number = other_user.message_number();
         if current_message_number < message_data.message_number {
             // Less than current number means it's an old message
-            other_user.set_message_number(other_user.message_number() + 1);
+            other_user
+                .renderer()
+                .set_message_number(other_user.message_number() + 1);
         }
 
         let (sender, receiver, is_send) =
@@ -588,11 +615,17 @@ impl Window {
             Some(message_data.message_number),
         );
 
+        other_user
+            .renderer()
+            .save_message(message.clone(), message_data.message_number);
+
         // First case will only happen when syncing messages
-        if current_message_number >= message_data.message_number {
-            other_user.messages().insert(0, &message);
-        } else {
-            other_user.messages().append(&message);
+        if self.get_chatting_with() == other_user && !other_user.renderer().became_inactive() {
+            if current_message_number >= message_data.message_number {
+                other_user.messages().insert(0, &message);
+            } else {
+                other_user.messages().append(&message);
+            }
         }
 
         // Pending message color should not be added when syncing messages

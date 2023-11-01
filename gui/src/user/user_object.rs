@@ -2,15 +2,15 @@ mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use gdk::Paintable;
-    use gio::ListStore;
     use glib::once_cell::sync::Lazy;
     use glib::subclass::Signal;
     use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
-    use gtk::{gdk, glib, NoSelection, SignalListItemFactory};
+    use gtk::{gdk, glib};
     use rsa::{RsaPrivateKey, RsaPublicKey};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::sync::Mutex;
 
+    use crate::processor::MessageRenderer;
     use crate::window::Window;
     use crate::ws::{RequestType, WSObject};
 
@@ -30,8 +30,6 @@ mod imp {
         #[property(get, set, nullable)]
         pub image_link: RefCell<Option<String>>,
         #[property(get, set)]
-        pub messages: OnceCell<ListStore>,
-        #[property(get, set)]
         pub user_ws: OnceCell<WSObject>,
         pub request_queue: Mutex<RefCell<Vec<RequestType>>>,
         #[property(get, set)]
@@ -41,18 +39,14 @@ mod imp {
         #[property(get, set)]
         pub user_token: OnceCell<String>,
         #[property(get, set)]
-        pub message_number: Cell<u64>,
-        #[property(get, set)]
         pub main_window: OnceCell<Window>,
         #[property(get, set)]
-        pub is_syncing: Cell<bool>,
+        pub renderer: OnceCell<MessageRenderer>,
         pub rsa_public: OnceCell<RsaPublicKey>,
         pub rsa_private: OnceCell<RsaPrivateKey>,
         pub receiver_rsa_public: OnceCell<RsaPublicKey>,
         pub aes_key: OnceCell<Vec<u8>>,
         pub receiver_aes_key: RefCell<Option<Vec<u8>>>,
-        pub message_factory: OnceCell<SignalListItemFactory>,
-        pub selection_model: OnceCell<NoSelection>,
         pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
@@ -82,17 +76,6 @@ mod imp {
     }
 }
 
-use crate::encryption::{
-    decrypt_message, decrypt_message_chunk, encrypt_message, generate_new_aes_key,
-    generate_new_rsa_keys,
-};
-use crate::message::{MessageObject, MessageRow};
-use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
-use crate::window::Window;
-use crate::ws::{
-    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
-    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
-};
 use adw::prelude::*;
 use gdk::{gdk_pixbuf, Paintable, Texture};
 use gdk_pixbuf::{InterpType, PixbufLoader};
@@ -102,12 +85,25 @@ use glib::{
     clone, closure_local, timeout_add_local_once, Bytes, ControlFlow, MainContext, Object,
     Priority, Receiver,
 };
-use gtk::{gdk, glib, ListItem, NoSelection, SignalListItemFactory};
+use gtk::{gdk, glib, NoSelection, SignalListItemFactory};
 use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::thread;
 use std::time::Duration;
 use tracing::{debug, info};
+
+use crate::encryption::{
+    decrypt_message, decrypt_message_chunk, encrypt_message, generate_new_aes_key,
+    generate_new_rsa_keys,
+};
+use crate::message::MessageObject;
+use crate::processor::MessageRenderer;
+use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
+use crate::window::Window;
+use crate::ws::{
+    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
+    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
+};
 
 glib::wrapper! {
     pub struct UserObject(ObjectSubclass<imp::UserObject>);
@@ -124,8 +120,6 @@ impl UserObject {
         receiving_rsa_public_key: Option<RsaPublicKey>,
         saved_keys: Option<(RsaPublicKey, RsaPrivateKey)>,
     ) -> Self {
-        let messages = ListStore::new::<MessageObject>();
-        let no_selection = NoSelection::new(Some(messages.clone()));
         let random_color = get_random_color(color_to_ignore);
         let id = if let Some(id) = user_id { id } else { 0 };
 
@@ -133,11 +127,12 @@ impl UserObject {
             .property("user-id", id)
             .property("name", name)
             .property("image-link", image_link.to_owned())
-            .property("messages", messages)
             .property("name-color", random_color)
             .property("main-window", window.clone())
             .build();
 
+        let renderer = MessageRenderer::new(obj.clone(), obj.imp().signal_ids.borrow_mut());
+        obj.set_renderer(renderer);
         // Will only be some in case of owner object and with some data saved
         if let Some(token) = user_token {
             obj.set_user_token(token);
@@ -171,13 +166,6 @@ impl UserObject {
 
         // Each object will have its own aes key for encrypting when sending messages
         obj.imp().aes_key.set(generate_new_aes_key()).unwrap();
-        obj.set_message_number(0);
-        obj.imp().selection_model.set(no_selection).unwrap();
-        obj.imp()
-            .message_factory
-            .set(SignalListItemFactory::new())
-            .unwrap();
-        obj.start_factory();
         obj.start_signals();
 
         let ws = WSObject::new();
@@ -203,54 +191,6 @@ impl UserObject {
         );
 
         self.imp().signal_ids.borrow_mut().push(image_signal_id);
-    }
-
-    fn start_factory(&self) {
-        let factory = self.imp().message_factory.get().unwrap();
-        let window = self.main_window();
-
-        let factory_setup_signal = factory.connect_setup(move |_, list_item| {
-            let message_row = MessageRow::new_empty();
-            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
-            list_item.set_child(Some(&message_row));
-            list_item.set_activatable(false);
-            list_item.set_selectable(false);
-            list_item.set_focusable(false);
-        });
-
-        let factory_bind_signal = factory.connect_bind(clone!(@weak window => move |_, item| {
-            let list_item = item
-            .downcast_ref::<ListItem>()
-            .unwrap();
-
-            let message_object = list_item
-                .item()
-                .and_downcast::<MessageObject>()
-                .unwrap();
-
-            let message_row = list_item
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-            message_row.update(&message_object, &window);
-        }));
-
-        let factory_unbind_signal = factory.connect_unbind(move |_, list_item| {
-            let message_row = list_item
-                .downcast_ref::<ListItem>()
-                .unwrap()
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-
-            message_row.stop_signals();
-        });
-
-        let mut signal_list = self.imp().signal_ids.borrow_mut();
-
-        signal_list.push(factory_setup_signal);
-        signal_list.push(factory_bind_signal);
-        signal_list.push(factory_unbind_signal);
     }
 
     pub fn stop_signals(&self) {
@@ -394,7 +334,7 @@ impl UserObject {
                         let message_text = msg_obj.message();
                         let new_number = self.message_number() + 1;
 
-                        self.set_message_number(new_number);
+                        self.renderer().set_message_number(new_number);
                         msg_obj.set_message_number(new_number);
 
                         let aes_key = self.imp().aes_key.get().unwrap().clone();
@@ -659,8 +599,8 @@ impl UserObject {
                             // while this client is on but not connected it would mean this client would not receive
                             // the deletion event. So we have to check every single message the server has to ensure
                             // nothing is missed
-                            user_object.set_message_number(0);
-                            user_object.set_is_syncing(false);
+                            user_object.renderer().set_message_number(0);
+                            user_object.renderer().set_is_syncing(false);
                             user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()))
                         }
                         "/update-user-id" => {
@@ -689,12 +629,12 @@ impl UserObject {
                                 message_number
                             );
                             if message_number > user_object.message_number() {
-                                let sync_target = if message_number > 100 {
-                                    message_number - 100
+                                let sync_target = if message_number > 1000 {
+                                    message_number - 1000
                                 } else {
                                     0
                                 };
-                                user_object.set_message_number(message_number);
+                                user_object.renderer().set_message_number(message_number);
                                 // Syncing must happen before any pending message sent or deletion is performed
                                 user_object.add_queue_to_first(RequestType::SyncMessage(
                                     sync_target,
@@ -706,10 +646,10 @@ impl UserObject {
                             }
                         }
                         "/sync-message" => {
-                            if user_object.is_syncing() {
+                            if user_object.syncing() {
                                 return;
                             }
-                            user_object.set_is_syncing(true);
+                            user_object.renderer().set_is_syncing(true);
 
                             let owner_id = user_object.owner_id();
                             let chat_data = MessageSyncData::from_json(splitted_data[1]);
@@ -723,6 +663,9 @@ impl UserObject {
                                 move |(message_data, completed): (Vec<DecryptedMessageData>, bool)| {
                                 for message in message_data {
                                     if message.message.is_none() {
+                                        if message.message_number == 0 {
+                                            continue;
+                                        }
                                         let message_exists = window
                                             .imp()
                                             .message_numbers
@@ -740,7 +683,8 @@ impl UserObject {
                                 }
 
                                 if completed {
-                                    user_object.set_is_syncing(false);
+                                    user_object.renderer().set_is_syncing(false);
+                                    user_object.renderer().set_became_inactive(false);
                                     return ControlFlow::Break
                                 }
                                 ControlFlow::Continue
@@ -781,6 +725,7 @@ impl UserObject {
 
                             user_object.imp().receiver_aes_key.replace(Some(decrypted_data.used_aes_key.clone()));
                             let message_object = window.receive_message(decrypted_data, user_object.clone(), true);
+
                             if let Some(object) = message_object {
                                 object.set_show_initial_message(false)
                             }
@@ -815,5 +760,25 @@ impl UserObject {
             }),
         );
         self.user_ws().set_signal_id(id);
+    }
+
+    pub fn factory(&self) -> SignalListItemFactory {
+        self.renderer().imp().message_factory.get().unwrap().clone()
+    }
+
+    pub fn selection_model(&self) -> NoSelection {
+        self.renderer().imp().selection_model.get().unwrap().clone()
+    }
+
+    pub fn messages(&self) -> ListStore {
+        self.renderer().message_liststore()
+    }
+
+    pub fn message_number(&self) -> u64 {
+        self.renderer().message_number()
+    }
+
+    fn syncing(&self) -> bool {
+        self.renderer().is_syncing()
     }
 }
