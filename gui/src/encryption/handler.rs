@@ -190,12 +190,18 @@ pub fn decrypt_message_chunk(
         thread::sleep(Duration::from_secs(1));
         debug!("Decryption chunk {} processed out of {}", index, chunk_len);
         let completed = index == chunk_len;
-        let last_index = decrypted_chunk.len() - 1;
 
         // Each iteration old key is updated for the next chunk
         // If we decrypted messages with number from 500 to 490
         // we want to key of the 490's message so it may be used for 489 and so on
-        old_aes_key = Some(decrypted_chunk[last_index].used_aes_key.clone());
+        // Find the very first non-empty aes key and set it as the last key
+        // The key can be empty in case it was deleted
+        for data in decrypted_chunk.iter() {
+            if !data.used_aes_key.is_empty() {
+                old_aes_key = Some(data.used_aes_key.clone());
+                break;
+            }
+        }
 
         sender.send((decrypted_chunk, completed)).unwrap();
     }
