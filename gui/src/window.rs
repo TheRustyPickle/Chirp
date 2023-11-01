@@ -94,13 +94,12 @@ use adw::subclass::prelude::*;
 use adw::Application;
 use chrono::{Local, NaiveDateTime, TimeZone};
 use gio::{ActionGroup, ActionMap, ListStore, Settings, SimpleAction};
-use glib::{clone, timeout_add_local_once, wrapper, ControlFlow, Object, Receiver};
+use glib::{clone, timeout_add_local_once, wrapper, Object};
 use gtk::{
     gio, glib, Accessible, ApplicationWindow, Buildable, ConstraintTarget, ListBox, ListBoxRow,
-    ListItem, ListScrollFlags, Native, NoSelection, PositionType, Root, ShortcutManager,
-    SignalListItemFactory, Widget,
+    ListScrollFlags, Native, PositionType, Root, ShortcutManager, Widget,
 };
-use std::cmp::Ordering;
+use rsa::{RsaPrivateKey, RsaPublicKey};
 use std::collections::HashSet;
 use std::fs;
 use std::fs::File;
@@ -108,10 +107,11 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use tracing::{debug, error, info};
 
-use crate::message::{MessageObject, MessageRow};
+use crate::encryption::{read_rsa_keys_from_file, read_rsa_public_from_string, stringify_rsa_keys};
+use crate::message::MessageObject;
 use crate::user::{UserObject, UserProfile, UserPrompt, UserRow};
 use crate::utils::{generate_random_avatar_link, get_created_at_timing};
-use crate::ws::{FullUserData, MessageData, RequestType, UserIDs};
+use crate::ws::{DecryptedMessageData, FullUserData, MessageData, RequestType, UserIDs};
 use crate::APP_ID;
 
 wrapper! {
@@ -136,7 +136,7 @@ impl Window {
                 let last_index = window.imp().last_selected_user.get();
                 let index = row.index();
 
-                if last_index != index || last_index == index {
+                if last_index != index || last_index == 0 {
                     window.remove_selected_avatar_css(last_index, listbox);
                     window.add_selected_avatar_css(index, listbox);
                 }
@@ -154,6 +154,7 @@ impl Window {
                 window.remove_last_binding();
                 window.grab_focus();
                 window.bind();
+                window.scroll_to_bottom(window.get_chatting_with(), false);
             }));
 
         // The event on New Chat button clicked
@@ -246,38 +247,67 @@ impl Window {
     }
 
     // TODO use for when the app can take a location input
+    // NOTE when saving it must end with a /
     fn _update_setting(&self, new_location: &str) {
         self.settings()
             .set_string("location", new_location)
             .unwrap();
     }
 
+    fn empty_saved_user_list(&self) {
+        self.settings().set_string("users", "").unwrap();
+    }
+
     /// Save owner ID and Token in the predefined location in a json file
-    fn save_user_data(&self) {
+    pub fn save_user_data(&self) {
         let saving_location = self.settings().string("location");
-        info!("Saving new user id info on {}", saving_location);
+        let user_data_path = format!("{}user_data.json", saving_location);
+
+        info!("Saving new user id info on {}", user_data_path);
         let owner_id = self.get_chatting_from();
         let id_data = UserIDs::new_json(owner_id.user_id(), owner_id.user_token());
 
-        let mut file = File::create(saving_location).unwrap();
+        let mut file = File::create(user_data_path).unwrap();
         file.write_all(id_data.as_bytes()).unwrap();
     }
 
     /// Check if any existing owner data is available
-    fn check_owner_id(&self) -> Option<UserIDs> {
+    fn check_saved_data(&self) -> Option<UserIDs> {
+        info!("Checking for saved user data");
         let saving_location = self.settings().string("location");
-        if !saving_location.is_empty() {
-            if fs::metadata(saving_location.to_owned()).is_ok() {
-                let mut file = File::open(saving_location).unwrap();
-                let mut file_contents = String::new();
-                file.read_to_string(&mut file_contents)
-                    .expect("Failed to read file");
+        let user_data_path = format!("{}user_data.json", saving_location);
 
-                let id_data = UserIDs::from_json(&file_contents);
-                return Some(id_data);
+        if fs::metadata(&user_data_path).is_ok() {
+            let mut file = File::open(user_data_path).unwrap();
+            let mut file_contents = String::new();
+
+            file.read_to_string(&mut file_contents)
+                .expect("Failed to read file");
+
+            let id_data = UserIDs::from_json(&file_contents);
+            info!("Saved user data found");
+            return Some(id_data);
+        }
+
+        info!("Failed to find any previously saved user data");
+        None
+    }
+
+    /// Check if any existing rsa keys are available
+    fn check_saved_keys(&self) -> Option<(RsaPublicKey, RsaPrivateKey)> {
+        info!("Checking for saved RSA keys");
+        let saving_location = self.settings().string("location");
+        let public_location = format!("{}public_key.pem", saving_location);
+        let private_location = format!("{}private_key.pem", saving_location);
+
+        if fs::metadata(public_location).is_ok() && fs::metadata(private_location).is_ok() {
+            let existing_keys = read_rsa_keys_from_file(saving_location.to_string());
+            if let Ok((public, private)) = existing_keys {
+                info!("Saved RSA Keys found");
+                return Some((public, private));
             }
         }
-        info!("Failed to find any previously saved user data");
+
         None
     }
 
@@ -311,6 +341,29 @@ impl Window {
 
         let to_save = serde_json::to_string(&save_list).unwrap();
         self.settings().set_string("users", &to_save).unwrap();
+    }
+
+    /// Save the RSA keys to the saved location
+    pub fn save_rsa_keys(&self) {
+        info!("Starting saving RSA keys");
+        let saving_location = self.settings().string("location").to_string();
+        let owner_data = self.get_chatting_from();
+
+        let public_key = owner_data.imp().rsa_public.get().unwrap();
+        let private_key = owner_data.imp().rsa_private.get().unwrap();
+
+        let (public_string, private_string) = stringify_rsa_keys(public_key, private_key);
+
+        if fs::metadata(&saving_location).is_ok() {
+            let public_location = format!("{}public_key.pem", saving_location);
+            let private_location = format!("{}private_key.pem", saving_location);
+
+            let mut file = File::create(public_location).unwrap();
+            file.write_all(public_string.as_bytes()).unwrap();
+
+            let mut file = File::create(private_location).unwrap();
+            file.write_all(private_string.as_bytes()).unwrap();
+        }
     }
 
     /// Bind the main window header bar's title to the selected chat
@@ -352,15 +405,17 @@ impl Window {
         );
 
         info!("Setting own profile");
-        let saved_user_id = self.check_owner_id();
-        let data: UserObject = self.create_owner(saved_user_id.clone());
+        let saved_user_id = self.check_saved_data();
+        let saved_keys = self.check_saved_keys();
+        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys.clone());
 
         self.imp().own_profile.replace(Some(data.clone()));
 
         // Select the first row we just added
         self.get_user_list().row_at_index(0).unwrap().activate();
 
-        if let Some(id_data) = saved_user_id {
+        if saved_user_id.is_some() && saved_keys.is_some() {
+            let id_data = saved_user_id.unwrap();
             let mut saved_users = self.get_saved_user_data();
             // If empty stop checking
             if saved_users.is_empty() {
@@ -371,6 +426,7 @@ impl Window {
             // If it's not the same then the saved data is outdated or invalid
             if owner_data.user_id != id_data.user_id {
                 error!("Invalid or outdated owner data found. Dismissing saved data");
+                self.empty_saved_user_list();
                 return;
             }
 
@@ -382,8 +438,10 @@ impl Window {
             data.check_image_link(owner_data.image_link, false);
 
             for user_data in saved_users {
-                self.create_user(user_data)
+                self.create_user(user_data);
             }
+        } else {
+            self.empty_saved_user_list();
         }
     }
 
@@ -395,56 +453,11 @@ impl Window {
     /// Set chatting with the given user
     fn set_chatting_with(&self, user: UserObject) {
         info!("Setting chatting with {}", user.name());
+        let message_factory = user.imp().message_factory.get().unwrap();
+        let selection_model = user.imp().selection_model.get().unwrap();
+        self.imp().message_list.set_factory(Some(message_factory));
+        self.imp().message_list.set_model(Some(selection_model));
         user.add_queue_to_first(RequestType::GetLastMessageNumber(user.clone()));
-        let message_list = user.messages();
-        let selection_model = NoSelection::new(Some(message_list));
-        self.imp().message_list.set_model(Some(&selection_model));
-
-        // Bind user chatting with liststore with the factory so if any new message gets added there
-        // new message row creation also starts
-        let factory = SignalListItemFactory::new();
-
-        factory.connect_setup(move |_, list_item| {
-            let message_row = MessageRow::new_empty();
-            list_item
-                .downcast_ref::<ListItem>()
-                .unwrap()
-                .set_child(Some(&message_row));
-            let list_item = list_item.downcast_ref::<ListItem>().unwrap();
-            list_item.set_activatable(false);
-            list_item.set_selectable(false);
-            list_item.set_focusable(false);
-        });
-
-        factory.connect_bind(clone!(@weak self as window => move |_, item| {
-            let list_item = item
-            .downcast_ref::<ListItem>()
-            .unwrap();
-
-            let message_object = list_item
-                .item()
-                .and_downcast::<MessageObject>()
-                .unwrap();
-
-            let message_row = list_item
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-            message_row.update(&message_object, &window);
-        }));
-
-        factory.connect_unbind(move |_, list_item| {
-            let message_row = list_item
-                .downcast_ref::<ListItem>()
-                .unwrap()
-                .child()
-                .and_downcast::<MessageRow>()
-                .unwrap();
-
-            message_row.stop_signals();
-        });
-
-        self.imp().message_list.set_factory(Some(&factory));
         self.imp().chatting_with.replace(Some(user));
     }
 
@@ -494,7 +507,7 @@ impl Window {
         let message_timing = get_created_at_timing(&current_time.naive_local());
 
         let message = MessageObject::new(
-            content.to_owned(),
+            content,
             true,
             sender,
             receiver.clone(),
@@ -503,23 +516,25 @@ impl Window {
         )
         .to_process(true);
         self.chatting_with_messages().append(&message);
+        message.set_show_initial_message(false);
         buffer.set_text("");
 
         let send_message_data =
-            MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id, content);
+            MessageData::new_incomplete(created_at, self.get_owner_id(), receiver_id);
 
         // Receiver gets the queue because the receiver saves the message number variable
         // if it was sender, it would send the message number of owner_id@owner_id group which is invalid
         receiver.add_to_queue(RequestType::SendMessage(send_message_data, message.clone()));
+        self.scroll_to_bottom(receiver, true);
     }
 
     /// Gets called when a message is received or when syncing previous message data
     pub fn receive_message(
         &self,
-        message_data: MessageData,
+        message_data: DecryptedMessageData,
         other_user: UserObject,
         add_css: bool,
-    ) {
+    ) -> Option<MessageObject> {
         // No need to receive an already existing message
         if self
             .imp()
@@ -529,7 +544,7 @@ impl Window {
             .unwrap()
             .contains(&message_data.message_number)
         {
-            return;
+            return None;
         }
 
         self.imp()
@@ -572,29 +587,9 @@ impl Window {
             Some(message_data.message_number),
         );
 
-        // Will always proceed to this block if syncing messages
+        // First case will only happen when syncing messages
         if current_message_number >= message_data.message_number {
-            // If 0 element, no checks to be done. Append it to the list
-            let element_num = other_user.messages().n_items();
-            if element_num < 1 {
-                other_user.messages().append(&message);
-            } else {
-                other_user
-                    .messages()
-                    .insert_sorted(&message, |obj_1, obj_2| {
-                        let message_content_1: MessageObject = obj_1.clone().downcast().unwrap();
-                        let message_content_2: MessageObject = obj_2.clone().downcast().unwrap();
-                        let msg_num_1 = message_content_1.imp().message_number.get();
-                        let msg_num_2 = message_content_2.imp().message_number.get();
-
-                        match (msg_num_1, msg_num_2) {
-                            (Some(num_a), Some(num_b)) => num_a.cmp(&num_b),
-                            (Some(_), None) => Ordering::Less,
-                            (None, Some(_)) => Ordering::Greater,
-                            (None, None) => Ordering::Equal,
-                        }
-                    });
-            }
+            other_user.messages().insert(0, &message);
         } else {
             other_user.messages().append(&message);
         }
@@ -607,6 +602,7 @@ impl Window {
                 self.add_pending_avatar_css(target_user)
             }
         }
+        Some(message)
     }
 
     /// Create a row using a UserObject for the ListBox
@@ -622,9 +618,18 @@ impl Window {
     }
 
     /// Used during the startup of the app. Called only once to create the owner profile
-    fn create_owner(&self, id_data: Option<UserIDs>) -> UserObject {
-        let user_data = if let Some(data) = id_data {
+    fn create_owner(
+        &self,
+        id_data: Option<UserIDs>,
+        key_data: Option<(RsaPublicKey, RsaPrivateKey)>,
+    ) -> UserObject {
+        let data_exists = id_data.is_some() && key_data.is_some();
+
+        let user_data = if data_exists {
             info!("Saved user data found");
+
+            let (public_key, private_key) = key_data.unwrap();
+            let data = id_data.unwrap();
             self.imp()
                 .message_numbers
                 .borrow_mut()
@@ -636,6 +641,8 @@ impl Window {
                 Some(data.user_id),
                 Some(data.user_token),
                 self.clone(),
+                Some(public_key.clone()),
+                Some((public_key, private_key)),
             )
         } else {
             UserObject::new(
@@ -645,6 +652,8 @@ impl Window {
                 None,
                 None,
                 self.clone(),
+                None,
+                None,
             )
         };
 
@@ -654,59 +663,15 @@ impl Window {
         user_data
     }
 
-    /// Function that handles some WS requests. Every added UserObject will have an instance of this to
-    /// process their requests.
-    pub fn handle_ws_message(&self, user: &UserObject, receiver: Receiver<String>) {
-        receiver.attach(None, clone!(@weak user as user_object, @weak self as window => @default-return ControlFlow::Break, move |response| {
-            let response_data: Vec<&str> = response.splitn(2, ' ').collect();
-            match response_data[0] {
-                "/get-user-data" | "/new-user-message" => {
-                    let user_data = FullUserData::from_json(response_data[1]);
-
-                    if response_data[0] == "/get-user-data" {
-                        if user_data.user_id != 0 {
-                            user_object.emit_by_name::<()>("user-exists", &[&true]);
-                        } else {
-                            user_object.emit_by_name::<()>("user-exists", &[&false]);
-                            return ControlFlow::Continue;
-                        }
-                    }
-
-                    if window.find_user(user_data.user_id).is_some() {
-                        user_object.check_image_link(user_data.image_link, false);
-                        info!("User {} has already been added. Dismissing the request", user_data.user_id);
-                        return ControlFlow::Continue;
-                    }
-
-                    window.create_user(user_data);
-                }
-                "/message" => {
-                    let message_data = MessageData::from_json(response_data[1]);
-                    window.receive_message(message_data, user_object.clone(), true);
-                    window.scroll_to_bottom(user_object);
-                },
-                "/update-user-id" => {
-                    let id_data = UserIDs::from_json(response_data[1]);
-                    window.save_user_data();
-                    window.imp()
-                        .message_numbers
-                        .borrow_mut()
-                        .insert(id_data.user_id, HashSet::new());
-                }
-                _ => {}
-            }
-            ControlFlow::Continue
-        }));
-    }
-
     /// Used to create all UserObject for the self's users ListStore except for the owner UserObject.
     /// Called when New Chat button is used or a message is received but the user was not added
-    fn create_user(&self, user_data: FullUserData) {
+    pub fn create_user(&self, user_data: FullUserData) -> UserObject {
         info!(
             "Creating new user with name: {}, id: {}",
             user_data.user_name, user_data.user_id
         );
 
+        let rsa_public_key = read_rsa_public_from_string(user_data.rsa_public_key);
         let new_user_data = UserObject::new(
             &user_data.user_name,
             user_data.image_link,
@@ -714,6 +679,8 @@ impl Window {
             Some(user_data.user_id),
             None,
             self.clone(),
+            Some(rsa_public_key),
+            None,
         );
 
         // Every single user in the UserList of the client will have the owner User ID for reference
@@ -729,6 +696,12 @@ impl Window {
             .sync_create()
             .build();
 
+        let public_key = chatting_from.imp().rsa_public.get().unwrap().clone();
+        let private_key = chatting_from.imp().rsa_private.get().unwrap().clone();
+
+        new_user_data.imp().rsa_public.set(public_key).unwrap();
+        new_user_data.imp().rsa_private.set(private_key).unwrap();
+
         new_user_data.handle_ws();
         self.get_users_liststore().append(&new_user_data);
         self.save_user_list();
@@ -736,6 +709,7 @@ impl Window {
             .message_numbers
             .borrow_mut()
             .insert(new_user_data.user_id(), HashSet::new());
+        new_user_data
     }
 
     /// Get the users ListBox
@@ -771,7 +745,7 @@ impl Window {
         }
     }
 
-    fn add_pending_avatar_css(&self, target_user: UserObject) {
+    pub fn add_pending_avatar_css(&self, target_user: UserObject) {
         let listbox = self.get_user_list();
         let total_user = self.get_users_liststore().n_items() as i32;
 
@@ -832,16 +806,41 @@ impl Window {
         }
     }
 
-    /// Scroll to the bottom of the ListView if the given is selected
-    pub fn scroll_to_bottom(&self, current_user: UserObject) {
+    /// Scroll to the bottom of the ListView if the given user is selected
+    pub fn scroll_to_bottom(&self, current_user: UserObject, reveal_message: bool) {
         if current_user == self.get_chatting_with() {
-            let model = self.imp().message_list.model().unwrap();
+            let window = self.clone();
 
-            let last_index = model.n_items() - 1;
+            // Small timeout because the GUI needs some time to add the item to model
+            timeout_add_local_once(Duration::from_millis(200), move || {
+                let model = window.imp().message_list.model().unwrap();
 
-            self.imp()
-                .message_list
-                .scroll_to(last_index, ListScrollFlags::NONE, None);
+                let total_item = model.n_items();
+                if total_item == 0 {
+                    return;
+                }
+                let last_index = model.n_items() - 1;
+
+                // If true the message animation will be loaded separately
+                // The avatar is already pre-loaded
+                if reveal_message {
+                    let object: MessageObject = model.item(last_index).unwrap().downcast().unwrap();
+                    if let Some(row) = object.target_row() {
+                        row.imp().message_revealer.set_reveal_child(false);
+                        timeout_add_local_once(
+                            Duration::from_millis(100),
+                            clone!(@weak row => move || {
+                                row.imp().message_revealer.set_reveal_child(true);
+                            }),
+                        );
+                    }
+                }
+
+                window
+                    .imp()
+                    .message_list
+                    .scroll_to(last_index, ListScrollFlags::NONE, None);
+            });
         }
     }
 }

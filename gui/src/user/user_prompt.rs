@@ -125,7 +125,7 @@ impl UserPrompt {
                     entry.add_css_class("blue-entry");
                     prompt.imp().confirm_button.set_sensitive(true);
                 }
-                prompt.imp().error_text.set_label(&String::new());
+                prompt.imp().error_text.set_label("");
             }));
     }
 
@@ -146,7 +146,7 @@ impl UserPrompt {
                     entry.remove_css_class("error");
                     entry.add_css_class("blue-entry");
                 }
-                prompt.imp().error_text.set_label(&String::new());
+                prompt.imp().error_text.set_label("");
             }));
     }
 
@@ -172,7 +172,7 @@ impl UserPrompt {
                     entry.add_css_class("blue-entry");
                     prompt.imp().confirm_button.set_sensitive(true);
                 }
-                prompt.imp().error_text.set_label(&String::new());
+                prompt.imp().error_text.set_label("");
             }));
     }
 
@@ -197,7 +197,7 @@ impl UserPrompt {
                     obj_clone
                         .imp()
                         .error_text
-                        .set_label(&format!("Error: User ID does not exist"));
+                        .set_label("Error: User ID does not exist");
                 } else {
                     info!("Inputted User ID info found");
                     obj_clone.close()
@@ -310,7 +310,7 @@ impl UserPrompt {
                 info!("Updating image link to: {}", entry_data);
                 let over_lay = profile.imp().toast_overlay.get();
                 let toast = Toast::builder()
-                    .title(format!("Starting updating image..."))
+                    .title("Starting updating image...".to_string())
                     .timeout(1)
                     .build();
                 over_lay.add_toast(toast);

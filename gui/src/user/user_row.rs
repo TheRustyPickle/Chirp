@@ -124,11 +124,7 @@ impl UserRow {
             popover.set_visible(true);
         }));
 
-        let is_owner = if object.user_id() == object.owner_id() {
-            true
-        } else {
-            false
-        };
+        let is_owner = object.user_id() == object.owner_id();
 
         // Prevent delete button from working on owner row
         if is_owner {

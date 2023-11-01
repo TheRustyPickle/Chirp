@@ -92,7 +92,9 @@ wrapper! {
 impl MessageRow {
     pub fn update(&self, object: &MessageObject, window: &Window) {
         object.set_target_row(self.clone());
-        let revealer = self.imp().message_revealer.get();
+        let message_revealer = self.imp().message_revealer.get();
+
+        let to_show_message = object.show_initial_message();
 
         let new_cursor = Cursor::builder().name("pointer").build();
 
@@ -100,14 +102,14 @@ impl MessageRow {
             let sender = self.imp().sender.get();
             sender.set_cursor(Some(&new_cursor));
             self.imp().message_content.add_css_class("message-row-sent");
-            revealer.set_transition_type(RevealerTransitionType::SlideLeft);
+            message_revealer.set_transition_type(RevealerTransitionType::SlideLeft);
         } else {
             let receiver = self.imp().receiver.get();
             receiver.set_cursor(Some(&new_cursor));
             self.imp()
                 .message_content
                 .add_css_class("message-row-received");
-            revealer.set_transition_type(RevealerTransitionType::SlideRight)
+            message_revealer.set_transition_type(RevealerTransitionType::SlideRight);
         }
 
         self.imp().message_data.replace(Some(object.clone()));
@@ -116,9 +118,14 @@ impl MessageRow {
         self.connect_button_signals(window);
 
         // The transition must start after it gets added to the ListBox thus a small timer
-        timeout_add_local_once(Duration::from_millis(50), move || {
-            revealer.set_reveal_child(true);
-        });
+        if !to_show_message {
+            message_revealer.set_reveal_child(false);
+            object.set_show_initial_message(true)
+        } else if !message_revealer.reveals_child() {
+            timeout_add_local_once(Duration::from_millis(20), move || {
+                message_revealer.set_reveal_child(true);
+            });
+        }
     }
 
     pub fn new_empty() -> Self {
@@ -214,9 +221,9 @@ impl MessageRow {
             .bind_property("is-send", &sent_by, "xalign")
             .transform_to(move |_, is_send: bool| {
                 if is_send {
-                    Some(1.0 as f32)
+                    Some(1.0_f32)
                 } else {
-                    Some(0.0 as f32)
+                    Some(0.0_f32)
                 }
             })
             .sync_create()
@@ -226,9 +233,9 @@ impl MessageRow {
             .bind_property("is-send", &message, "xalign")
             .transform_to(move |_, is_send: bool| {
                 if is_send {
-                    Some(1.0 as f32)
+                    Some(1.0_f32)
                 } else {
-                    Some(0.0 as f32)
+                    Some(0.0_f32)
                 }
             })
             .sync_create()

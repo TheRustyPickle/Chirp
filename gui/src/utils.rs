@@ -2,7 +2,8 @@ use chrono::{Local, NaiveDateTime};
 use gio::Cancellable;
 use gtk::glib::Bytes;
 use rand::Rng;
-use soup::{prelude::*, Message, Session};
+use soup::prelude::*;
+use soup::{Message, Session};
 
 const COLORS: [&str; 10] = [
     "blue-1", "blue-2", "green-1", "green-2", "yellow-1", "orange-1", "red-1", "purple-1",
@@ -15,10 +16,10 @@ pub fn get_avatar(link: String) -> Result<(String, Bytes), String> {
     let session = Session::new();
     let cancel = Cancellable::new();
 
-    let message = Message::new("GET", &link).map_err(|_| format!("Invalid link"))?;
+    let message = Message::new("GET", &link).map_err(|_| "Invalid link".to_string())?;
     let image_data = session
         .send_and_read(&message, Some(&cancel))
-        .map_err(|_| format!("Failed to get image data"))?;
+        .map_err(|_| "Failed to get image data".to_string())?;
 
     Ok((link, image_data))
 }

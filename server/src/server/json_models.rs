@@ -70,7 +70,12 @@ pub struct MessageData {
     pub created_at: String,
     pub from_user: usize,
     pub to_user: usize,
-    pub message: Option<String>,
+    pub sender_message: Option<Vec<u8>>,
+    pub receiver_message: Option<Vec<u8>>,
+    pub sender_key: Option<Vec<u8>>,
+    pub receiver_key: Option<Vec<u8>>,
+    pub sender_nonce: Option<Vec<u8>>,
+    pub receiver_nonce: Option<Vec<u8>>,
     pub message_number: usize,
     #[serde(skip_serializing)]
     pub user_token: String,
@@ -93,6 +98,7 @@ impl MessageData {
     }
 }
 
+// TODO: Remove it and use IDInfo instead
 #[derive(Deserialize)]
 pub struct SendUserData {
     pub user_id: usize,
@@ -151,11 +157,24 @@ impl SyncMessage {
 #[derive(Serialize)]
 pub struct SyncMessageData {
     message_data: Vec<MessageData>,
+    last_message_number: usize,
+    start_at: usize,
+    ends_at: usize,
 }
 
 impl SyncMessageData {
-    pub fn new_json(message_data: Vec<MessageData>) -> String {
-        let data = SyncMessageData { message_data };
+    pub fn new_json(
+        message_data: Vec<MessageData>,
+        last_message_number: usize,
+        start_at: usize,
+        ends_at: usize,
+    ) -> String {
+        let data = SyncMessageData {
+            message_data,
+            last_message_number,
+            start_at,
+            ends_at,
+        };
         serde_json::to_string(&data).unwrap()
     }
 }

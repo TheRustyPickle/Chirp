@@ -27,6 +27,8 @@ mod imp {
         pub target_row: RefCell<Option<MessageRow>>,
         #[property(get, set)]
         pub must_process: Cell<bool>,
+        #[property(get, set)]
+        pub show_initial_message: Cell<bool>,
     }
 
     #[object_subclass]
@@ -64,6 +66,7 @@ impl MessageObject {
             .property("sent-to", sent_to)
             .property("message-timing", message_timing)
             .property("must-process", false)
+            .property("show-initial-message", true)
             .build();
 
         if let Some(num) = message_number {

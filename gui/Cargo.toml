@@ -17,6 +17,10 @@ serde = { version = "1.0.188", features = ["derive"] }
 serde_json = "1.0.107"
 chrono = "0.4.31"
 dotenvy = "0.15.7"
+rsa = "0.9.3"
+aes-gcm = "0.10.3"
+sha2 = "0.10.8"
+rayon = "1.8.0"
 
 [build-dependencies]
 glib-build-tools = "0.18.0"

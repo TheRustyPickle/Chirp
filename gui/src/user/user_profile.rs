@@ -104,11 +104,7 @@ impl UserProfile {
     pub fn new(user_data: UserObject, window: &window::Window) -> Self {
         let obj: UserProfile = Object::builder().build();
 
-        let is_owner = if user_data.user_id() == user_data.owner_id() {
-            true
-        } else {
-            false
-        };
+        let is_owner = user_data.user_id() == user_data.owner_id();
 
         if is_owner {
             let obj_clone = obj.clone();

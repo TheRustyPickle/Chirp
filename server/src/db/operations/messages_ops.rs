@@ -40,7 +40,7 @@ pub fn get_messages_from_number(
         .filter(message_group.eq(group))
         .filter(message_number.gt(start_at as i32))
         .filter(message_number.le(end_at as i32))
-        .order(message_number.asc())
+        .order(message_number.desc())
         .select(Message::as_select())
         .load(conn)
         .unwrap()
@@ -52,7 +52,12 @@ pub fn delete_message_with_number(conn: &mut PgConnection, group: String, number
     update(messages)
         .filter(message_group.eq(group))
         .filter(message_number.eq(number as i32))
-        .set(message_text.eq(None::<String>))
+        .set((
+            sender_message.eq(None::<Vec<u8>>),
+            receiver_message.eq(None::<Vec<u8>>),
+            sender_key.eq(None::<Vec<u8>>),
+            receiver_key.eq(None::<Vec<u8>>),
+        ))
         .execute(conn)
         .unwrap();
 }
