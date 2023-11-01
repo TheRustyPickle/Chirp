@@ -691,8 +691,8 @@ impl UserObject {
                                 message_number
                             );
                             if message_number > user_object.message_number() {
-                                let sync_target = if message_number > 500 {
-                                    message_number - 500
+                                let sync_target = if message_number > 100 {
+                                    message_number - 100
                                 } else {
                                     0
                                 };
