@@ -23,6 +23,8 @@ mod imp {
         #[property(get, set)]
         pub synced_till: Cell<u64>,
         #[property(get, set)]
+        pub shown_till: Cell<u64>,
+        #[property(get, set)]
         pub belongs_to: OnceCell<UserObject>,
         #[property(get, set)]
         pub message_factory: OnceCell<SignalListItemFactory>,
@@ -48,9 +50,11 @@ use glib::{clone, wrapper, Object};
 use gtk::prelude::*;
 use gtk::{glib, ListItem, NoSelection, SignalListItemFactory};
 use std::cell::RefMut;
+use tracing::debug;
 
 use crate::message::{MessageObject, MessageRow};
 use crate::user::UserObject;
+use crate::ws::RequestType;
 
 wrapper! {
     pub struct MessageRenderer(ObjectSubclass<imp::MessageRenderer>);
@@ -127,6 +131,9 @@ impl MessageRenderer {
 
     /// Save a message data for future loading
     pub fn save_message(&self, message: MessageObject, number: u64) {
+        if number < self.synced_till() {
+            self.set_synced_till(number);
+        }
         self.imp()
             .saved_messages
             .borrow_mut()
@@ -136,25 +143,62 @@ impl MessageRenderer {
     /// Clears the user's Message ListStore. Used before another user is set as active
     pub fn user_inactive(&self) {
         self.message_liststore().remove_all();
+        self.set_shown_till(self.message_number());
         if self.is_syncing() {
             self.set_became_inactive(true)
         }
     }
 
     /// Reloads the saved messages to the ListStore. Used after the user is set as active
-    pub fn user_active(&self) {
+    pub fn user_active(&self, start_from: Option<u64>) {
         let message_list = self.message_liststore();
         let saved_messages = self.imp().saved_messages.borrow();
 
-        let mut total_to_add = 100;
-        let mut last_num = self.message_number();
+        let mut total_to_add = 50;
+        let final_num = self.synced_till();
 
-        while total_to_add > 0 && last_num > 0 {
-            if let Some(message) = saved_messages.get(&last_num) {
-                message_list.append(message);
-                total_to_add += 1;
+        let mut ended_at = self.message_number();
+
+        if let Some(start_from) = start_from {
+            ended_at = start_from;
+        }
+
+        for num in (final_num..ended_at).rev() {
+            if let Some(message_object) = saved_messages.get(&num) {
+                message_list.insert(0, message_object);
+                total_to_add -= 1;
             }
-            last_num -= 1;
+            ended_at = num;
+            if total_to_add == 0 {
+                break;
+            };
+        }
+
+        self.set_shown_till(ended_at);
+    }
+
+    pub fn load_more_items(&self) {
+        if self.is_syncing() {
+            self.set_became_inactive(true);
+        }
+        let shown_till = self.shown_till();
+        let synced_till = self.synced_till();
+
+        debug!("Shown till {}, synced till {}", shown_till, synced_till);
+        if shown_till == synced_till {
+            let total_to_get = 100;
+
+            let sync_target = if synced_till > total_to_get {
+                synced_till - total_to_get
+            } else {
+                0
+            };
+            if !self.is_syncing() && synced_till != 0 {
+                self.belongs_to()
+                    .add_to_queue(RequestType::SyncMessage(sync_target, synced_till));
+            }
+        } else {
+            self.user_active(Some(self.shown_till()))
         }
     }
 }
