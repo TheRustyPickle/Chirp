@@ -279,7 +279,7 @@ impl UserObject {
     }
 
     /// Adds stuff to queue and start the process to process them
-    pub fn add_to_queue(&self, request_type: RequestType) -> &Self {
+    pub fn add_to_queue(&self, request_type: RequestType) {
         debug!("Adding to queue: {:#?}", request_type);
         {
             let locked_queue = self.imp().request_queue.lock().unwrap();
@@ -292,7 +292,6 @@ impl UserObject {
         if !self.request_processing() {
             self.process_queue(None);
         };
-        self
     }
 
     /// Adds stuff to queue at the index 0 and call to process only the first queue request
@@ -628,13 +627,15 @@ impl UserObject {
                                 user_object.message_number(),
                                 message_number
                             );
+                            let total_to_load = 200;
                             if message_number > user_object.message_number() {
-                                let sync_target = if message_number > 1000 {
-                                    message_number - 1000
+                                let sync_target = if message_number > total_to_load {
+                                    message_number - total_to_load
                                 } else {
                                     0
                                 };
                                 user_object.renderer().set_message_number(message_number);
+                                user_object.renderer().set_synced_till(message_number);
                                 // Syncing must happen before any pending message sent or deletion is performed
                                 user_object.add_queue_to_first(RequestType::SyncMessage(
                                     sync_target,

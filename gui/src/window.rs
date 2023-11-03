@@ -6,7 +6,7 @@ mod imp {
     use glib::{object_subclass, Binding, Propagation};
     use gtk::{
         gio, glib, Button, CompositeTemplate, EmojiChooser, Label, ListBox, ListView, Revealer,
-        Stack, TextView,
+        ScrolledWindow, Stack, TextView,
     };
     use std::cell::{Cell, OnceCell, RefCell};
     use std::collections::{HashMap, HashSet};
@@ -39,6 +39,8 @@ mod imp {
         pub emoji_button: TemplateChild<Button>,
         #[template_child]
         pub emoji_chooser: TemplateChild<EmojiChooser>,
+        #[template_child]
+        pub message_scroller: TemplateChild<ScrolledWindow>,
         pub users: OnceCell<ListStore>,
         pub chatting_with: Rc<RefCell<Option<UserObject>>>,
         pub own_profile: Rc<RefCell<Option<UserObject>>>,
@@ -78,6 +80,7 @@ mod imp {
         /// On window close save all existing user data to gschema
         fn close_request(&self) -> Propagation {
             self.obj().save_user_list();
+            self.obj().check_mess();
             Propagation::Proceed
         }
     }
@@ -158,23 +161,20 @@ impl Window {
             }));
 
         // The event on New Chat button clicked
-        self.imp()
-            .new_chat
+        imp.new_chat
             .connect_clicked(clone!(@weak self as window => move |_| {
                 let prompt = UserPrompt::new("Start Chat").add_user(&window);
                 prompt.present();
             }));
 
         // The event on Profile button clicked
-        self.imp()
-            .my_profile
+        imp.my_profile
             .connect_clicked(clone!(@weak self as window => move |_| {
                 UserProfile::new(window.get_chatting_from(), &window);
             }));
 
         // The event on the send button beside the textview
-        self.imp()
-            .send_button
+        imp.send_button
             .connect_clicked(clone!(@weak self as window => move |_| {
                 window.send_message();
                 window.grab_focus();
@@ -182,7 +182,7 @@ impl Window {
 
         // If the message typing space is empty, show the background text + disable the send button
         // else remove the text and enable the send button
-        self.imp().message_entry.get().buffer().connect_changed(
+        imp.message_entry.get().buffer().connect_changed(
             clone!(@weak self as window => move |buffer| {
                 let char_count = buffer.char_count();
                 let should_be_enabled = char_count != 0;
@@ -209,8 +209,7 @@ impl Window {
         });
 
         // Set emoji chooser to visible on click
-        self.imp()
-            .emoji_button
+        imp.emoji_button
             .connect_clicked(clone!(@weak self as window => move |_| {
                 window.imp().emoji_chooser.set_position(PositionType::Top);
                 window.imp().emoji_chooser.set_has_arrow(false);
@@ -218,12 +217,19 @@ impl Window {
             }));
 
         // Add the chosen emoji to the textview at the cursor point
-        self.imp().emoji_chooser.connect_emoji_picked(
-            clone!(@weak self as window => move |_, emoji| {
+        imp.emoji_chooser
+            .connect_emoji_picked(clone!(@weak self as window => move |_, emoji| {
                 let buffer = window.imp().message_entry.buffer();
                 buffer.insert_at_cursor(emoji);
-            }),
-        );
+            }));
+
+        let vadjustment = imp.message_scroller.vadjustment();
+
+        vadjustment.connect_value_changed(clone!(@weak self as window => move |adjustment| {
+            if adjustment.value() == adjustment.lower() {
+                window.get_chatting_with().renderer().load_more_items()
+            }
+        }));
     }
 
     fn setup_actions(&self) {
@@ -240,6 +246,66 @@ impl Window {
     fn setup_settings(&self) {
         let settings = Settings::new(APP_ID);
         self.imp().settings.set(settings).unwrap();
+    }
+
+    /// Setup owner profile and bind User model
+    fn setup_users(&self) {
+        let users = ListStore::new::<UserObject>();
+        self.imp().users.set(users).expect("Could not set users");
+        self.imp().last_selected_user.set(0);
+
+        let user_store = self.get_users_liststore();
+        let user_list = self.get_user_list();
+
+        // Bind the model so if any user is added to user_store, start creating the new user row
+        user_list.bind_model(
+            Some(user_store),
+            clone!(@weak self as window => @default-panic, move |obj| {
+                let user_object = obj.downcast_ref().unwrap();
+                let row = window.get_user_row(user_object, "user-inactive");
+                row.upcast()
+            }),
+        );
+
+        info!("Setting own profile");
+        let saved_user_id = self.check_saved_data();
+        let saved_keys = self.check_saved_keys();
+        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys.clone());
+
+        self.imp().own_profile.replace(Some(data.clone()));
+
+        // Select the first row we just added
+        self.get_user_list().row_at_index(0).unwrap().activate();
+
+        if saved_user_id.is_some() && saved_keys.is_some() {
+            let id_data = saved_user_id.unwrap();
+            let mut saved_users = self.get_saved_user_data();
+            // If empty stop checking
+            if saved_users.is_empty() {
+                return;
+            }
+
+            let owner_data = saved_users.remove(0);
+            // If it's not the same then the saved data is outdated or invalid
+            if owner_data.user_id != id_data.user_id {
+                error!("Invalid or outdated owner data found. Dismissing saved data");
+                self.empty_saved_user_list();
+                return;
+            }
+
+            data.set_name(owner_data.user_name);
+
+            // Have to set the image link manually otherwise if new users are added
+            // after this and the image is not loaded it would save None image link
+            data.set_image_link(owner_data.image_link.clone());
+            data.check_image_link(owner_data.image_link, false);
+
+            for user_data in saved_users {
+                self.create_user(user_data);
+            }
+        } else {
+            self.empty_saved_user_list();
+        }
     }
 
     fn settings(&self) -> &Settings {
@@ -385,66 +451,6 @@ impl Window {
         }
     }
 
-    /// Setup owner profile and bind User model
-    fn setup_users(&self) {
-        let users = ListStore::new::<UserObject>();
-        self.imp().users.set(users).expect("Could not set users");
-        self.imp().last_selected_user.set(0);
-
-        let user_store = self.get_users_liststore();
-        let user_list = self.get_user_list();
-
-        // Bind the model so if any user is added to user_store, start creating the new user row
-        user_list.bind_model(
-            Some(user_store),
-            clone!(@weak self as window => @default-panic, move |obj| {
-                let user_object = obj.downcast_ref().unwrap();
-                let row = window.get_user_row(user_object, "user-inactive");
-                row.upcast()
-            }),
-        );
-
-        info!("Setting own profile");
-        let saved_user_id = self.check_saved_data();
-        let saved_keys = self.check_saved_keys();
-        let data: UserObject = self.create_owner(saved_user_id.clone(), saved_keys.clone());
-
-        self.imp().own_profile.replace(Some(data.clone()));
-
-        // Select the first row we just added
-        self.get_user_list().row_at_index(0).unwrap().activate();
-
-        if saved_user_id.is_some() && saved_keys.is_some() {
-            let id_data = saved_user_id.unwrap();
-            let mut saved_users = self.get_saved_user_data();
-            // If empty stop checking
-            if saved_users.is_empty() {
-                return;
-            }
-
-            let owner_data = saved_users.remove(0);
-            // If it's not the same then the saved data is outdated or invalid
-            if owner_data.user_id != id_data.user_id {
-                error!("Invalid or outdated owner data found. Dismissing saved data");
-                self.empty_saved_user_list();
-                return;
-            }
-
-            data.set_name(owner_data.user_name);
-
-            // Have to set the image link manually otherwise if new users are added
-            // after this and the image is not loaded it would save None image link
-            data.set_image_link(owner_data.image_link.clone());
-            data.check_image_link(owner_data.image_link, false);
-
-            for user_data in saved_users {
-                self.create_user(user_data);
-            }
-        } else {
-            self.empty_saved_user_list();
-        }
-    }
-
     /// Get the UserObject that is currently selected/chatting with
     pub fn get_chatting_with(&self) -> UserObject {
         self.imp().chatting_with.borrow().clone().unwrap()
@@ -477,7 +483,7 @@ impl Window {
         timeout_add_local_once(
             Duration::from_millis(100),
             clone!(@weak user => move || {
-                user.renderer().user_active();
+                user.renderer().user_active(None);
             }),
         );
 
@@ -620,9 +626,14 @@ impl Window {
             .save_message(message.clone(), message_data.message_number);
 
         // First case will only happen when syncing messages
-        if self.get_chatting_with() == other_user && !other_user.renderer().became_inactive() {
+        if self.get_chatting_with() == other_user {
+            // If outside the range of what is shown, don't add the sync message to the list
             if current_message_number >= message_data.message_number {
-                other_user.messages().insert(0, &message);
+                if other_user.renderer().shown_till() < message_data.message_number
+                    && !other_user.renderer().became_inactive()
+                {
+                    other_user.messages().insert(0, &message);
+                }
             } else {
                 other_user.messages().append(&message);
             }
@@ -876,6 +887,16 @@ impl Window {
                     .message_list
                     .scroll_to(last_index, ListScrollFlags::NONE, None);
             });
+        }
+    }
+
+    pub fn check_mess(&self) {
+        let liststore = self.get_chatting_with().renderer().message_liststore();
+
+        for item in liststore.iter() {
+            let item: MessageObject = item.unwrap();
+
+            println!("{}", item.message_number());
         }
     }
 }
