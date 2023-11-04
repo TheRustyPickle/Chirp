@@ -88,7 +88,7 @@ use gtk::{
 };
 use soup::WebsocketConnection;
 use std::env;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::user::{UserObject, UserPrompt};
 use crate::window;
@@ -151,12 +151,10 @@ impl UserProfile {
         let user_data = self.imp().user_data.get().unwrap();
         for signal in self.imp().signal_ids.take() {
             user_data.disconnect(signal);
-            debug!("A signal in UserProfile was disconnected");
         }
 
         for binding in self.imp().bindings.take() {
             binding.unbind();
-            debug!("A binding in UserProfile was unbind");
         }
     }
 

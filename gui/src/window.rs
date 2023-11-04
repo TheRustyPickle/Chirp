@@ -80,7 +80,6 @@ mod imp {
         /// On window close save all existing user data to gschema
         fn close_request(&self) -> Propagation {
             self.obj().save_user_list();
-            self.obj().check_mess();
             Propagation::Proceed
         }
     }
@@ -887,16 +886,6 @@ impl Window {
                     .message_list
                     .scroll_to(last_index, ListScrollFlags::NONE, None);
             });
-        }
-    }
-
-    pub fn check_mess(&self) {
-        let liststore = self.get_chatting_with().renderer().message_liststore();
-
-        for item in liststore.iter() {
-            let item: MessageObject = item.unwrap();
-
-            println!("{}", item.message_number());
         }
     }
 }
