@@ -4,9 +4,9 @@
 
 Chirp is my playground for exploring the world of GTK4-rs while working on a chat application. Currently, it's a practice project with a straightforward and functional UI.
 
-## Current Status
+## Features
 
-🎨 **User Interface:** Chirp features an interface crafted using GTK4-rs. It is being actively developed and refined with more features.
+🎨 **User Interface:** Chirp features an interface crafted using GTK4-rs.
 
 🌐 **Server:** A WebSocket server created with actix-web the GUI can communicate with, allowing usage of multiple clients with auto-reconnecting.
 
@@ -14,17 +14,17 @@ Chirp is my playground for exploring the world of GTK4-rs while working on a cha
 
 💬 **Messaging:** The app supports basic messaging capabilities including sending and deleting messages, adding new chat, and message synchronization upon startup.
 
+🔒 **Message Encryption:** A combination of RSA and AES is used to add encryption to every single message and is decrypted locally to show it in the UI.
+
 <details>
 <summary>App Screenshots</summary>
-  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/ad9ef82e-dc2f-40b9-8fa7-0df20a3dc62e">
-  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/5f7b22c1-3afd-44f9-928b-dfabc2ffd236">
+  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/d475e493-37aa-4309-a256-5ec54caefe77">
+  <img src="https://github.com/TheRustyPickle/Chirp/assets/35862475/548621ca-f632-4799-931f-a8580fce672f">
 </details>
 
-## What's on the Horizon?
+## Current Status
 
-🔧 **Refining UI:** Further refining of the user interface for a more user-friendly experience and with more features.
-
-🔒 **Message Encryption:** Implementation of encryption measures to enhance the privacy and security of messages.
+No further development is planned for the project as it served its purpose
 
 ## Project Components
 
@@ -55,10 +55,6 @@ glib-compile-schemas $HOME/.local/share/glib-2.0/schemas/
 
 - Start the server `cargo run --bin chirp-server --release`
 - Launch the GUI using the command `cargo run --bin chirp-gui --release`
-
-## Get Involved
-
-Want to contribute or share ideas? All participation is welcome! Feel free to open an issue or submit a pull request to get the conversation going.
 
 ## License
 
