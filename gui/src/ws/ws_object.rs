@@ -80,7 +80,6 @@ impl WSObject {
     pub fn stop_signals(&self) {
         for signal in self.imp().signal_ids.take() {
             self.disconnect(signal);
-            debug!("A signal in WSObject was disconnected");
         }
 
         if let Some(conn) = self.ws_conn() {
@@ -307,6 +306,13 @@ impl WSObject {
         self.ws_conn()
             .unwrap()
             .send_text(&format!("/delete-message {}", data))
+    }
+
+    pub fn sync_deleted_message(&self, data: String) {
+        info!("Sending request to WS sync deleted messages");
+        self.ws_conn()
+            .unwrap()
+            .send_text(&format!("/sync-deleted-message {}", data))
     }
 
     /// Saves the signal ID of the Websocket Message Signal

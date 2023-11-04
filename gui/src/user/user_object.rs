@@ -101,8 +101,8 @@ use crate::processor::MessageRenderer;
 use crate::utils::{generate_random_avatar_link, get_avatar, get_random_color};
 use crate::window::Window;
 use crate::ws::{
-    DecryptedMessageData, DeleteMessage, FullUserData, ImageUpdate, MessageData, MessageSyncData,
-    MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
+    DecryptedMessageData, DeleteMessage, DeletedMessageData, FullUserData, ImageUpdate,
+    MessageData, MessageSyncData, MessageSyncRequest, NameUpdate, RequestType, UserIDs, WSObject,
 };
 
 glib::wrapper! {
@@ -131,7 +131,7 @@ impl UserObject {
             .property("main-window", window.clone())
             .build();
 
-        let renderer = MessageRenderer::new(obj.clone(), obj.imp().signal_ids.borrow_mut());
+        let renderer = MessageRenderer::new(obj.clone());
         obj.set_renderer(renderer);
         // Will only be some in case of owner object and with some data saved
         if let Some(token) = user_token {
@@ -194,9 +194,9 @@ impl UserObject {
     }
 
     pub fn stop_signals(&self) {
+        self.renderer().stop_signals();
         for signal in self.imp().signal_ids.take() {
             self.disconnect(signal);
-            debug!("A signal in UserObject was disconnected");
         }
     }
 
@@ -421,6 +421,20 @@ impl UserObject {
                             .get_mut(&self.user_id())
                             .unwrap()
                             .remove(&number);
+                        self.renderer().delete_item(&number);
+                    }
+                    RequestType::SyncDeletedMessage(start_at, end_at) => {
+                        info!(
+                            "Sending request to sync deleted message from {} {}",
+                            start_at, end_at
+                        );
+                        let data = MessageSyncRequest::new_json(
+                            self.user_id(),
+                            start_at,
+                            end_at,
+                            self.user_token(),
+                        );
+                        user_ws.sync_deleted_message(data)
                     }
                 }
                 highest_index += 1;
@@ -598,9 +612,12 @@ impl UserObject {
                             // while this client is on but not connected it would mean this client would not receive
                             // the deletion event. So we have to check every single message the server has to ensure
                             // nothing is missed
+                            let synced_till = user_object.renderer().synced_till();
+                            let message_number = user_object.renderer().message_number();
+                            user_object.add_to_queue(RequestType::SyncDeletedMessage(synced_till, message_number));
                             user_object.renderer().set_message_number(0);
                             user_object.renderer().set_is_syncing(false);
-                            user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()))
+                            user_object.add_queue_to_first(RequestType::GetLastMessageNumber(user_object.clone()));
                         }
                         "/update-user-id" => {
                             let id_data = UserIDs::from_json(splitted_data[1]);
@@ -628,6 +645,7 @@ impl UserObject {
                                 message_number
                             );
                             let total_to_load = 200;
+
                             if message_number > user_object.message_number() {
                                 let sync_target = if message_number > total_to_load {
                                     message_number - total_to_load
@@ -635,7 +653,6 @@ impl UserObject {
                                     0
                                 };
                                 user_object.renderer().set_message_number(message_number);
-                                user_object.renderer().set_synced_till(message_number);
                                 // Syncing must happen before any pending message sent or deletion is performed
                                 user_object.add_queue_to_first(RequestType::SyncMessage(
                                     sync_target,
@@ -663,21 +680,7 @@ impl UserObject {
                                 @weak user_object, @weak window => @default-return ControlFlow::Break,
                                 move |(message_data, completed): (Vec<DecryptedMessageData>, bool)| {
                                 for message in message_data {
-                                    if message.message.is_none() {
-                                        if message.message_number == 0 {
-                                            continue;
-                                        }
-                                        let message_exists = window
-                                            .imp()
-                                            .message_numbers
-                                            .borrow_mut()
-                                            .get_mut(&user_object.user_id())
-                                            .unwrap()
-                                            .remove(&message.message_number);
-
-                                        if message_exists {
-                                            user_object.remove_message(message.message_number, false);
-                                        }
+                                    if message.message_number == 0 {
                                         continue;
                                     }
                                     window.receive_message(message, user_object.clone(), false);
@@ -710,9 +713,28 @@ impl UserObject {
                             });
                             user_object.process_queue(None);
                         }
+                        "/sync-deleted-message" => {
+                            let deleted_numbers = DeletedMessageData::from_json(splitted_data[1]);
+                            let mut existing_numbers = window
+                                .imp()
+                                .message_numbers
+                                .borrow_mut()
+                                .get_mut(&user_object.user_id())
+                                .unwrap()
+                                .clone();
+                            for num in deleted_numbers.message_numbers {
+                                let message_exists = existing_numbers.remove(&num);
+
+                                if message_exists {
+                                    user_object.remove_message(num, false);
+                                    user_object.renderer().delete_item(&num);
+                                }
+                            }
+                            user_object.process_queue(None);
+                        }
                         "/delete-message" => {
                             let deletion_data = DeleteMessage::from_json(splitted_data[1]);
-                            user_object.remove_message(deletion_data.message_number, false)
+                            user_object.remove_message(deletion_data.message_number, false);
                         }
                         "/message" => {
                             let message_data = MessageData::from_json(splitted_data[1]);

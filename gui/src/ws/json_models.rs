@@ -22,10 +22,12 @@ pub enum RequestType {
     GetUserData(u64),
     // Broadcast new user selection to the WS
     GetLastMessageNumber(UserObject),
-    // Ask the WS to send un-synced messages
+    // Ask the WS to send messages within a given range
     SyncMessage(u64, u64),
     // Ask the WS to delete a message
     DeleteMessage(u64, u64),
+    // Ask the WS to send deleted messages within a given range
+    SyncDeletedMessage(u64, u64),
 }
 
 /// Used for sending or receiving relevant data to create an UserObject
@@ -261,6 +263,17 @@ pub struct MessageSyncData {
 }
 
 impl MessageSyncData {
+    pub fn from_json(data: &str) -> Self {
+        serde_json::from_str(data).unwrap()
+    }
+}
+
+#[derive(Deserialize)]
+pub struct DeletedMessageData {
+    pub message_numbers: Vec<u64>,
+}
+
+impl DeletedMessageData {
     pub fn from_json(data: &str) -> Self {
         serde_json::from_str(data).unwrap()
     }

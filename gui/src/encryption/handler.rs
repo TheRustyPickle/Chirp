@@ -172,11 +172,8 @@ pub fn decrypt_message_chunk(
             .to_vec()
             .into_par_iter()
             .map(|message| {
-                // If None, it's a deleted message. To be passed empty data to the GUI for deletion if exists
                 // If message number exists, it is to be ignored by the GUI
-                if message.sender_key.is_none() {
-                    return DecryptedMessageData::new_incomplete(message);
-                } else if existing_message_numbers.contains(&message.message_number) {
+                if existing_message_numbers.contains(&message.message_number) {
                     return DecryptedMessageData::new_incomplete(message).empty_message_number();
                 }
                 decrypt_message(message, &old_aes_key, rsa_private_key, owner_id)
@@ -185,7 +182,11 @@ pub fn decrypt_message_chunk(
 
         // To prevent the GUI from freezing
         thread::sleep(Duration::from_millis(1000));
-        debug!("Decryption chunk {} processed out of {}", index, chunk_len);
+        debug!(
+            "Decryption chunk {} processed out of {}",
+            index + 1,
+            chunk_len + 1
+        );
         let completed = index == chunk_len;
 
         // Each iteration old key is updated for the next chunk

@@ -110,6 +110,10 @@ impl Handler<HandleRequest> for ChatServer {
                 let data = DeleteMessage::from_json(&msg.data);
                 self.delete_message(data);
             }
+            CommunicationType::SyncDeletedMessage => {
+                let sync_data = SyncMessage::new_from_json(&msg.data);
+                self.sync_deleted_message(msg.ws_id, sync_data)
+            }
         }
     }
 }
