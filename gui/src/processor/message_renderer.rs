@@ -2,7 +2,7 @@ mod imp {
     use adw::prelude::*;
     use adw::subclass::prelude::*;
     use gio::ListStore;
-    use glib::{derived_properties, object_subclass, Properties};
+    use glib::{derived_properties, object_subclass, Properties, SignalHandlerId};
     use gtk::{glib, NoSelection, SignalListItemFactory};
     use std::cell::{Cell, OnceCell, RefCell};
     use std::collections::HashMap;
@@ -32,6 +32,7 @@ mod imp {
         pub selection_model: OnceCell<NoSelection>,
         #[property(get, set)]
         pub became_inactive: Cell<bool>,
+        pub signal_ids: RefCell<Vec<SignalHandlerId>>,
     }
 
     #[object_subclass]
@@ -45,11 +46,10 @@ mod imp {
 }
 
 use gio::subclass::prelude::ObjectSubclassIsExt;
-use gio::{glib::SignalHandlerId, ListStore};
+use gio::ListStore;
 use glib::{clone, wrapper, Object};
 use gtk::prelude::*;
 use gtk::{glib, ListItem, NoSelection, SignalListItemFactory};
-use std::cell::RefMut;
 use tracing::debug;
 
 use crate::message::{MessageObject, MessageRow};
@@ -61,7 +61,7 @@ wrapper! {
 }
 
 impl MessageRenderer {
-    pub fn new(belongs_to: UserObject, signal_list: RefMut<Vec<SignalHandlerId>>) -> Self {
+    pub fn new(belongs_to: UserObject) -> Self {
         let liststore = ListStore::new::<MessageObject>();
         let factory = SignalListItemFactory::new();
         let selection_model = NoSelection::new(Some(liststore.clone()));
@@ -77,13 +77,19 @@ impl MessageRenderer {
             .property("became-inactive", false)
             .build();
 
-        obj.start_factory(signal_list);
+        obj.start_factory();
 
         obj
     }
 
+    pub fn stop_signals(&self) {
+        for signal in self.imp().signal_ids.take() {
+            self.disconnect(signal);
+        }
+    }
+
     /// Connect the message ListStore with the ListView factory
-    fn start_factory(&self, mut signal_list: RefMut<Vec<SignalHandlerId>>) {
+    fn start_factory(&self) {
         let factory = self.imp().message_factory.get().unwrap();
         let window = self.belongs_to().main_window();
 
@@ -123,7 +129,7 @@ impl MessageRenderer {
 
             message_row.stop_signals();
         });
-
+        let mut signal_list = self.imp().signal_ids.borrow_mut();
         signal_list.push(factory_setup_signal);
         signal_list.push(factory_bind_signal);
         signal_list.push(factory_unbind_signal);
@@ -142,15 +148,16 @@ impl MessageRenderer {
 
     /// Clears the user's Message ListStore. Used before another user is set as active
     pub fn user_inactive(&self) {
-        self.message_liststore().remove_all();
-        self.set_shown_till(self.message_number());
         if self.is_syncing() {
             self.set_became_inactive(true)
         }
+        self.set_shown_till(self.message_number());
+        self.message_liststore().remove_all();
     }
 
     /// Reloads the saved messages to the ListStore. Used after the user is set as active
     pub fn user_active(&self, start_from: Option<u64>) {
+        self.message_liststore().remove_all();
         let message_list = self.message_liststore();
         let saved_messages = self.imp().saved_messages.borrow();
 
@@ -158,6 +165,9 @@ impl MessageRenderer {
         let final_num = self.synced_till();
 
         let mut ended_at = self.message_number();
+        if ended_at > 0 {
+            ended_at += 1;
+        }
 
         if let Some(start_from) = start_from {
             ended_at = start_from;
@@ -200,5 +210,12 @@ impl MessageRenderer {
         } else {
             self.user_active(Some(self.shown_till()))
         }
+    }
+
+    pub fn delete_item(&self, message_number: &u64) {
+        self.imp()
+            .saved_messages
+            .borrow_mut()
+            .remove(&message_number);
     }
 }
