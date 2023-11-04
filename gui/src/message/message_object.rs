@@ -80,6 +80,13 @@ impl MessageObject {
     /// by MessageRow to determine whether to show the spinner
     pub fn to_process(self, state: bool) -> Self {
         self.set_must_process(state);
+        if let Some(row) = self.target_row() {
+            if state {
+                row.disable_delete_message()
+            } else {
+                row.enable_delete_message()
+            }
+        };
         self
     }
 }

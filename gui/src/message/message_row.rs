@@ -114,6 +114,12 @@ impl MessageRow {
 
         self.imp().message_data.replace(Some(object.clone()));
 
+        if object.must_process() {
+            self.disable_delete_message()
+        } else {
+            self.enable_delete_message()
+        }
+
         self.bind();
         self.connect_button_signals(window);
 
@@ -376,5 +382,13 @@ impl MessageRow {
         info!("Copying message text to clipboard");
         let text = self.imp().message_data.borrow().clone().unwrap().message();
         self.clipboard().set(&text);
+    }
+
+    pub fn enable_delete_message(&self) {
+        self.action_set_enabled("message-row.delete", true);
+    }
+
+    pub fn disable_delete_message(&self) {
+        self.action_set_enabled("message-row.delete", false);
     }
 }
