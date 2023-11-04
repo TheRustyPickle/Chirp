@@ -61,7 +61,7 @@ use gtk::{
     Orientable, Widget,
 };
 use std::time::Duration;
-use tracing::{debug, info};
+use tracing::info;
 
 use crate::user::{UserObject, UserProfile};
 use crate::window::Window;
@@ -83,7 +83,6 @@ impl UserRow {
         let new_cursor = Cursor::builder().name("pointer").build();
         row.imp().user_avatar.set_cursor(Some(&new_cursor));
 
-        // NOTE couldn't use clone! here as gtk was giving me children left error on exit. couldn't find a solution
         let row_clone = row.clone();
         motion.connect_enter(move |_, _, _| {
             if !row_clone.imp().popover_visible.get() {
@@ -146,7 +145,6 @@ impl UserRow {
     pub fn stop_signals(&self) {
         for binding in self.imp().bindings.take() {
             binding.unbind();
-            debug!("A binding in UserRow was unbind");
         }
     }
 

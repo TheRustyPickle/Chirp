@@ -63,7 +63,7 @@ use glib::{clone, closure_local, wrapper, Object};
 use gtk::{
     glib, Accessible, Buildable, ConstraintTarget, Native, Root, ShortcutManager, Widget, Window,
 };
-use tracing::{debug, error, info};
+use tracing::{error, info};
 
 use crate::user::{UserObject, UserProfile};
 use crate::window;
@@ -104,7 +104,6 @@ impl UserPrompt {
         if let Some(user_object) = user_data {
             for signal in self.imp().signal_ids.take() {
                 user_object.disconnect(signal);
-                debug!("A signal in UserPrompt was disconnected");
             }
         }
     }

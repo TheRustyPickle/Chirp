@@ -9,13 +9,14 @@ use std::env;
 use tracing::{error, info};
 
 use crate::db::{
-    create_new_message, create_new_user, delete_message_with_number, get_last_message_number,
-    get_messages_from_number, get_user_with_id, get_user_with_token, update_user_image_link,
-    update_user_name, NewMessage, User,
+    create_new_message, create_new_user, delete_message_with_number,
+    get_deleted_messages_from_number, get_last_message_number, get_messages_from_number,
+    get_user_with_id, get_user_with_token, update_user_image_link, update_user_name, NewMessage,
+    User,
 };
 use crate::server::{
-    DeleteMessage, IDInfo, ImageUpdate, Message, MessageData, NameUpdate, SendUserData,
-    SyncMessage, SyncMessageData, WSData,
+    DeleteMessage, DeletedMessageData, IDInfo, ImageUpdate, Message, MessageData, NameUpdate,
+    SendUserData, SyncMessage, SyncMessageData, WSData,
 };
 use crate::utils::{create_message_group, generate_user_token};
 
@@ -362,10 +363,6 @@ impl ChatServer {
             sync_data.end_at,
         );
 
-        if gathered_message_data.is_empty() {
-            return;
-        }
-
         let message_data: Vec<MessageData> = gathered_message_data
             .into_iter()
             .map(|msg| MessageData {
@@ -392,6 +389,39 @@ impl ChatServer {
 
         if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
             receiver_ws.do_send(Message(format!("/sync-message {}", to_send)))
+        };
+    }
+
+    pub fn sync_deleted_message(&mut self, ws_id: usize, sync_data: SyncMessage) {
+        let owner_id;
+
+        if let Some(user_data) = get_user_with_token(&mut self.conn, sync_data.user_token) {
+            owner_id = user_data.user_id as usize;
+        } else {
+            error!("Invalid user token received. Discarding request");
+            return;
+        }
+
+        let group_name = create_message_group(owner_id, sync_data.user_id);
+
+        info!("Sending deleted sync message data of group {}", group_name);
+
+        let gathered_message_data = get_deleted_messages_from_number(
+            &mut self.conn,
+            group_name,
+            sync_data.start_at,
+            sync_data.end_at,
+        );
+
+        let message_numbers: Vec<usize> = gathered_message_data
+            .into_iter()
+            .map(|msg| msg.message_number as usize)
+            .collect();
+
+        let to_send = DeletedMessageData::new_json(message_numbers);
+
+        if let Some((_, receiver_ws)) = self.sessions.get(&ws_id) {
+            receiver_ws.do_send(Message(format!("/sync-deleted-message {}", to_send)))
         };
     }
 

@@ -90,51 +90,58 @@ impl StreamHandler<Result<ws::Message, ws::ProtocolError>> for WsChatSession {
                 let m = text.trim();
                 if m.starts_with('/') {
                     let v: Vec<&str> = m.splitn(2, ' ').collect();
+                    let json_text = v[1].to_string();
+
                     match v[0] {
                         "/create-new-user" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::CreateNewUser,
                         }),
                         "/reconnect-user" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::ReconnectUser,
                         }),
                         "/get-user-data" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::SendUserData,
                         }),
                         "/message" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::SendMessage,
                         }),
                         "/name-updated" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::UpdateName,
                         }),
                         "/image-updated" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::UpdateImageLink,
                         }),
                         "/message-number" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::SendMessageNumber,
                         }),
                         "/sync-message" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::SyncMessage,
                         }),
                         "/delete-message" => self.addr.do_send(HandleRequest {
                             ws_id: self.id,
-                            data: v[1].to_string(),
+                            data: json_text,
                             comm_type: CommunicationType::DeleteMessage,
+                        }),
+                        "/sync-deleted-message" => self.addr.do_send(HandleRequest {
+                            ws_id: self.id,
+                            data: json_text,
+                            comm_type: CommunicationType::SyncDeletedMessage,
                         }),
                         _ => ctx.text(format!("!!! unknown command: {m:?}")),
                     }
